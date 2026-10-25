@@ -31,9 +31,12 @@ namespace RealLife.Simulation
             var d = b.Def; double w = 0;
             foreach (var j in d.Jobs) w += OfferWage(b, j.Role) * DesiredStaff(b, j);
             if (b.Employees.Count > 0) { w = 0; foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null) w += c.Wage; } }
+            // before anyone's hired, the crew it's planning on
+            int staff = b.Employees.Count; if (staff == 0) foreach (var j in d.Jobs) staff += DesiredStaff(b, j);
+            staff = Math.Max(1, staff);
             double supplies = 0;
-            if (d.Input.HasValue) supplies = d.Output * d.InputPer * Math.Max(1, b.Employees.Count) * Balance.DaysPerMonth * ImportPrice(d.Input.Value) * 0.8;
-            if (d.Sells.HasValue) supplies = d.Output * Math.Max(1, b.Employees.Count) * Balance.DaysPerMonth * Defs.Wholesale[(int)d.Sells.Value] * 0.45;
+            if (d.Input.HasValue) supplies = d.Output * d.InputPer * staff * Balance.DaysPerMonth * ImportPrice(d.Input.Value) * 0.8;
+            if (d.Sells.HasValue) supplies = d.Output * staff * Balance.DaysPerMonth * Defs.Wholesale[(int)d.Sells.Value] * 0.45;
             return w + supplies + d.TotalJobs * Balance.UtilitiesJob;
         }
 
@@ -201,9 +204,10 @@ namespace RealLife.Simulation
                 var d = b.Def;
                 if (!b.Open || !d.Makes.HasValue || !Connected(b)) continue;
                 var g = d.Makes.Value;
+                // what the shops here haven't bought goes out on the highway every few days, keeping a little back for them
                 float s = b.Stock[(int)g];
-                if (s < d.StockCap * 0.5f) continue;
-                float q = s - d.StockCap * 0.35f;
+                if (s < d.StockCap * 0.3f) continue;
+                float q = s - d.StockCap * 0.2f;
                 double value = q * World(g);
                 double fee = Freight(value, b.Id, -1, g);
                 b.Stock[(int)g] -= q;
@@ -276,18 +280,18 @@ namespace RealLife.Simulation
                 if (profit >= 0) b.LossMonths = 0; else b.LossMonths++;
                 Succession(b);
                 if (b.Closed) continue;
-                // owner's draw: what's above a cushion of two months' costs
-                double cushion = MonthlyCosts(b) * 2;
+                // owner's draw: what's above a cushion of two months' costs and loan payments
+                double cushion = Cushion(b);
                 if (b.Cash > cushion)
                 {
                     double draw = (b.Cash - cushion) * 0.75;
-                    b.Cash -= draw;
                     var oh = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
-                    if (oh != null) HouseholdEarns(oh, draw, HouseholdBook.Business);
-                    else Trade.Profits += draw;
+                    if (oh != null) { b.Cash -= draw; HouseholdEarns(oh, draw, HouseholdBook.Business); }
                 }
                 if (b.Cash < 0 && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
-                if (b.LossMonths >= 5 && b.Cash < MonthlyCosts(b)) { CloseBusiness(b, "it lost money five months running"); continue; }
+                // a farm loses money every winter; give it the year
+                int patience = b.Type == BuildingType.Farm ? 9 : 5;
+                if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b)) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);
             }
@@ -302,31 +306,26 @@ namespace RealLife.Simulation
             b.CapUsed = b.CapTotal = 0;
         }
 
-        /// <summary>When the owner of a family business dies, retires or moves away, family carries it on; otherwise it's sold to a firm.</summary>
+        /// <summary>When the owner of a family business dies, retires or moves away, family carries it on (or just keeps owning it
+        /// with staff running it); with no family left it's sold to someone in town.</summary>
         void Succession(Building b)
         {
             if (b.Owner != Owner.Household) return;
             var oh = GetHousehold(b.OwnerId);
+            if (oh == null) { TransferBusiness(b); return; }
             bool ownerWorks = b.Employees.Select(GetCitizen).Any(c => c != null && c.Owner && c.HouseholdId == b.OwnerId);
-            if (oh != null && ownerWorks) return;
-            if (oh != null)
+            if (ownerWorks) return;
             {
                 var heir = Members(oh).FirstOrDefault(m => m.WorkId == b.Id && !m.IsChild) ??
                            Members(oh).FirstOrDefault(m => m.InLaborForce && m.WorkId < 0 && QualifiesFor(m, b) != Role.None);
-                if (heir != null)
+                if (heir != null && QualifiesFor(heir, b) != Role.None || heir != null && heir.WorkId == b.Id)
                 {
                     heir.Owner = true;
                     if (heir.WorkId != b.Id) Hire(b, heir, QualifiesFor(heir, b), false);
                     AddLog(heir.Name + " took over the family's " + d(b) + ".", LogKind.Info, heir.Id, true);
-                    return;
                 }
+                // otherwise the family still owns it and the staff run it
             }
-            // nobody to run it: sold
-            double price = b.Value * 0.8;
-            if (oh != null) HouseholdEarns(oh, price, HouseholdBook.Business);
-            Trade.Investment += price;
-            b.Owner = Owner.Outside; b.OwnerId = -1; b.OwnerName = FirmName(b.Type);
-            AddLog("The " + d(b) + " was sold to " + b.OwnerName + ".", LogKind.Info, b.Id);
         }
         static string d(Building b) { return b.Def.Name.ToLower(); }
 
@@ -343,15 +342,35 @@ namespace RealLife.Simulation
                 Note(c, "Lost their job when " + Ref(b) + " closed.");
                 c.Owner = false; LeaveJob(c, null);
             }
-            foreach (var l in Loans.ToList()) if (l.Kind == LoanKind.Business && l.BuildingId == b.Id) { Loans.Remove(l); }
+            // the bank writes off what it lent the business and takes the building; a property firm's homes go with it
+            foreach (var l in Loans.ToList()) if (PaidBy(l, b)) Loans.Remove(l);
+            if (b.Type == BuildingType.Realty)
+                foreach (var o in Portfolio(b).ToList()) BankTakes(o);
             if (b.Cash > 0)
             {
                 var oh = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
-                if (oh != null) HouseholdEarns(oh, b.Cash, HouseholdBook.Business); else Trade.Profits += b.Cash;
+                if (oh != null) HouseholdEarns(oh, b.Cash, HouseholdBook.Business); else BankCapital += b.Cash;
             }
             b.Cash = 0; b.Closed = true; b.ClosedDays = 0; b.Staffing = 0.5f;
-            if (b.Owner == Owner.Household) { b.Owner = Owner.Outside; b.OwnerId = -1; b.OwnerName = BankName; }
+            if (b.Owner != Owner.Town) BankTakes(b);
+            if (why != null && !why.Contains("left town") && !why.Contains("nobody in town")) { PrevFailDay[(int)b.Type] = LastFailDay[(int)b.Type]; LastFailDay[(int)b.Type] = Day; }
             MapVersion++;
+        }
+
+        /// <summary>Does each worker at a plant bring in more than they're paid: what the goods sold for, less the materials, per head.</summary>
+        bool HandsPay(Building b)
+        {
+            int n = b.Employees.Count;
+            if (n == 0) return false;
+            double pay = 0; foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null) pay += c.Wage; }
+            return (b.LastRevenue - b.LastSupplies) > pay * 1.05;
+        }
+
+        double LeastWage(Building b)
+        {
+            double w = double.MaxValue;
+            foreach (var j in b.Def.Jobs) w = Math.Min(w, OfferWage(b, j.Role));
+            return w == double.MaxValue ? 0 : w;
         }
 
         void Staffing(Building b)
@@ -362,24 +381,31 @@ namespace RealLife.Simulation
             if (b.Type == BuildingType.Office) s += b.LastProfit > 0 ? 0.15f : b.LossMonths >= 2 ? -0.15f : 0;
             else if (b.Type == BuildingType.Construction)
             {
+                // a crew sized to the work on the books: what's left on its sites, over the next few months
                 float backlog = 0; foreach (var o in Buildings) if (!o.Built && o.ContractorId == b.Id) backlog += o.Def.Work - o.Progress;
                 float perMonth = Math.Max(1, b.Employees.Count) * Balance.DaysPerMonth;
-                s += backlog > perMonth * 1.5f ? 0.2f : backlog < perMonth * 0.3f ? -0.15f : 0;
+                s += backlog > perMonth * 1.5f ? 0.2f : backlog < perMonth * 0.4f ? -0.25f : backlog < perMonth ? -0.1f : 0;
             }
+            else if (b.Type == BuildingType.Realty) { PlanFirmStaff(b); s = 1f; }
             else if (b.Type == BuildingType.Trucking) s += FreightOutsideMonth > 500 ? 0.15f : b.LastUse < 0.4f ? -0.1f : 0;
             else if (b.Type == BuildingType.Bank) s += b.LastProfit > 3000 ? 0.15f : b.LastProfit < 0 ? -0.15f : 0;
             else if (d.Makes.HasValue)
             {
                 float fill = b.Stock[(int)d.Makes.Value] / d.StockCap;
                 bool inputs = !d.Input.HasValue || b.Stock[(int)d.Input.Value] > 0.5f;
-                if (b.LossMonths >= 2 || fill > 0.9f) s -= 0.15f;
+                bool young = Day - b.BuiltDay < Balance.DaysPerYear / 2;
+                if (fill > 0.9f) s -= 0.15f;
+                else if (young && inputs && b.Cash > MonthlyCosts(b)) s += 0.15f;   // a new plant hires up to the size it was built for
+                else if (b.LossMonths >= 2 && !HandsPay(b)) s -= 0.15f;   // cutting staff who earn more than they cost only deepens a loss
                 else if (b.LastProfit >= 0 && inputs && b.LastUse > 0.8f) s += 0.15f;
                 else if (!inputs) s -= 0.1f;
             }
             else
             {
-                // turning customers away: more hands, if there's money to pay them
-                if (lostShare > 0.08f && (b.LossMonths == 0 || (lostShare > 0.2f && b.Cash > MonthlyCosts(b)))) s += 0.17f;
+                // turning customers away: more hands, if there's money to pay them and, for a service, enough custom turned away
+                // to cover another wage
+                bool worthIt = d.Serves == Service.None || b.LastLost * b.Price > LeastWage(b) * 0.8;
+                if (lostShare > 0.08f && worthIt && (b.LossMonths == 0 || (lostShare > 0.2f && b.Cash > MonthlyCosts(b)))) s += 0.17f;
                 else if (b.LastUse < 0.45f || b.LossMonths >= 2) s -= 0.12f;
             }
             b.Staffing = Math.Max(0.25f, Math.Min(1f, s));
@@ -412,6 +438,7 @@ namespace RealLife.Simulation
                 if (lostShare > 0.12f) b.Price *= 1 + step;
                 else if (b.LastUse < 0.45f) b.Price *= 1 - step;
                 else if (b.LossMonths >= 2) b.Price *= 1 + step * 0.5f;
+                else if (b.LastLost == 0 && b.LastUse < 0.75f && b.Price > baseP * 1.15) b.Price *= 1 - step * 0.5f;   // room to spare: ease back
             }
             else if (d.Makes.HasValue)
             {

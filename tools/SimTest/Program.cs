@@ -11,7 +11,24 @@ static class Program
         bool verbose = args.Length > 2 && args[2] == "v";
         string watch = args.Length > 3 ? args[3] : null;
         var t = Town.CreateNew(seed);
+        if (Environment.GetEnvironmentVariable("DEVNOTES") == "1") t.DevNotes = new System.Collections.Generic.List<string>();
         Console.WriteLine($"{t.Name}: pop {t.Population}, households {t.Households.Count}, buildings {t.Buildings.Count}, jobs {t.JobSlots()}, employed {t.Employed()}, unemployed {t.Unemployed()}");
+        if (args.Length > 4 && args[4] == "migrate")
+        {
+            // pretend this is an old save: outside firms own the rentals and the big businesses, no property firms, farms on industrial land
+            foreach (var b in t.Buildings.ToList())
+            {
+                if (b.Type == BuildingType.Realty) { b.Owner = Owner.Outside; b.Closed = true; foreach (var id in b.Employees.ToList()) { var c = t.GetCitizen(id); c.Owner = false; t.LeaveJob(c, null); } }
+                else if (b.Owner == Owner.Firm && b.OwnerId >= 0) { b.Owner = Owner.Outside; b.OwnerId = -1; b.OwnerName = "Horizon Properties"; }
+                else if (Town.IsBusiness(b) && b.Brand != null) { b.Owner = Owner.Outside; b.OwnerName = b.Brand; b.Brand = null; foreach (var id in b.Employees) t.GetCitizen(id).Owner = false; }
+            }
+            t.Loans.RemoveAll(l => l.FirmId >= 0);
+            for (int y = 59; y < 71; y++) for (int x = 15; x < 38; x++) if (t.ZoneAt(x, y) == Zone.Farmland) t.SetZone(x, y, Zone.Industrial);
+            t.SaveVersion = 1;
+            t.Migrate();
+            Console.WriteLine("migrated: outside-owned left " + t.Buildings.Count(b => b.Owner == Owner.Outside) + ", property firms " + t.PropertyFirms().Count + " owning " + t.PropertyFirms().Sum(f => t.Portfolio(f).Count()) + ", farm tiles farmland " + t.Buildings.Where(b => b.Type == BuildingType.Farm).All(b => t.ZoneAt(b.X, b.Y) == Zone.Farmland));
+            foreach (var f in t.PropertyFirms()) Console.WriteLine("  " + t.Title(f) + " owner " + f.OwnerName + " staff " + f.Employees.Count + " homes " + t.Portfolio(f).Count());
+        }
         if (args.Length > 4 && args[4] == "schools")
         {
             foreach (var bt in new[] { BuildingType.HighSchool, BuildingType.College, BuildingType.Park, BuildingType.BusDepot })
@@ -30,6 +47,7 @@ static class Program
         {
             for (int d = 0; d < Balance.DaysPerMonth; d++) t.Advance(1f);
             Row(t);
+            if (t.DevNotes != null) { if (t.DevNotes.Count > 0) Console.WriteLine("      dev: " + string.Join(" | ", t.DevNotes)); t.DevNotes.Clear(); }
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);
             if (watch != null) foreach (var b in t.Buildings.Where(b => b.Type.ToString() == watch)) Console.WriteLine($"      [{b.Type} {b.Id}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00}");
         }

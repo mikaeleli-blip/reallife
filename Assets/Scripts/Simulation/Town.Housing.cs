@@ -5,8 +5,8 @@ using System.Linq;
 namespace RealLife.Simulation
 {
     /// <summary>
-    /// Homes and the bills that come with them. Renters pay their landlord (a firm out of town, or a family here who owns a second
-    /// place); owners pay their mortgage and property tax. Landlords move rents with how many flats stand empty, and house prices
+    /// Homes and the bills that come with them. Renters pay their landlord (a property firm in town, a family here who owns a second
+    /// place, or the bank for what it has repossessed); owners pay their mortgage and property tax. Landlords move rents with how many flats stand empty, and house prices
     /// follow the whole town's market. Renters with savings and a steady job buy; families who miss their payments are evicted
     /// or foreclosed on. Also the month's other bills and incomes: utilities, benefits, pensions and tuition.
     /// </summary>
@@ -128,38 +128,32 @@ namespace RealLife.Simulation
             }
         }
 
-        void PayLandlord(Building home, double amount)
-        {
-            if (amount <= 0) return;
-            if (home.Owner == Owner.Household)
-            {
-                var lh = GetHousehold(home.OwnerId);
-                if (lh != null) { HouseholdEarns(lh, amount, HouseholdBook.Business); return; }
-            }
-            home.Cash += amount; home.Revenue += amount;
-        }
+        void PayLandlord(Building home, double amount) { PayOwner(home, amount, true); }
 
-        /// <summary>Rental buildings: tax, upkeep, the owner's take, and next month's rent.</summary>
+        /// <summary>Rental buildings: tax, upkeep, and next month's rent. Firms' handymen do their upkeep; families and the bank
+        /// pay the local builder.</summary>
         void Landlords()
         {
             float vacancy = TotalUnits() > 0 ? VacantUnits() / (float)TotalUnits() : 0;
+            var firmUpkeep = new Dictionary<int, double>();
             foreach (var b in Buildings)
             {
                 if (!b.Built || b.Def.Homes == 0) continue;
                 bool occupiedByOwner = b.Owner == Owner.Household && b.Households.Contains(b.OwnerId);
                 if (occupiedByOwner) continue;
                 double tax = b.Value * Policy.PropertyTax / 12, upkeep = b.Value * Balance.Maintenance / 12;
-                if (b.Owner == Owner.Household)
+                Treasury += tax; Book.PropertyTax += tax;
+                var firm = OwnerFirm(b);
+                if (firm != null)
                 {
-                    var lh = GetHousehold(b.OwnerId);
-                    if (lh != null) { HouseholdPays(lh, tax + upkeep, HouseholdBook.Housing); Repairs(upkeep); Treasury += tax; Book.PropertyTax += tax; }
+                    firm.Cash -= tax; firm.TaxPaid += tax;
+                    double u; firmUpkeep.TryGetValue(firm.Id, out u); firmUpkeep[firm.Id] = u + upkeep;
                 }
-                else
+                else if (b.Owner == Owner.Household && GetHousehold(b.OwnerId) != null)
                 {
-                    b.Cash -= tax + upkeep; b.TaxPaid += tax; Repairs(upkeep); Treasury += tax; Book.PropertyTax += tax;
-                    if (b.Cash > 0) { Trade.Profits += b.Cash; b.Cash = 0; }
-                    b.LastRevenue = b.Revenue; b.Revenue = 0; b.LastTax = b.TaxPaid; b.TaxPaid = 0;
+                    HouseholdPays(GetHousehold(b.OwnerId), tax + upkeep, HouseholdBook.Housing); Repairs(upkeep);
                 }
+                else { BankCapital -= tax + upkeep; Repairs(upkeep); }
                 // the rent follows how many homes stand empty
                 int free = FreeUnits(b);
                 if (b.ForSale) continue;
@@ -167,6 +161,8 @@ namespace RealLife.Simulation
                 else { b.VacantDays = 0; if (vacancy < 0.05f) b.Rent *= 1.025; else if (vacancy < 0.09f) b.Rent *= 1.008; }
                 b.Rent = Math.Round(Math.Max(b.Def.Rent * 0.55, Math.Min(b.Def.Rent * 2.4, b.Rent)) / 5) * 5;
             }
+            foreach (var kv in firmUpkeep) { var f = GetBuilding(kv.Key); if (f != null) FirmUpkeep(f, kv.Value); }
+            BankSales();
         }
 
         void HousePrices()
@@ -184,11 +180,11 @@ namespace RealLife.Simulation
         void HomeBuying()
         {
             var market = Buildings.Where(b => b.ForSale && b.Built && b.Households.Count == 0 && Connected(b)).ToList();
-            // unsold for three months: the developer lets it instead
+            // unsold for four months: the property firm that built it lets it instead
             foreach (var b in market.ToList())
             {
                 b.VacantDays += Balance.DaysPerMonth;
-                if (b.VacantDays >= 16 && b.Owner == Owner.Outside) { b.ForSale = false; b.VacantDays = 0; b.Rent = b.Def.Rent * HousingIndex; market.Remove(b); }
+                if (b.VacantDays >= 16 && OwnerFirm(b) != null) { b.ForSale = false; b.VacantDays = 0; b.Rent = b.Def.Rent * HousingIndex; market.Remove(b); }
             }
             if (market.Count == 0) return;
             foreach (var h in Households.OrderBy(x => Rand()).ToList())
@@ -218,9 +214,9 @@ namespace RealLife.Simulation
                 if (market.Count == 0 || !Chance(0.25f)) break;
                 var b = market.OrderBy(x => x.Value).First();
                 if (h.Cash < b.Value * 1.05 + 30000) continue;
-                SellerGets(b, b.Value);
+                SellerGets(b, b.Value, false);
                 HouseholdPays(h, b.Value * 1.03, HouseholdBook.Housing); Trade.Imports += b.Value * 0.03;
-                b.Owner = Owner.Household; b.OwnerId = h.Id; b.OwnerName = h.Name; b.ForSale = false; b.Rent = b.Def.Rent * HousingIndex; b.VacantDays = 0;
+                FamilyOwns(b, h); b.ForSale = false; b.Rent = b.Def.Rent * HousingIndex; b.VacantDays = 0;
                 market.Remove(b);
                 AddLog("The " + h.Name + " family bought a house to rent out.", LogKind.Money);
             }
@@ -229,7 +225,7 @@ namespace RealLife.Simulation
         void BuyHome(Household h, Building b)
         {
             double price = b.Value, down = price * 0.1, fees = price * 0.03;
-            SellerGets(b, price);
+            SellerGets(b, price, false);
             HouseholdPays(h, down + fees, HouseholdBook.Housing); Trade.Imports += fees;
             NewLoan(LoanKind.Mortgage, h, b, price - down, Balance.MortgageRate, Balance.MortgageMonths);
             MoveIn(h, b, true);
@@ -237,35 +233,6 @@ namespace RealLife.Simulation
             var c = Members(h).FirstOrDefault(m => !m.IsChild);
             if (c != null) Note(c, "Bought a house for " + Money(price) + ".");
             AddLog("The " + h.Name + " family bought a house for " + Money(price) + " with a mortgage.", LogKind.Money, c != null ? c.Id : -1, c != null);
-        }
-
-        /// <summary>The seller of a building is paid: a local family (who clear their mortgage on it) or someone out of town.</summary>
-        void SellerGets(Building b, double price)
-        {
-            var seller = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
-            if (seller != null)
-            {
-                HouseholdEarns(seller, price, HouseholdBook.Business);
-                foreach (var l in Loans.ToList())
-                    if (l.Kind == LoanKind.Mortgage && l.BuildingId == b.Id) { HouseholdPays(seller, l.Principal, HouseholdBook.Debt); BankCapital += l.Principal; Loans.Remove(l); }
-            }
-            else Trade.Profits += price;
-        }
-
-        /// <summary>A family's building goes to an outside buyer (they're leaving, or nobody's left to own it).</summary>
-        void SellToOutside(Building b)
-        {
-            double price = b.Value * 0.95;
-            var seller = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
-            if (seller != null)
-            {
-                seller.Cash += price; Trade.Investment += price;
-                foreach (var l in Loans.ToList())
-                    if (l.BuildingId == b.Id && (l.Kind == LoanKind.Mortgage || l.Kind == LoanKind.Business)) { seller.Cash -= l.Principal; BankCapital += l.Principal; Loans.Remove(l); }
-            }
-            b.Owner = Owner.Outside; b.OwnerId = -1; b.OwnerName = Pick(Names.Firms) + (b.Def.Homes > 0 ? " Properties" : " Holdings");
-            if (b.Type == BuildingType.House) { b.ForSale = true; b.VacantDays = 0; }
-            b.Rent = b.Def.Rent * HousingIndex;
         }
 
         void Foreclose(Loan l)
@@ -285,9 +252,8 @@ namespace RealLife.Simulation
                     if (rental != null) MoveIn(h, rental, false);
                 }
             }
-            b.Owner = Owner.Outside; b.OwnerId = -1; b.OwnerName = BankName; b.ForSale = b.Type == BuildingType.House; b.VacantDays = 0;
-            // the bank sells it on and gets some of its money back
-            BankCapital += b.Value * 0.7;
+            // the bank holds it and sells it on (BankSales); what it gets back comes in then
+            BankTakes(b);
         }
 
         // ================================================================== loans
@@ -338,19 +304,13 @@ namespace RealLife.Simulation
             if (BankCapital < 0) { BankFunding += -BankCapital; BankCapital = 0; }
         }
 
-        /// <summary>Lends a business what it needs to keep going, if it looks like a going concern. An outside firm's head office
-        /// tops up its account instead.</summary>
+        /// <summary>Lends a business what it needs to keep going, if it looks like a going concern and it has the security.</summary>
         bool BusinessLoan(Building b, double amount)
         {
-            if (b.LossMonths >= 3 && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
-            if (b.Owner == Owner.Outside)
-            {
-                if (b.LossMonths >= 4) return false;
-                b.Cash += amount; Trade.Investment += amount; return true;
-            }
-            double owed = 0; foreach (var l in Loans) if (l.Kind == LoanKind.Business && l.BuildingId == b.Id) owed += l.Principal;
-            if (owed + amount > b.Value * 0.8) return false;
-            NewLoan(LoanKind.Business, GetHousehold(b.OwnerId), b, amount, Balance.BusinessRate, Balance.BusinessMonths);
+            // a farm is lent against next season's harvest through the winter
+            if (b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
+            if (Debt(b) + amount > Collateral(b) * 0.8) return false;
+            NewLoan(LoanKind.Business, b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null, b, amount, Balance.BusinessRate, Balance.BusinessMonths);
             b.Cash += amount;
             return true;
         }
@@ -368,10 +328,10 @@ namespace RealLife.Simulation
                 double interest = l.Principal * r;
                 double due = Math.Min(l.Payment, l.Principal + interest);
                 var h = GetHousehold(l.HouseholdId);
-                var biz = l.Kind == LoanKind.Business ? GetBuilding(l.BuildingId) : null;
+                var biz = LoanPayer(l);
                 bool paid = false;
                 if (biz != null) { if (biz.Cash >= due) { biz.Cash -= due; biz.OtherCosts += interest; paid = true; } }
-                else if (h != null) { if (h.Cash >= due) { HouseholdPays(h, due, HouseholdBook.Debt); paid = true; } }
+                else if (h != null && l.Kind != LoanKind.Business) { if (h.Cash >= due) { HouseholdPays(h, due, HouseholdBook.Debt); paid = true; } }
                 else { Loans.Remove(l); continue; }
                 if (paid)
                 {
@@ -394,8 +354,15 @@ namespace RealLife.Simulation
                         BankCapital += l.Principal * 0.4;
                         break;
                     case LoanKind.Business:
-                        if (biz != null) CloseBusiness(biz, "it couldn't repay its loan");
+                        var asset = GetBuilding(l.BuildingId);
                         Loans.Remove(l);
+                        if (asset != null && biz != null && asset != biz)
+                        {
+                            // a firm behind on the loan for one of its buildings: the bank repossesses that building
+                            BankTakes(asset);
+                            AddLog(Title(biz) + " fell behind on its loan for " + (asset.Def.Homes > 0 ? "an " + asset.Def.Name.ToLower() : Ref(asset)) + ": the bank took it.", LogKind.Bad, asset.Id);
+                        }
+                        else if (biz != null) CloseBusiness(biz, "it couldn't repay its loan");
                         break;
                     default:
                         if (l.Missed >= 12) Loans.Remove(l);

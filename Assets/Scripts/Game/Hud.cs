@@ -147,12 +147,12 @@ namespace RealLife.Game
         /// <summary>The R/C/I meters: how much each kind of zone is wanted.</summary>
         void Demand()
         {
-            var r = Claim(Ui.R(10, 58, 132, 70));
+            var r = Claim(Ui.R(10, 58, 172, 70));
             Ui.PanelBox(r);
-            Ui.Small(Ui.R(18, 60, 120, 18), "Demand");
-            string[] n = { "Homes", "Shops", "Work" };
-            Zone[] z = { Zone.Residential, Zone.Commercial, Zone.Industrial };
-            for (int i = 0; i < 3; i++)
+            Ui.Small(Ui.R(18, 60, 160, 18), "Demand");
+            string[] n = { "Homes", "Shops", "Work", "Farms" };
+            Zone[] z = { Zone.Residential, Zone.Commercial, Zone.Industrial, Zone.Farmland };
+            for (int i = 0; i < 4; i++)
             {
                 float v = T.ZoneDemand[(int)z[i]];
                 float bx = 18 + i * 40;
@@ -166,6 +166,7 @@ namespace RealLife.Game
                 Ui.Center(Ui.R(bx - 5, 109, 40, 16), "<size=" + Mathf.RoundToInt(11 * Ui.S) + ">" + n[i] + "</size>", Ui.Dim);
                 Tip(track, z[i] == Zone.Residential ? "Demand for homes: people who'd move here, or move out of their parents', if there were somewhere to live."
                          : z[i] == Zone.Commercial ? "Demand for shops and services: sales nobody in town could make."
+                         : z[i] == Zone.Farmland ? "Demand for farmland: crops the food plant has to bring in from outside."
                          : "Demand for workplaces: people looking for work that firms could hire.");
             }
         }
@@ -175,7 +176,7 @@ namespace RealLife.Game
         {
             float W = Screen.width / Ui.S, H = Screen.height / Ui.S;
             float bw = 84, bh = 54, gap = 4;
-            int n = 12;
+            int n = 13;
             float total = n * (bw + gap) + 14;
             float x0 = (W - total) / 2, y = H - bh - 12;
             var back = Claim(Ui.R(x0 - 8, y - 8, total + 16, bh + 16));
@@ -186,6 +187,7 @@ namespace RealLife.Game
             ToolButton(ref x, y, bw, bh, "Homes", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Residential, () => gc.SetTool(Tool.Zone, Zone.Residential), GameController.ZoneHint(Zone.Residential));
             ToolButton(ref x, y, bw, bh, "Shops", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Commercial, () => gc.SetTool(Tool.Zone, Zone.Commercial), GameController.ZoneHint(Zone.Commercial));
             ToolButton(ref x, y, bw, bh, "Industry", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Industrial, () => gc.SetTool(Tool.Zone, Zone.Industrial), GameController.ZoneHint(Zone.Industrial));
+            ToolButton(ref x, y, bw, bh, "Farms", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Farmland, () => gc.SetTool(Tool.Zone, Zone.Farmland), GameController.ZoneHint(Zone.Farmland));
             ToolButton(ref x, y, bw, bh, "Unzone", gc.Tool == Tool.Dezone, () => gc.SetTool(Tool.Dezone), "Clear zoning from empty land.");
             ToolButton(ref x, y, bw, bh, "Build", buildMenu || gc.Tool == Tool.Place, () => { buildMenu = !buildMenu; if (buildMenu) Open = Panel.None; }, "Public buildings the town pays for: schools, a clinic, police, parks, buses.");
             ToolButton(ref x, y, bw, bh, "Bulldoze", gc.Tool == Tool.Bulldoze, () => gc.SetTool(Tool.Bulldoze), "Remove roads, zoning, public buildings and empty private ones. (X)");

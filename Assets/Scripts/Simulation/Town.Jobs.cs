@@ -42,6 +42,7 @@ namespace RealLife.Simulation
                 }
             }
             if (d.Cat == Category.Residential || d.Cat == Category.Special) return 0;
+            if (b.Type == BuildingType.Realty) return j.Role == Role.PropertyManager ? Math.Max(1, b.WantManagers) : b.WantHands;
             bool first = d.Jobs.Length > 0 && d.Jobs[0].Role == j.Role;
             return Math.Max(first ? 1 : 0, (int)Math.Round(j.Count * b.Staffing));
         }
@@ -149,6 +150,7 @@ namespace RealLife.Simulation
                 case BuildingType.FoodPlant: return "Foods";
                 case BuildingType.GarmentFactory: return "Garments";
                 case BuildingType.ElectronicsPlant: return "Electronics Plant";
+                case BuildingType.Realty: return "Properties";
                 default: return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(Defs.Get(t).Name);
             }
         }
@@ -176,6 +178,7 @@ namespace RealLife.Simulation
             var d = b.Def;
             if (d.Cat == Category.Public || d.Cat == Category.Residential || d.Cat == Category.Special) return d.Name.ToLower();
             if (b.Closed && b.Built) return "empty " + d.Name.ToLower();
+            if (!string.IsNullOrEmpty(b.Brand)) return b.Brand;
             if (b.Owner == Owner.Household && !string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName + (b.OwnerName.EndsWith("s") ? "' " : "'s ") + ShortName(b.Type);
             if (!string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName;
             return d.Name.ToLower();

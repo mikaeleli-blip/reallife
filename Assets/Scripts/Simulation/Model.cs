@@ -103,8 +103,11 @@ namespace RealLife.Simulation
         public bool Started;              // materials delivered
         // Ownership and money
         public Owner Owner;
-        public int OwnerId = -1;          // the household that owns it
-        public string OwnerName;          // an outside firm's name
+        public int OwnerId = -1;          // the household that owns it, or (Owner.Firm) the company's building, -1 the bank
+        public string OwnerName;          // the owner's name: a family, a company or the bank
+        public string Brand;              // a business's trading name, if it has one ("Horizon Properties")
+        public double EquityLeft;         // while it's going up: what the founders still mean to put in from their savings
+        public int WantManagers, WantHands;   // a property firm's staff for the homes it has
         public double Cash;               // the business's account
         public double Value;
         public bool Closed;               // a business that has shut
@@ -150,6 +153,7 @@ namespace RealLife.Simulation
         public LoanKind Kind;
         public int HouseholdId = -1;
         public int BuildingId = -1;       // a business loan, or the home a mortgage is on
+        public int FirmId = -1;           // a company that pays it (a property firm's loan on one of its buildings)
         public int CitizenId = -1;        // the student a student loan is for
         public double Principal;          // still owed
         public double Rate;               // a year

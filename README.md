@@ -7,8 +7,9 @@ people it needs (if anyone in town has the right qualifications), sets its price
 imports it, and keeps its own books. If it can't make payroll it borrows; if it can't borrow it closes.
 
 You're the unseen hand. You lay out the streets, zone the land, build the schools, clinics, police and fire stations, parks and
-bus depots, and set the laws. Developers, entrepreneurs and outside firms decide what gets built on the land you zone, based on
-what they can see: empty homes, customers turned away, sales nobody in town can make, people looking for work.
+bus depots, and set the laws. Local families and the town's property firms decide what gets built on the land you zone, based
+on what they can see: empty homes, customers turned away, sales nobody in town can make, people looking for work. Everything
+is owned by someone who lives here.
 
 Built in Unity 6 (6000.6.5f1) with URP. Every model is built in code (the same approach as Mobland): boxes and roofs
 wearing procedural PBR textures, with window atlases mapped bay by bay so offices, flats and shops light up at night, plus
@@ -68,24 +69,36 @@ of their parents' place; singles pair up and move in together; couples have chil
 
 **Businesses.** Shops buy stock from makers in town (a food plant for groceries, factories for clothes, electronics,
 furniture) when that's cheaper than importing it, and sell to households with sales tax on top. Restaurants, cafés, bars,
-gyms, salons and garages sell services. Farms grow crops for the food plant; factories export what the town can't buy at
-world prices. Offices bill clients outside town and are the best-paid jobs, if the town has the graduates to staff them.
+gyms, salons and garages sell services. Farms grow crops for the food plant on Farmland you zone (well away from the
+factories, if you like); factories export what the town can't buy at world prices. Offices bill clients outside town and are the best-paid jobs, if the town has the graduates to staff them.
 Construction companies build everything and do repair work; trucking depots haul goods (without one, outside hauliers charge
 more). The bank lends for homes, cars, college and businesses. Every month each business pays wages, utilities, upkeep and
-taxes, its owner takes what's above a cushion (profits from outside-owned firms leave town), and it decides how many staff it
-needs and what to charge: prices rise when it turns customers away and fall when stock piles up; wages rise when it can't
-hire.
+taxes, its owner takes what's above a cushion, and it decides how many staff it needs and what to charge: prices rise when it
+turns customers away and fall when stock piles up; wages rise when it can't hire. Every business belongs to a family in town:
+the founders put in some savings and the bank lends the rest. When the owners leave or die without an heir, the staff or
+another family buys it, or it shuts and the bank sells the building on.
+
+**Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
+with property managers and handymen on staff. They build houses to sell and flats to let, buy repossessed homes from the
+bank, collect the rent, pay the property tax and keep the places up. When there are none and people need homes, a family
+starts one.
+
+**Who opens what.** A new business only opens when the numbers add up for a few months running: enough custom going out of
+town to pay a crew and the loan, or shops here that are full, making money and still turning people away. A second builder
+opens only when the first has had more steady work than it can handle for months; a second plant of a kind only when the
+ones here are well staffed and comfortably in profit. After one fails nobody tries the same thing for a year (two,
+after two failures), so you won't see the same shop open and close over and over.
 
 **Growth.** Zone land and the market decides. Open jobs bring families from outside if there are homes for them; empty
-homes and turned-away shoppers make developers build; people looking for work draw factories and offices. Your zone demand
-meters (top left) show what's wanted.
+homes and turned-away shoppers make developers build; people looking for work draw factories and offices; crops imported
+for the food plant draw farms. Your zone demand meters (top left: homes, shops, industry, farms) show what's wanted.
 
 **The town's books.** Income tax, sales tax, property tax, business tax and college tuition come in; public employees'
 pay, upkeep of buildings and roads, unemployment benefits and construction go out. You can run a deficit and borrow, at 5.5%
 a year.
 
 **The town line.** Money comes into town from exports, office work billed outside, pensions and outside investment, and
-leaves through imports, profits to outside owners, utilities and insurance, outside hauliers and retirement savings. The
+leaves through imports, utilities and insurance, outside hauliers and retirement savings. The
 highway terminal's inspector shows last month's balance.
 
 ## Laws (the Laws panel)

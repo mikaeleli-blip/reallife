@@ -10,7 +10,7 @@ namespace RealLife.Simulation
     /// <summary>Things people pay for that can't be stored: a meal out, a haircut, a repair.</summary>
     public enum Service { None, Meals, Coffee, Drinks, Haircut, Fitness, CarRepair }
 
-    public enum Zone : byte { None, Residential, Commercial, Industrial }
+    public enum Zone : byte { None, Residential, Commercial, Industrial, Farmland }
 
     public enum Category { Residential, Commercial, Industrial, Public, Special }
 
@@ -20,7 +20,9 @@ namespace RealLife.Simulation
     /// <summary>Where someone is in school right now.</summary>
     public enum Stage { None, Elementary, HighSchool, TradeSchool, College, MedSchool }
 
-    public enum Owner { Town, Household, Outside }
+    /// <summary>Who owns a building. Firm: a local company (OwnerId is the company's own building; -1 is the bank).
+    /// Outside is only the state highway now (and old saves, converted on load).</summary>
+    public enum Owner { Town, Household, Outside, Firm }
 
     public enum LoanKind { Mortgage, Car, Student, Business }
 
@@ -38,7 +40,9 @@ namespace RealLife.Simulation
         // Public
         TownHall, Elementary, HighSchool, College, Clinic, Hospital, Police, FireStation, Park, BusDepot,
         // Special
-        FreightTerminal
+        FreightTerminal,
+        // Commercial (added later; kept at the end so saved games keep their numbers)
+        Realty
     }
 
     public enum Role
@@ -48,7 +52,8 @@ namespace RealLife.Simulation
         ConstructionWorker, Electrician, Plumber, SiteManager,
         Cashier, StockClerk, StoreManager, Cook, Chef, Waiter, Barista, Bartender, SalesClerk, Attendant, CarSales,
         Mechanic, Hairdresser, Trainer, OfficeClerk, Accountant, Developer, Teller, LoanOfficer, BranchManager,
-        Teacher, Professor, Janitor, Nurse, Doctor, Receptionist, PoliceOfficer, Firefighter, BusDriver, TownClerk, ParkKeeper
+        Teacher, Professor, Janitor, Nurse, Doctor, Receptionist, PoliceOfficer, Firefighter, BusDriver, TownClerk, ParkKeeper,
+        PropertyManager, Handyman
     }
 
     public sealed class RoleDef
@@ -109,7 +114,7 @@ namespace RealLife.Simulation
         public const float AdultAge = 18f, RetireAge = 67f, SchoolAge = 6f, HighSchoolAge = 12f;
         public const float ChildFood = 0.7f;                // a child eats this much of an adult's groceries
 
-        public const double LaborRate = 650;                // what a construction company bills per labour-day
+        public const double LaborRate = 1300;               // what a construction company bills per labour-day (a worker-week)
         public const double FreightLocal = 0.04, FreightOutside = 0.06;   // share of a shipment's value paid for trucking
         public const double TruckCapacity = 60000;          // shipment value a driver can move in a day
 
@@ -124,6 +129,11 @@ namespace RealLife.Simulation
 
         public const double MortgageRate = 0.065, CarRate = 0.079, StudentRate = 0.05, BusinessRate = 0.09, FundingRate = 0.042;
         public const int MortgageMonths = 360, CarMonths = 60, StudentMonths = 120, BusinessMonths = 84;
+        public const double PropertyRate = 0.068;           // a loan secured on a building a business or a property firm puts up
+        public const int PropertyMonths = 300;
+        public const double Equity = 0.12;                  // the share of a new business's cost its founders put in themselves
+        public const double HandymanUpkeep = 3600;          // a month of upkeep labour one handyman covers
+        public const int UnitsPerManager = 36;
 
         public const double TuitionTrade = 650, TuitionDegree = 950, TuitionMedical = 1600;   // monthly
         public const float YearsTrade = 2, YearsDegree = 4, YearsMedical = 4, YearsElementary = 6, YearsHighSchool = 6;
@@ -273,6 +283,8 @@ namespace RealLife.Simulation
             R(Role.BusDriver, "Bus driver", Edu.HighSchool, 3500);
             R(Role.TownClerk, "Town clerk", Edu.HighSchool, 3700);
             R(Role.ParkKeeper, "Park keeper", Edu.None, 2600);
+            R(Role.PropertyManager, "Property manager", Edu.HighSchool, 3900);
+            R(Role.Handyman, "Handyman", Edu.None, 3000);
 
             BuildingDef d;
             // ---------------------------------------------------------------- Residential
@@ -303,25 +315,25 @@ namespace RealLife.Simulation
             d = D(BuildingType.AutoRepair, "Auto repair", 1, 1, Category.Commercial, Zone.Commercial, 85000, 40, "Fixes cars that break down. Uses parts.");
             d.Jobs = J(Role.Mechanic, 3); d.Serves = Service.CarRepair; d.ServicePrice = 380; d.Output = 5; d.Input = Good.Parts; d.InputPer = 2.2f; d.StockCap = 40; d.MinPop = 200; d.Value = 190000;
             d = D(BuildingType.HairSalon, "Hair salon", 1, 1, Category.Commercial, Zone.Commercial, 55000, 30, "Haircuts.");
-            d.Jobs = J(Role.Hairdresser, 3); d.Serves = Service.Haircut; d.ServicePrice = 38; d.Output = 28; d.MinPop = 200; d.Value = 140000; d.Floors = 2;
+            d.Jobs = J(Role.Hairdresser, 3); d.Serves = Service.Haircut; d.ServicePrice = 48; d.Output = 28; d.MinPop = 200; d.Value = 140000; d.Floors = 2;
             d = D(BuildingType.Gym, "Gym", 2, 1, Category.Commercial, Zone.Commercial, 130000, 55, "Keeps people healthy and happier.");
-            d.Jobs = J(Role.Trainer, 3, Role.Receptionist, 1); d.Serves = Service.Fitness; d.ServicePrice = 15; d.Output = 70; d.MinPop = 260; d.Value = 260000;
+            d.Jobs = J(Role.Trainer, 3, Role.Receptionist, 1); d.Serves = Service.Fitness; d.ServicePrice = 15; d.Output = 110; d.MinPop = 260; d.Value = 260000;
             d = D(BuildingType.Office, "Office building", 2, 2, Category.Commercial, Zone.Commercial, 900000, 360, "Accountants, clerks and software developers billing clients outside town. Needs educated people.");
             d.Jobs = J(Role.OfficeClerk, 6, Role.Accountant, 4, Role.Developer, 6); d.MinPop = 0; d.Value = 2000000; d.Floors = 6;
             d = D(BuildingType.Bank, "Bank", 2, 1, Category.Commercial, Zone.Commercial, 300000, 110, "Lends for homes, cars, college and businesses.");
             d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 0; d.Value = 600000; d.Floors = 2;
 
             // ---------------------------------------------------------------- Industrial
-            d = D(BuildingType.Farm, "Farm", 3, 3, Category.Industrial, Zone.Industrial, 180000, 80, "Grows crops for the food plant. Surplus is sold out of town.");
-            d.Jobs = J(Role.Farmer, 4); d.Makes = Good.Crops; d.Output = 46; d.Input = Good.Fuel; d.InputPer = 0.03f; d.StockCap = 1200; d.Value = 420000;
+            d = D(BuildingType.Farm, "Farm", 3, 3, Category.Industrial, Zone.Farmland, 180000, 80, "Grows crops for the food plant. Surplus is sold out of town. Farms go on farmland.");
+            d.Jobs = J(Role.Farmer, 4); d.Makes = Good.Crops; d.Output = 52; d.Input = Good.Fuel; d.InputPer = 0.03f; d.StockCap = 1200; d.Value = 420000;
             d = D(BuildingType.FoodPlant, "Food processing plant", 2, 2, Category.Industrial, Zone.Industrial, 520000, 200, "Turns crops into groceries for the stores.");
-            d.Jobs = J(Role.Technician, 1, Role.PlantWorker, 6); d.Makes = Good.Groceries; d.Input = Good.Crops; d.InputPer = 1f; d.Output = 40; d.StockCap = 1200; d.Value = 900000;
+            d.Jobs = J(Role.Technician, 1, Role.PlantWorker, 6); d.Makes = Good.Groceries; d.Input = Good.Crops; d.InputPer = 1f; d.Output = 46; d.StockCap = 1200; d.Value = 900000;
             d = D(BuildingType.GarmentFactory, "Garment factory", 2, 2, Category.Industrial, Zone.Industrial, 480000, 190, "Sews clothes from imported parts.");
-            d.Jobs = J(Role.Technician, 1, Role.Assembler, 8); d.Makes = Good.Clothes; d.Input = Good.Parts; d.InputPer = 0.35f; d.Output = 62; d.StockCap = 1400; d.Value = 850000;
+            d.Jobs = J(Role.Technician, 1, Role.Assembler, 8); d.Makes = Good.Clothes; d.Input = Good.Parts; d.InputPer = 0.35f; d.Output = 75; d.StockCap = 1400; d.Value = 850000;
             d = D(BuildingType.ElectronicsPlant, "Electronics plant", 3, 2, Category.Industrial, Zone.Industrial, 900000, 320, "Assembles devices. Needs engineers and technicians.");
-            d.Jobs = J(Role.Engineer, 2, Role.Technician, 2, Role.Assembler, 8); d.Makes = Good.Electronics; d.Input = Good.Parts; d.InputPer = 8f; d.Output = 5.6f; d.StockCap = 300; d.Value = 1600000;
+            d.Jobs = J(Role.Engineer, 2, Role.Technician, 2, Role.Assembler, 8); d.Makes = Good.Electronics; d.Input = Good.Parts; d.InputPer = 6f; d.Output = 5.6f; d.StockCap = 300; d.Value = 1600000;
             d = D(BuildingType.FurnitureWorkshop, "Furniture workshop", 2, 2, Category.Industrial, Zone.Industrial, 380000, 160, "Builds furniture from timber and fittings.");
-            d.Jobs = J(Role.Technician, 1, Role.Assembler, 5); d.Makes = Good.Furniture; d.Input = Good.Parts; d.InputPer = 4.5f; d.Output = 5.8f; d.StockCap = 300; d.Value = 700000;
+            d.Jobs = J(Role.Technician, 1, Role.Assembler, 5); d.Makes = Good.Furniture; d.Input = Good.Parts; d.InputPer = 4.5f; d.Output = 7f; d.StockCap = 300; d.Value = 700000;
             d = D(BuildingType.Construction, "Construction company", 2, 2, Category.Industrial, Zone.Industrial, 220000, 90, "Builds everything in town. Without one, contractors come from outside and charge more.");
             d.Jobs = J(Role.SiteManager, 1, Role.Electrician, 2, Role.Plumber, 2, Role.ConstructionWorker, 7); d.Value = 450000;
             d = D(BuildingType.Trucking, "Trucking depot", 2, 2, Category.Industrial, Zone.Industrial, 250000, 100, "Moves goods between businesses and to the highway. Without one, outside haulers charge more.");
@@ -348,6 +360,9 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.ParkKeeper, 1); d.Radius = 12; d.Upkeep = 500; d.PlayerBuilds = true;
             d = D(BuildingType.BusDepot, "Bus depot", 2, 2, Category.Public, Zone.None, 450000, 170, "Buses let people without a car get to jobs anywhere nearby.");
             d.Jobs = J(Role.BusDriver, 4); d.Radius = Balance.BusRadius; d.Upkeep = 4000; d.PlayerBuilds = true;
+
+            d = D(BuildingType.Realty, "Property company", 1, 1, Category.Commercial, Zone.Commercial, 90000, 40, "A local firm that builds homes, lets them and looks after them. Its handymen do the repairs; its owners keep what's left of the rent.");
+            d.Jobs = J(Role.PropertyManager, 2, Role.Handyman, 3); d.MinPop = 0; d.Value = 220000; d.Floors = 2;
 
             d = D(BuildingType.FreightTerminal, "Highway & freight terminal", 2, 2, Category.Special, Zone.None, 0, 0, "Where the highway enters town. Imports, exports and newcomers come through here.");
         }

@@ -472,6 +472,7 @@ namespace RealLife.Game
                 case Zone.Residential: return new Color(0.35f, 0.85f, 0.4f);
                 case Zone.Commercial: return new Color(0.3f, 0.6f, 1f);
                 case Zone.Industrial: return new Color(1f, 0.78f, 0.25f);
+                case Zone.Farmland: return new Color(0.78f, 0.55f, 0.25f);
                 default: return Color.clear;
             }
         }

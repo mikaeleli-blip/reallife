@@ -42,7 +42,7 @@ SIGNS = [
     ('TECH', '#0b0b0f', '#38bdf8', '#9ee7ff', FONT_BOLD),
     ('WORKSHOP', '#5d4037', '#f5deb3', '#ffe9c4', FONT_SERIF),
     ('APARTMENTS', '#3a3a3a', '#f2f2f2', '#fff7e6', FONT_SEMI),
-    ('PHARMACY', '#ffffff', '#16a085', '#e0fff7', FONT_BOLD),
+    ('REAL ESTATE', '#f3e2b8', '#1d3557', '#fff0cc', FONT_BOLD),
     ('OPEN', '#111111', '#ff3b3b', '#ff6b6b', FONT_BOLD),
 ]
 

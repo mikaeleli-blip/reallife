@@ -148,6 +148,9 @@ namespace RealLife.Simulation
             if (VacantUnits() == 0 && ZonedFree(Zone.Residential) < 4) l.Add("Homes are full and there's no residential land left to build on.");
             if (LotShort != null && LotShort[(int)Zone.Commercial]) l.Add("A business wanted to open but found no commercial lot by a road.");
             if (LotShort != null && LotShort[(int)Zone.Industrial]) l.Add("A firm wanted to build but found no industrial land by a road.");
+            if (LotShort != null && LotShort.Length > (int)Zone.Farmland && LotShort[(int)Zone.Farmland]) l.Add("Someone wanted to start a farm but there's no farmland by a road. Zone some with the Farms tool.");
+            if (NoInvestor != BuildingType.FreightTerminal) l.Add("The town could use " + (Defs.Get(NoInvestor).Name.StartsWith("O") || Defs.Get(NoInvestor).Name.StartsWith("E") || Defs.Get(NoInvestor).Name.StartsWith("A") ? "an " : "a ") + Defs.Get(NoInvestor).Name.ToLower() + ", but no family here has the savings to start one.");
+            if (!Buildings.Any(b => b.Type == BuildingType.Realty && b.Open) && VacantUnits() < 3) l.Add("There's no property firm in town to build homes. One will start when a family can afford to and there's a commercial lot.");
             if (Treasury < 0) l.Add("The town is " + Money(-Treasury) + " in debt.");
             if (LastOutOfTown > 15000) l.Add("People spent " + Money(LastOutOfTown) + " out of town last month on things they couldn't buy here.");
             return l;

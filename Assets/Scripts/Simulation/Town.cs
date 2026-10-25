@@ -12,7 +12,7 @@ namespace RealLife.Simulation
     [Serializable]
     public partial class Town
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         public const int StartYear = 2025;
 
         public int SaveVersion = CurrentVersion;
@@ -42,6 +42,10 @@ namespace RealLife.Simulation
         public float[] PriceDrift;           // world prices against normal
         public float[] Wants;                // by building type: demand nobody in town could meet this month
         public float[] LastWants;
+        public float[] WantAvg;              // by building type: unmet demand, averaged over the last few months
+        public int[] EntryMonths;            // by building type: months in a row a new one would have paid its way
+        public int[] LastFailDay;            // by building type: when one last went under
+        public int[] PrevFailDay;            // ...and the time before that
         public int BirthsMonth, DeathsMonth, ArrivalsMonth, LeftMonth, LastBirths, LastDeaths, LastArrivals, LastLeft;
         public List<LogEntry> Log = new List<LogEntry>();
         public List<HistoryPoint> History = new List<HistoryPoint>();
@@ -63,7 +67,7 @@ namespace RealLife.Simulation
         {
             public const int TerrainMask = 3, Grass = 0, Water = 1, Trees = 2, Sand = 3;
             public const int Road = 4;
-            public const int ZoneShift = 3, ZoneMask = 3 << ZoneShift;
+            public const int ZoneShift = 3, ZoneMask = 7 << ZoneShift;
         }
 
         public bool InBounds(int x, int y) { return x >= 0 && y >= 0 && x < Cols && y < Rows; }
@@ -110,6 +114,13 @@ namespace RealLife.Simulation
             int nt = Defs.All.Length;
             if (Wants == null || Wants.Length != nt) Wants = new float[nt];
             if (LastWants == null || LastWants.Length != nt) LastWants = new float[nt];
+            if (WantAvg == null || WantAvg.Length != nt) WantAvg = new float[nt];
+            if (EntryMonths == null || EntryMonths.Length != nt) EntryMonths = new int[nt];
+            if (LastFailDay == null || LastFailDay.Length != nt) { LastFailDay = new int[nt]; for (int i = 0; i < nt; i++) LastFailDay[i] = -9999; }
+            if (PrevFailDay == null || PrevFailDay.Length != nt) { PrevFailDay = new int[nt]; for (int i = 0; i < nt; i++) PrevFailDay[i] = -9999; }
+            int nz = Enum.GetValues(typeof(Zone)).Length;
+            if (ZoneDemand == null || ZoneDemand.Length != nz) ZoneDemand = new float[nz];
+            if (LotShort == null || LotShort.Length != nz) LotShort = new bool[nz];
             foreach (var b in Buildings) if (b.Stock == null || b.Stock.Length != Defs.GoodCount) b.Stock = new float[Defs.GoodCount];
             RebuildRoads();
             MapVersion++;

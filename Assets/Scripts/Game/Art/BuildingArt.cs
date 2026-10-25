@@ -10,7 +10,7 @@ namespace RealLife.Game.Art
         public const int Market = 0, Grill = 1, Coffee = 2, Bar = 3, Apparel = 4, Electronics = 5, Furniture = 6, Fuel = 7, AutoSales = 8,
             AutoRepair = 9, Hair = 10, Fitness = 11, Bank = 12, Offices = 13, Police = 14, Fire = 15, Clinic = 16, Hospital = 17, TownHall = 18,
             Elementary = 19, HighSchool = 20, College = 21, BusDepot = 22, Logistics = 23, Builders = 24, Foods = 25, ApparelCo = 26, Tech = 27,
-            Workshop = 28, Apartments = 29, Pharmacy = 30, Open = 31;
+            Workshop = 28, Apartments = 29, RealEstate = 30, Open = 31;
     }
 
     /// <summary>
@@ -97,6 +97,7 @@ namespace RealLife.Game.Art
                 case BuildingType.Park: Park(k, w, d, ref s, season); break;
                 case BuildingType.BusDepot: BusDepot(k, w, d, ref s, season); break;
                 case BuildingType.FreightTerminal: Terminal(k, w, d, ref s, season); break;
+                case BuildingType.Realty: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.RealEstate, H("#1d3557"), false); break;
             }
             return k.ToModel(t.ToString());
         }

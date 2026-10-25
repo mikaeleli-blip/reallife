@@ -130,7 +130,7 @@ namespace RealLife.Game
             rows.Pair("Earned from outside", Town.Money(tr.In), Ui.Good);
             Ui.Small(rows.Next(18), "  exports " + Town.Money(tr.Exports) + " · office work " + Town.Money(tr.Services) + " · pensions " + Town.Money(tr.Pensions));
             rows.Pair("Spent outside", Town.Money(tr.Outflow), Ui.Bad);
-            Ui.Small(rows.Next(18), "  imports " + Town.Money(tr.Imports) + " · profits " + Town.Money(tr.Profits) + " · bills " + Town.Money(tr.Utilities));
+            Ui.Small(rows.Next(18), "  imports " + Town.Money(tr.Imports) + " · interest " + Town.Money(tr.Profits) + " · bills " + Town.Money(tr.Utilities));
 
             rows.Header("Jobs");
             var byRole = new Dictionary<Role, int[]>();

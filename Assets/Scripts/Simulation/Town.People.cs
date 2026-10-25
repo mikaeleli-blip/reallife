@@ -72,12 +72,13 @@ namespace RealLife.Simulation
             {
                 if (b.Owner != Owner.Household || b.OwnerId != h.Id) continue;
                 if (heir != null) { b.OwnerId = heir.Id; b.OwnerName = heir.Name; }
-                else SellToOutside(b);
+                else SellLocally(b);
             }
             foreach (var l in Loans.ToList())
             {
                 if (l.HouseholdId != h.Id) continue;
                 if (heir != null) l.HouseholdId = heir.Id;
+                else if (l.Kind == LoanKind.Business) l.HouseholdId = -1;   // a business's loan stays with the business
                 else Loans.Remove(l);
             }
             if (home != null && home.Owner == Owner.Household && home.OwnerId == (heir != null ? heir.Id : h.Id) && home.Households.Count == 0)
@@ -576,7 +577,7 @@ namespace RealLife.Simulation
             // an owned home is sold before they go
             var home = HomeOf(h);
             foreach (var b in Buildings.ToList())
-                if (b.Owner == Owner.Household && b.OwnerId == h.Id) SellToOutside(b);
+                if (b.Owner == Owner.Household && b.OwnerId == h.Id) SellLocally(b);
             foreach (var c in ms) { if (c.Owner) { var w = WorkOf(c); if (w != null) CloseBusiness(w, c.Name + " left town."); } }
             foreach (var c in ms) { LeaveJob(c, null); c.SchoolId = -1; People.Remove(c); peopleById.Remove(c.Id); var p = GetCitizen(c.PartnerId); if (p != null && p.HouseholdId != h.Id) p.PartnerId = -1; }
             h.Members.Clear();

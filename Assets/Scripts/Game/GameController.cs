@@ -110,8 +110,9 @@ namespace RealLife.Game
             {
                 if (!File.Exists(SavePath)) return null;
                 var t = JsonUtility.FromJson<Town>(File.ReadAllText(SavePath));
-                if (t == null || t.SaveVersion != Town.CurrentVersion || t.Tiles == null || t.Tiles.Length != t.Cols * t.Rows) return null;
+                if (t == null || t.SaveVersion < 1 || t.SaveVersion > Town.CurrentVersion || t.Tiles == null || t.Tiles.Length != t.Cols * t.Rows) return null;
                 t.Index();
+                t.Migrate();
                 return t;
             }
             catch (Exception e) { Debug.LogWarning("Couldn't load the save, starting a new town: " + e.Message); return null; }
@@ -294,7 +295,8 @@ namespace RealLife.Game
             {
                 case Zone.Residential: return "Developers build houses and apartment blocks here when people need homes. Lots must touch a road.";
                 case Zone.Commercial: return "Shops, restaurants, offices and banks open here when there are customers for them.";
-                case Zone.Industrial: return "Factories, farms, builders and hauliers set up here when there are workers to hire.";
+                case Zone.Industrial: return "Factories, builders and hauliers set up here when there are workers to hire.";
+                case Zone.Farmland: return "Farms start here when the food plant is short of crops or people need work. Keep it away from the factories; each farm needs 3 x 3 tiles by a road.";
                 default: return "";
             }
         }

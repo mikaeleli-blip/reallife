@@ -99,7 +99,7 @@ namespace RealLife.Simulation
             var b = BuildingAt(x, y);
             if (b == null) { SetZoneBits(x, y, Zone.None); MapVersion++; return true; }
             if (b.Owner == Owner.Town) { double c = b.Value * DemolishCost; Treasury -= c; Book.Construction += c; }
-            else { double c = b.Value * 0.6; Treasury -= c; Book.Construction += c; SellerGets(b, c); }   // the town buys it out first
+            else { double c = b.Value * 0.6; Treasury -= c; Book.Construction += c; SellerGets(b, c, false); }   // the town buys it out first
             AddLog("The " + b.Def.Name.ToLower() + " was demolished.", LogKind.Info);
             if (b.Def.Cat == Category.Public)
                 foreach (var p in People.Where(p => p.SchoolId == b.Id).ToList()) { p.SchoolId = -1; }
@@ -134,18 +134,6 @@ namespace RealLife.Simulation
             b.ContractorId = best != null ? best.Id : -1;
             if (best == null) b.ContractLeft = d.StartupCost * 1.15;
             MapVersion++;
-        }
-
-        /// <summary>Who pays for a building as it goes up: the town, a local family, or outside money.</summary>
-        void ClientPays(Building b, double amount)
-        {
-            if (b.Owner == Owner.Town) { Treasury -= amount; Book.Construction += amount; }
-            else if (b.Owner == Owner.Household)
-            {
-                var h = GetHousehold(b.OwnerId);
-                if (h != null) { double fromCash = Math.Min(Math.Max(0, h.Cash - 2000), amount); HouseholdPays(h, fromCash, HouseholdBook.Goods); double rest = amount - fromCash; if (rest > 0) { var l = Loans.FirstOrDefault(x => x.Kind == LoanKind.Business && x.BuildingId == b.Id); if (l != null) { l.Principal += rest; BankCapital -= rest; l.Payment = Annuity(l.Principal, l.Rate, Balance.BusinessMonths); } else NewLoan(LoanKind.Business, h, b, rest, Balance.BusinessRate, Balance.BusinessMonths); } }
-            }
-            else Trade.Investment += amount;
         }
 
         void ConstructionDaily()
@@ -185,7 +173,7 @@ namespace RealLife.Simulation
                         con.Cash -= mat + fee; con.Supplies += mat + fee;
                         Trade.Imports += mat; ImportsByGood[(int)Good.Materials] += mat;
                     }
-                    else if (b.Owner == Owner.Town || b.Owner == Owner.Household) Trade.Imports += first;
+                    else Trade.Imports += first;
                     b.ContractLeft -= first;
                     b.Started = true;
                 }
@@ -205,7 +193,7 @@ namespace RealLife.Simulation
                 pay = Math.Min(pay, b.ContractLeft);
                 ClientPays(b, pay);
                 if (con != null) { con.Cash += pay; con.Revenue += pay; con.Customers++; }
-                else if (b.Owner == Owner.Town || b.Owner == Owner.Household) Trade.Imports += pay;
+                else Trade.Imports += pay;
                 b.ContractLeft -= pay;
                 if (b.Progress >= d.Work - 0.01f) Finish(b);
             }
@@ -214,14 +202,16 @@ namespace RealLife.Simulation
         void Finish(Building b)
         {
             var d = b.Def;
-            b.Built = true; b.Progress = d.Work; b.BuiltDay = Day; b.ContractorId = -1; b.ContractLeft = 0;
+            b.Built = true; b.Progress = d.Work; b.BuiltDay = Day; b.ContractorId = -1; b.ContractLeft = 0; b.EquityLeft = 0;
             b.Value = d.Homes > 0 ? d.Value * HousingIndex : d.Value;
+            StartRepaying(b);
             MapVersion++;
             if (d.Cat == Category.Public) { AddLog("The new " + d.Name.ToLower() + " is open.", LogKind.Good, b.Id); return; }
             if (d.Homes > 0)
             {
-                if (b.Type == BuildingType.House && b.ForSale) AddLog("A new house went on the market for " + Money(b.Value) + ".", LogKind.Info, b.Id);
-                else AddLog("A new " + d.Name.ToLower() + " is finished: " + d.Homes + " homes to let.", LogKind.Info, b.Id);
+                var firm = OwnerFirm(b);
+                if (b.Type == BuildingType.House && b.ForSale) AddLog((firm != null ? Title(firm) + " put a new house" : "A new house went") + " on the market for " + Money(b.Value) + ".", LogKind.Info, b.Id);
+                else AddLog((firm != null ? Title(firm) + "'s" : "A") + " new " + d.Name.ToLower() + " is finished: " + d.Homes + " homes to let.", LogKind.Info, b.Id);
                 return;
             }
             OpenBusiness(b);
@@ -230,7 +220,7 @@ namespace RealLife.Simulation
         void OpenBusiness(Building b)
         {
             var d = b.Def;
-            b.Closed = false; b.ClosedDays = 0; b.Staffing = d.Cat == Category.Industrial ? 0.6f : 0.5f; b.WageMult = 1; b.LossMonths = 0;
+            b.Closed = false; b.ClosedDays = 0; b.Staffing = d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
             if (d.Sells.HasValue) b.Price = Defs.Retail[(int)d.Sells.Value];
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
@@ -246,13 +236,16 @@ namespace RealLife.Simulation
                 // the founder works there
                 var founder = Members(h).Where(m => m.InLaborForce || (m.WorkId >= 0 && !m.Owner)).OrderByDescending(m => m.Ambition).FirstOrDefault(m => QualifiesFor(m, b) != Role.None);
                 if (founder != null) { founder.Owner = true; Hire(b, founder, QualifiesFor(founder, b), false); Note(founder, "Opened " + PlaceName(b) + "."); }
-                AddLog((founder != null ? founder.Name : "The " + h.Name + " family") + " opened " + PlaceName(b) + ".", LogKind.Good, b.Id);
+                AddLog((founder != null ? founder.Name : "The " + (h != null ? h.Name : "") + " family") + " opened " + PlaceName(b) + ".", LogKind.Good, b.Id);
             }
             else
             {
-                b.Cash += working; Trade.Investment += working;
-                AddLog(b.OwnerName + " opened " + (d.Name.StartsWith("O") || d.Name.StartsWith("E") || d.Name.StartsWith("A") ? "an " : "a ") + d.Name.ToLower() + " in town and is hiring.", LogKind.Good, b.Id);
+                // nobody's savings behind it: the bank lends the working capital
+                NewLoan(LoanKind.Business, null, b, working, Balance.BusinessRate, Balance.BusinessMonths);
+                b.Cash += working;
+                AddLog(Title(b) + " opened and is hiring.", LogKind.Good, b.Id);
             }
+            if (b.Type == BuildingType.Realty) PlanFirmStaff(b);
             MapVersion++;
         }
 
@@ -296,36 +289,142 @@ namespace RealLife.Simulation
         }
 
         /// <summary>Demand for each zone, -1..1, for the meters in the HUD.</summary>
-        public float[] ZoneDemand = new float[4];
+        public float[] ZoneDemand = new float[5];
 
-        Building Develop(BuildingType t, Household founder)
+        /// <summary>Puts up a new building on the best free lot of its zone, for a founding family or a property firm.</summary>
+        Building Develop(BuildingType t, Household founder, Building firm)
         {
             int x, y;
-            if (!FindLot(t, out x, out y)) { Wants[(int)t] += 0.5f; LotShort[(int)Defs.Get(t).Zone] = true; return null; }
             var d = Defs.Get(t);
+            if (!FindLot(t, out x, out y)) { Wants[(int)t] += 0.5f; LotShort[(int)d.Zone] = true; DevNote("no lot for " + t); return null; }
+            if (founder == null && firm == null) return null;
             var b = AddBuilding(t, x, y, FindFacing(x, y, d.W, d.H), false);
-            if (founder != null) { b.Owner = Owner.Household; b.OwnerId = founder.Id; b.OwnerName = founder.Name; }
+            if (firm != null)
+            {
+                FirmOwns(b, firm);
+                b.EquityLeft = d.StartupCost * (t == BuildingType.House ? 0.05 : 0.15);
+                if (t == BuildingType.House) b.ForSale = true;
+            }
             else
             {
-                b.Owner = Owner.Outside;
-                b.OwnerName = d.Homes > 0 ? Pick(Names.Firms) + (t == BuildingType.House ? " Homes" : " Properties") : FirmName(t);
-                if (t == BuildingType.House) b.ForSale = true;
+                FamilyOwns(b, founder);
+                b.Brand = BrandFor(b);
+                b.EquityLeft = Math.Max(d.StartupCost * FoundersShare(t), Math.Min(Math.Max(0, founder.Cash - 8000), d.StartupCost * 0.3));
             }
             b.Closed = d.Homes == 0;
             StartConstruction(b, founder);
+            WorkStarted += d.Work;
             return b;
         }
-        [NonSerialized] public bool[] LotShort = new bool[4];
+        [NonSerialized] public bool[] LotShort = new bool[5];
+        [NonSerialized] public BuildingType NoInvestor = BuildingType.FreightTerminal;
 
-        /// <summary>The month's building decisions.</summary>
+        // ================================================================== is it worth opening?
+        /// <summary>What one sale or visit is worth to a shop of this type, for turning unmet demand into money.</summary>
+        static double SpendPerWant(BuildingType t)
+        {
+            switch (t)
+            {
+                case BuildingType.GroceryStore: return 300;
+                case BuildingType.Restaurant: return 25;
+                case BuildingType.Cafe: return 6;
+                case BuildingType.Bar: return 16;
+                case BuildingType.Gym: return 15;
+                case BuildingType.HairSalon: return Defs.Get(t).ServicePrice / 0.4;
+                case BuildingType.AutoRepair: return 250;   // many put a service off, or can't get there, once there's a garage
+                case BuildingType.ClothingStore: return 68 / 0.6;
+                case BuildingType.ElectronicsStore: return 880 / 1.2;   // a want counts each trip until they find one out of town
+                case BuildingType.FurnitureStore: return 690 / 0.6;
+                case BuildingType.GasStation: return 150 / 0.6;
+                case BuildingType.CarDealer: return Balance.CarPrice;
+                default: return 0;
+            }
+        }
+
+        /// <summary>The share of each sale left after stock and supplies.</summary>
+        static double Margin(BuildingType t)
+        {
+            var d = Defs.Get(t);
+            if (d.Sells.HasValue) { int g = (int)d.Sells.Value; return (Defs.Retail[g] - Defs.Wholesale[g]) / Defs.Retail[g]; }
+            if (d.Serves != Service.None) return d.Input.HasValue ? 1 - d.InputPer * Defs.Wholesale[(int)d.Input.Value] / d.ServicePrice : 1;
+            return 1;
+        }
+
+        /// <summary>What it would cost a month to run one, with just the staff that much business needs, paying off the building.</summary>
+        double RunningCost(BuildingType t, double revenue)
+        {
+            var d = Defs.Get(t);
+            double unit = d.Sells.HasValue ? Defs.Retail[(int)d.Sells.Value] : d.Serves != Service.None ? d.ServicePrice : 1;
+            double perWorker = Math.Max(0.01, d.Output * Balance.DaysPerMonth);
+            int crew = d.Output > 0 ? (int)Math.Round(revenue / unit / perWorker + 0.3) : 3;
+            crew = Math.Max(1, Math.Min(d.TotalJobs, crew));
+            double wage = 0; int n = 0;
+            foreach (var j in d.Jobs) for (int k = 0; k < j.Count && n < crew; k++, n++) wage += Math.Max(Policy.MinWage, Defs.Get(j.Role).Wage * 1.12);   // with a few years' experience
+            return wage + d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
+                   + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
+        }
+
+        /// <summary>Would a new plant pay its way fully staffed: what it makes at the price it would get (shops here for the food
+        /// plant when they're importing groceries, otherwise the world price less freight), against wages, upkeep and its loan.</summary>
+        bool PlantPays(BuildingType t)
+        {
+            var d = Defs.Get(t);
+            if (!d.Makes.HasValue) return true;
+            int g = (int)d.Makes.Value;
+            bool local = t == BuildingType.FoodPlant && LastImports[(int)Good.Groceries] > 15000 || t == BuildingType.Farm && LastImports[(int)Good.Crops] > 8000;
+            double price = local ? Defs.Wholesale[g] * (1 - Balance.FreightLocal) : World(d.Makes.Value) * (1 - Balance.FreightOutside);
+            double units = d.TotalJobs * d.Output * Balance.DaysPerMonth * (t == BuildingType.Farm ? 0.95 : 1);
+            double input = d.Input.HasValue ? d.InputPer * ImportPrice(d.Input.Value) * (1 + Balance.FreightOutside) : 0;
+            double margin = units * (price - input);
+            // at what the plants here are paying now, not the textbook rate
+            var plants = Buildings.Where(b => b.Open && b.Def.Cat == Category.Industrial && b.Def.Makes.HasValue).ToList();
+            double going = plants.Count > 0 ? Math.Max(1, plants.Average(b => b.WageMult)) : 1;
+            double cost = 0; foreach (var j in d.Jobs) cost += j.Count * Math.Max(Policy.MinWage, Defs.Get(j.Role).Wage * going);
+            cost += d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
+                    + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
+            return margin >= cost * 1.1;
+        }
+
+        /// <summary>Would a new one pay its way on this much custom, with something to spare?</summary>
+        bool PaysItsWay(BuildingType t, double revenue, double spare = 1.08)
+        {
+            return revenue > 0 && revenue * Margin(t) >= RunningCost(t, revenue) * spare;
+        }
+
+        /// <summary>A new one only after the case for it has held a few months, and not within a year of the last one failing
+        /// unless the case is a strong one.</summary>
+        [NonSerialized] public List<string> DevNotes;
+        void DevNote(string s) { if (DevNotes != null) DevNotes.Add(s); }
+
+        bool ReadyToOpen(BuildingType t, bool caseHolds, int months, bool strong)
+        {
+            int i = (int)t;
+            if (caseHolds) DevNote(t + " case " + (EntryMonths[i] + 1) + "/" + months + (Cooling(t, strong) ? " (failed recently)" : ""));
+            if (!caseHolds) { EntryMonths[i] = 0; return false; }
+            EntryMonths[i]++;
+            if (EntryMonths[i] < months) return false;
+            return !Cooling(t, strong);
+        }
+
+        /// <summary>Nobody tries again within a year of one going under, unless the case is strong; and after two in a few years,
+        /// not for two years whatever the case.</summary>
+        bool Cooling(BuildingType t, bool strong)
+        {
+            int i = (int)t, y = Balance.DaysPerYear;
+            if (Day - PrevFailDay[i] < y * 3 && Day - LastFailDay[i] < y * 2) return true;
+            return Day - LastFailDay[i] < y && !strong;
+        }
+
+        // ================================================================== the month's building decisions
         void Developers()
         {
-            if (LotShort == null || LotShort.Length != 4) LotShort = new bool[4];
-            for (int i = 0; i < 4; i++) LotShort[i] = false;
+            for (int i = 0; i < LotShort.Length; i++) LotShort[i] = false;
+            NoInvestor = BuildingType.FreightTerminal;
+            for (int i = 0; i < WantAvg.Length; i++) WantAvg[i] = WantAvg[i] * 0.55f + LastWants[i] * 0.45f;
             int pop = Population;
             int building = Buildings.Count(b => !b.Built);
             int buildCap = 3 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 4;
-            // ---------------------------------------------------------------- homes
+            // ---------------------------------------------------------------- homes, built by the property firms
             int free = VacantUnits() + Buildings.Count(b => b.ForSale && b.Households.Count == 0);
             int coming = Buildings.Where(b => !b.Built && b.Def.Homes > 0).Sum(b => b.Def.Homes);
             int openings = Openings().Sum(o => o.Count);
@@ -333,13 +432,36 @@ namespace RealLife.Simulation
             float resDemand = (wantHomes - free - coming) / (float)Math.Max(6, pop / 12);
             ZoneDemand[(int)Zone.Residential] = Math.Max(-1, Math.Min(1, resDemand));
             int gap = wantHomes - free - coming;
+            bool anyFirm = Buildings.Any(b => b.Type == BuildingType.Realty && (b.Open || !b.Built));
+            if (gap > 0 && !anyFirm && building < buildCap)
+            {
+                // nobody builds homes here yet: a family starts a property firm
+                var f = Entrepreneur(BuildingType.Realty);
+                if (f != null && Expand(BuildingType.Realty, f) != null) building++;
+            }
             while (gap > 0 && building < buildCap)
             {
                 Building b = null;
-                if (gap >= 7 && Chance(0.6f)) b = Develop(BuildingType.Apartments, RichFamily(Defs.Get(BuildingType.Apartments).StartupCost * 0.3));
-                if (b == null) b = Develop(BuildingType.House, null);
+                if (gap >= 7 && Chance(0.6f))
+                {
+                    var firm = HousingFirm(BuildingType.Apartments);
+                    if (firm != null) b = Develop(BuildingType.Apartments, null, firm);
+                }
+                if (b == null)
+                {
+                    var firm = HousingFirm(BuildingType.House);
+                    if (firm != null) b = Develop(BuildingType.House, null, firm);
+                }
                 if (b == null) break;
                 gap -= b.Def.Homes; building++;
+            }
+            // another property firm when the ones here can't keep up and are doing well
+            var firms = PropertyFirms();
+            bool stretched = firms.Count > 0 && gap > 4 && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
+            if (ReadyToOpen(BuildingType.Realty, stretched, 3, false) && building < buildCap)
+            {
+                var f = Entrepreneur(BuildingType.Realty);
+                if (f != null && Expand(BuildingType.Realty, f) != null) { building++; EntryMonths[(int)BuildingType.Realty] = 0; }
             }
             // ---------------------------------------------------------------- shops and services
             float comDemand = 0;
@@ -351,29 +473,33 @@ namespace RealLife.Simulation
                 if (pop < d.MinPop) continue;
                 var same = Buildings.Where(b => b.Type == t).ToList();
                 var open = same.Where(b => b.Open).ToList();
-                bool pending = same.Any(b => !b.Built);
-                if (pending) continue;
-                float want = LastWants[(int)t];
-                float lost = open.Sum(b => b.LastLost), served = open.Sum(b => b.LastCustomers);
-                bool busy = open.Count > 0 && lost > Math.Max(6, served * 0.12f) && open.All(b => b.Staffing >= 0.95f || b.LastUse > 0.85f);
-                bool profitable = open.Count == 0 || open.Average(b => b.LastProfit) > 0;
-                int perPop = PopPer(t);
-                bool room = open.Count < 1 + pop / perPop;
-                bool missing = open.Count == 0 && want > 2;
-                if (missing) comDemand += 0.25f;
-                if (!(missing || (busy && profitable && room)) || (t == BuildingType.Bank && open.Count > 0 && pop < 1500)) continue;
-                if (building >= buildCap) { comDemand += 0.2f; continue; }
-                // reopen an empty shop of the same kind first
-                var shut = same.FirstOrDefault(b => b.Closed && b.Built && Connected(b));
-                var founder = Entrepreneur(t);
-                if (shut != null)
+                if (same.Any(b => !b.Built)) continue;
+                bool caseHolds, strong = false;
+                if (t == BuildingType.Bank) caseHolds = open.Count == 0;
+                else if (open.Count == 0)
                 {
-                    if (founder != null) { double price = shut.Value * 0.6; HouseholdPays(founder, Math.Min(price, founder.Cash * 0.5), HouseholdBook.Goods); Trade.Profits += Math.Min(price, founder.Cash * 0.5); shut.Owner = Owner.Household; shut.OwnerId = founder.Id; shut.OwnerName = founder.Name; }
-                    else { shut.Owner = Owner.Outside; shut.OwnerName = t == BuildingType.Bank ? BankName : FirmName(t); }
-                    OpenBusiness(shut);
-                    continue;
+                    // nobody sells it here: is there enough custom going out of town to keep one going?
+                    double rev = WantAvg[(int)t] * SpendPerWant(t);
+                    caseHolds = PaysItsWay(t, rev);
+                    strong = PaysItsWay(t, rev, 1.8);
                 }
-                if (Develop(t, founder) != null) building++;
+                else
+                {
+                    // the ones here are full, all making money and still turning people away: room for one more
+                    float lost = open.Sum(b => b.LastLost), served = open.Sum(b => b.LastCustomers);
+                    bool full = open.All(b => b.Staffing >= 0.95f && b.LastUse > 0.85f);
+                    bool earning = open.All(b => b.LastProfit > 0 && b.LossMonths == 0);
+                    bool room = open.Count < 1 + pop / PopPer(t);
+                    double price = open.Average(b => b.Price) * (t == BuildingType.GroceryStore ? 4 : 1);
+                    double rev = lost * price;
+                    caseHolds = full && earning && room && lost > Math.Max(8, served * 0.15f) && PaysItsWay(t, rev);
+                }
+                if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
+                if (!ReadyToOpen(t, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
+                if (building >= buildCap) continue;
+                var founder = Entrepreneur(t);
+                if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); continue; }
+                if (Expand(t, founder) != null) { building++; EntryMonths[(int)t] = 0; }
             }
             ZoneDemand[(int)Zone.Commercial] = Math.Min(1, comDemand);
             // ---------------------------------------------------------------- work: offices and industry follow the workforce
@@ -383,37 +509,94 @@ namespace RealLife.Simulation
             float indDemand = (looking.Count - pop * 0.04f) / Math.Max(6f, pop / 20f);
             ZoneDemand[(int)Zone.Industrial] = Math.Max(-1, Math.Min(1, indDemand));
             bool officePending = Buildings.Any(b => b.Type == BuildingType.Office && !b.Built);
-            if (!officePending && building < buildCap && (grads >= 5 || (grads >= 3 && school >= 4)) && Chance(0.6f))
+            bool officeCase = !officePending && (grads >= 5 || (grads >= 3 && school >= 4)) && Buildings.Where(b => b.Type == BuildingType.Office && b.Open).All(b => b.LastProfit > 0);
+            if (ReadyToOpen(BuildingType.Office, officeCase, 2, grads >= 10) && building < buildCap)
             {
-                if (Expand(BuildingType.Office, null) != null) building++;
+                var founder = Entrepreneur(BuildingType.Office);
+                if (founder == null) NoInvestor = BuildingType.Office;
+                else if (Expand(BuildingType.Office, founder) != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; }
             }
             bool factoryPending = Buildings.Any(b => !b.Built && b.Def.Cat == Category.Industrial);
-            if (!factoryPending && building < buildCap && looking.Count >= 7 + pop / 40 && Chance(0.55f))
+            bool factoryCase = !factoryPending && looking.Count >= 7 + pop / 40;
+            FactoryMonths = factoryCase ? FactoryMonths + 1 : 0;
+            if (FactoryMonths >= 2 && building < buildCap)
             {
-                // the kind of plant that would hire the people who are looking
-                BuildingType t;
-                if (grads >= 2 && trade >= 2 && Chance(0.6f)) t = BuildingType.ElectronicsPlant;
-                else if (basic > school && basic >= 4) t = Chance(0.5f) ? BuildingType.FoodPlant : BuildingType.Farm;
-                else if (trade >= 2 && Chance(0.5f)) t = BuildingType.FurnitureWorkshop;
-                else t = BuildingType.GarmentFactory;
-                if (Expand(t, t == BuildingType.Farm ? Entrepreneur(t) : null) != null) building++;
+                // the kind of plant that would hire the people who are looking, leaving out any that failed here this past year
+                var kinds = new List<BuildingType>();
+                if (grads >= 2 && trade >= 2) kinds.Add(BuildingType.ElectronicsPlant);
+                if (basic > school && basic >= 4) { kinds.Add(BuildingType.FoodPlant); if (ZonedFree(Zone.Farmland) >= 9) kinds.Add(BuildingType.Farm); }
+                if (trade >= 2) kinds.Add(BuildingType.FurnitureWorkshop);
+                kinds.Add(BuildingType.GarmentFactory);
+                bool strong = looking.Count >= 20 + pop / 20;
+                // and any kind whose plants here are already struggling, short-handed or only scraping by
+                kinds.RemoveAll(k => Cooling(k, strong) || !PlantPays(k) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 2 + pop / 200 ||
+                                     Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04)));
+                // something the town doesn't make yet before more of the same
+                if (kinds.Any(k => !Buildings.Any(b => b.Type == k && (b.Open || !b.Built))))
+                    kinds.RemoveAll(k => Buildings.Any(b => b.Type == k && (b.Open || !b.Built)));
+                DevNote("factory: looking " + looking.Count + " basic " + basic + " school " + school + " trade " + trade + " grads " + grads + " -> " + string.Join(",", kinds));
+                if (kinds.Count > 0)
+                {
+                    var t = kinds[RandInt(0, kinds.Count)];
+                    var founder = Entrepreneur(t);
+                    if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); }
+                    else if (Expand(t, founder) != null) { building++; FactoryMonths = 0; }
+                }
             }
-            // food: a plant when stores import groceries, farms when the plant imports crops
+            // food: a plant when the stores import groceries, farms when the plant imports crops
+            double grocImports = LastImports[(int)Good.Groceries], cropImports = LastImports[(int)Good.Crops];
+            ZoneDemand[(int)Zone.Farmland] = Math.Max(-1, Math.Min(1, (float)(cropImports / 30000.0)));
             if (building < buildCap && !factoryPending)
             {
-                double grocImports = LastImports[(int)Good.Groceries], cropImports = LastImports[(int)Good.Crops];
-                if (grocImports > 25000 && !Buildings.Any(b => b.Type == BuildingType.FoodPlant && !b.Built)) { if (Expand(BuildingType.FoodPlant, null) != null) building++; }
-                else if (cropImports > 12000 && !Buildings.Any(b => b.Type == BuildingType.Farm && !b.Built)) { if (Expand(BuildingType.Farm, Entrepreneur(BuildingType.Farm)) != null) building++; }
+                bool plantCase = grocImports > 25000 && Buildings.Where(b => b.Type == BuildingType.FoodPlant && b.Open).All(b => b.LastUse > 0.8f) && PlantPays(BuildingType.FoodPlant);
+                if (ReadyToOpen(BuildingType.FoodPlant, plantCase, 3, grocImports > 60000))
+                {
+                    var founder = Entrepreneur(BuildingType.FoodPlant);
+                    if (founder == null) NoInvestor = BuildingType.FoodPlant;
+                    else if (Expand(BuildingType.FoodPlant, founder) != null) { building++; EntryMonths[(int)BuildingType.FoodPlant] = 0; }
+                }
+                var farms = Buildings.Where(b => b.Type == BuildingType.Farm && b.Open).ToList();
+                bool farmCase = cropImports > 12000 && !Buildings.Any(b => b.Type == BuildingType.Farm && !b.Built) &&
+                                farms.All(b => b.LossMonths < 4) && (farms.Count == 0 || farms.Average(b => b.Cash) > 0) && PlantPays(BuildingType.Farm);
+                if (ReadyToOpen(BuildingType.Farm, farmCase, 2, cropImports > 30000) && building < buildCap)
+                {
+                    var founder = Entrepreneur(BuildingType.Farm);
+                    if (founder == null) NoInvestor = BuildingType.Farm;
+                    else if (Expand(BuildingType.Farm, founder) != null) { building++; EntryMonths[(int)BuildingType.Farm] = 0; }
+                }
             }
-            // builders: when work is piling up
-            float backlog = Buildings.Where(b => !b.Built).Sum(b => b.Def.Work - b.Progress);
-            int builders = Buildings.Count(b => b.Type == BuildingType.Construction && b.Open);
-            if (backlog > 300 + builders * 260 && !Buildings.Any(b => b.Type == BuildingType.Construction && !b.Built))
-                Expand(BuildingType.Construction, Entrepreneur(BuildingType.Construction));
-            // hauliers: when outside trucking is costing a lot
-            if (pop >= Defs.Get(BuildingType.Trucking).MinPop && LastFreightOutside > 9000 && !Buildings.Any(b => b.Type == BuildingType.Trucking && (b.Open || !b.Built)))
-                Expand(BuildingType.Trucking, Entrepreneur(BuildingType.Trucking));
+            // builders: one if there's none; another only when the ones here are flat out with months of work queued
+            var builders = Buildings.Where(b => b.Type == BuildingType.Construction && b.Open).ToList();
+            bool builderPending = Buildings.Any(b => b.Type == BuildingType.Construction && !b.Built);
+            // the steady work: homes and businesses started each month, over the last half year or so. A rush of public works
+            // is a one-off and doesn't keep a second firm going
+            WorkRate = WorkRate * 0.85f + WorkStarted * 0.15f; WorkStarted = 0;
+            float backlog = Buildings.Where(b => !b.Built && b.Owner != Owner.Town).Sum(b => b.Def.Work - b.Progress);
+            bool builderCase;
+            if (builders.Count == 0) builderCase = !builderPending && (backlog > 0 || pop >= 120);
+            else
+            {
+                float crews = builders.Sum(b => b.Def.TotalJobs) * Balance.DaysPerMonth;
+                builderCase = !builderPending && WorkRate > crews * 1.2f && backlog > crews * 6 && builders.All(b => b.Staffing >= 0.95f && b.LastProfit > 0 && b.LossMonths == 0);
+            }
+            if (ReadyToOpen(BuildingType.Construction, builderCase, builders.Count == 0 ? 1 : 4, builders.Count == 0))
+            {
+                var founder = Entrepreneur(BuildingType.Construction);
+                if (founder == null) NoInvestor = BuildingType.Construction;
+                else if (Expand(BuildingType.Construction, founder) != null) EntryMonths[(int)BuildingType.Construction] = 0;
+            }
+            // hauliers: when outside trucking costs enough that a depot here would pay its way
+            bool haulCase = pop >= Defs.Get(BuildingType.Trucking).MinPop && !Buildings.Any(b => b.Type == BuildingType.Trucking && (b.Open || !b.Built)) &&
+                            PaysItsWay(BuildingType.Trucking, LastFreightOutside * Balance.FreightLocal / Balance.FreightOutside);
+            if (ReadyToOpen(BuildingType.Trucking, haulCase, 3, false))
+            {
+                var founder = Entrepreneur(BuildingType.Trucking);
+                if (founder == null) NoInvestor = BuildingType.Trucking;
+                else if (Expand(BuildingType.Trucking, founder) != null) EntryMonths[(int)BuildingType.Trucking] = 0;
+            }
         }
+        public int FactoryMonths;            // months in a row there have been enough people looking for work to staff a plant
+        public float WorkStarted, WorkRate;  // labour-days of private building started this month, and the running average
         [NonSerialized] public double[] LastImports = new double[Defs.GoodCount];
         [NonSerialized] public double LastFreightOutside;
 
@@ -437,46 +620,48 @@ namespace RealLife.Simulation
             }
         }
 
-        /// <summary>A local family with the savings and the drive to open this kind of business, and someone who can work in it.</summary>
+        static bool BigFirm(BuildingType t)
+        {
+            return Defs.Get(t).StartupCost > 500000 || t == BuildingType.Bank || t == BuildingType.Realty || t == BuildingType.Construction || t == BuildingType.Trucking;
+        }
+
+        /// <summary>A family here to start this business: someone who can work in it and has the drive and the savings for the
+        /// founders' share, or a family with money to put to work (for the bigger firms, or one that already runs a business).</summary>
+        /// <summary>The founders' share of the cost: a smaller share of a big building the bank can lend against.</summary>
+        static double FoundersShare(BuildingType t) { return BigFirm(t) ? Balance.Equity * 0.5 : Balance.Equity; }
+
         Household Entrepreneur(BuildingType t)
         {
             var d = Defs.Get(t);
-            double need = d.StartupCost * 0.25;
+            double need = Math.Max(12000, d.StartupCost * FoundersShare(t));
+            bool big = BigFirm(t);
             foreach (var h in Households.OrderByDescending(x => x.Cash))
             {
-                if (h.Cash < need + 8000) break;
-                if (Buildings.Any(b => b.Owner == Owner.Household && b.OwnerId == h.Id && IsBusiness(b))) continue;
-                var tmp = new Building { Type = t, Staffing = 1 };
-                foreach (var m in Members(h))
-                {
-                    if (m.IsChild || m.Retired || m.Age > 60 || m.Owner) continue;
-                    if (m.Ambition < 0.55f) continue;
-                    bool can = d.Jobs.Any(j => Defs.Qualifies(m.Edu, Defs.Get(j.Role).Needs));
-                    if (can && Chance(0.6f)) return h;
-                }
+                if (h.Cash < need + 10000) break;
+                int owned = Buildings.Count(b => b.Owner == Owner.Household && b.OwnerId == h.Id && IsBusiness(b));
+                bool runs = owned == 0 && Members(h).Any(m => !m.IsChild && !m.Retired && m.Age <= 60 && !m.Owner && m.Ambition >= 0.55f &&
+                                                           d.Jobs.Any(j => Defs.Qualifies(m.Edu, Defs.Get(j.Role).Needs)));
+                bool invests = owned < 3 && h.Cash >= need * 2 + 30000 && (big || owned > 0);
+                if ((runs || invests) && Chance(0.6f)) return h;
             }
             return null;
         }
 
-        /// <summary>Reopens an empty building of this kind under a new owner, or builds a new one.</summary>
+        /// <summary>A founder reopens an empty building of this kind (bought from the bank), or builds a new one.</summary>
         Building Expand(BuildingType t, Household founder)
         {
+            if (founder == null) return null;
             var shut = Buildings.FirstOrDefault(b => b.Type == t && b.Closed && b.Built && Connected(b));
-            if (shut == null) return Develop(t, founder);
-            if (founder != null)
-            {
-                double price = Math.Min(shut.Value * 0.6, founder.Cash * 0.5);
-                HouseholdPays(founder, price, HouseholdBook.Goods); Trade.Profits += price;
-                shut.Owner = Owner.Household; shut.OwnerId = founder.Id; shut.OwnerName = founder.Name;
-            }
-            else { shut.Owner = Owner.Outside; shut.OwnerName = FirmName(t); }
+            if (shut == null) return Develop(t, founder, null);
+            double price = shut.Value * 0.6;
+            double down = Math.Min(price, Math.Max(price * Balance.Equity, Math.Min(Math.Max(0, founder.Cash - 8000), price * 0.4)));
+            HouseholdPays(founder, down, HouseholdBook.Goods);
+            SellerGets(shut, price, false);
+            FamilyOwns(shut, founder);
+            shut.Brand = BrandFor(shut);
+            if (price > down) PropertyLoan(shut, founder, shut, price - down, false);
             OpenBusiness(shut);
             return shut;
-        }
-
-        Household RichFamily(double need)
-        {
-            return Households.Where(h => h.Cash > need + 40000).OrderByDescending(h => h.Cash).FirstOrDefault(h => Chance(0.5f));
         }
 
         // ================================================================== the town's own bills

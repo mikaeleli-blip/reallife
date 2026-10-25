@@ -154,7 +154,9 @@ namespace RealLife.Simulation
             ZoneRect(39, 53, 43, 57, Zone.Residential); ZoneRect(45, 53, 49, 57, Zone.Commercial); ZoneRect(51, 53, 55, 57, Zone.Residential);
             ZoneRect(39, 59, 55, 63, Zone.Residential);
             ZoneRect(57, 41, 71, 51, Zone.Industrial); ZoneRect(57, 53, 63, 63, Zone.Industrial); ZoneRect(65, 53, 71, 63, Zone.Industrial);
-            ZoneRect(15, 59, 25, 63, Zone.Industrial); ZoneRect(27, 59, 37, 63, Zone.Industrial);
+            // farmland along the farm road, well away from the factories
+            ZoneRect(15, 59, 25, 63, Zone.Farmland); ZoneRect(27, 59, 37, 63, Zone.Farmland);
+            ZoneRect(20, 64, 25, 70, Zone.Farmland); ZoneRect(27, 64, 32, 70, Zone.Farmland);
 
             // public buildings
             Starter(BuildingType.TownHall, 45, 47);
@@ -164,7 +166,8 @@ namespace RealLife.Simulation
             foreach (var p in Buildings) if (p.Def.Cat == Category.Public) { var d = p.Def; for (int y = p.Y; y < p.Y + d.H; y++) for (int x = p.X; x < p.X + d.W; x++) SetZoneBits(x, y, Zone.None); }
             // downtown
             foreach (var t in new[] { BuildingType.Office, BuildingType.Office, BuildingType.GroceryStore, BuildingType.Bank, BuildingType.Restaurant, BuildingType.Gym,
-                                      BuildingType.GasStation, BuildingType.Cafe, BuildingType.Bar, BuildingType.ClothingStore, BuildingType.AutoRepair, BuildingType.HairSalon })
+                                      BuildingType.GasStation, BuildingType.Cafe, BuildingType.Bar, BuildingType.ClothingStore, BuildingType.AutoRepair, BuildingType.HairSalon,
+                                      BuildingType.Realty, BuildingType.Realty })
                 StarterLot(t);
             // industry
             foreach (var t in new[] { BuildingType.FoodPlant, BuildingType.GarmentFactory, BuildingType.FurnitureWorkshop, BuildingType.Construction, BuildingType.Trucking })
@@ -258,35 +261,42 @@ namespace RealLife.Simulation
                 h.Clothes = 0.4f + Rand() * 0.5f; h.Electronics = 0.3f + Rand() * 0.6f; h.Furniture = 0.3f + Rand() * 0.6f; h.CarWear = 0.3f + Rand() * 0.6f;
             }
             foreach (var c in People) { c.ArrivedDay = -RandInt(48, 1500); c.Experience = Math.Max(0, c.Age - 21) * (0.6f + Rand() * 0.4f); }
-            // landlords: rented homes belong to outside firms
+            // businesses: every one belongs to a family here. Someone who can work there runs it; the bigger firms go to families
+            // with some money behind them
+            foreach (var b in Buildings)
+            {
+                if (!IsBusiness(b)) continue;
+                bool big = BigFirm(b.Type);
+                var owner = People.Where(c => c.InLaborForce && c.WorkId < 0 && !c.Owner && c.Age > 26 && c.Age < 62 && QualifiesFor(c, b) != Role.None &&
+                                              !Buildings.Any(o => o.Owner == Owner.Household && o.OwnerId == c.HouseholdId && IsBusiness(o)))
+                                  .OrderByDescending(c => (big ? HouseholdOf(c).Cash : 0) + Defs.Get(QualifiesFor(c, b)).Wage * 10 + Rand() * 20000).FirstOrDefault();
+                if (owner != null)
+                {
+                    var h = HouseholdOf(owner);
+                    FamilyOwns(b, h);
+                    owner.Owner = true;
+                    Hire(b, owner, QualifiesFor(owner, b), true);
+                    if (big) h.Cash += 40000 + Rand() * 80000;   // a family behind a bigger firm has done well out of it
+                }
+                else
+                {
+                    var h = Households.Where(x => !Buildings.Any(o => o.Owner == Owner.Household && o.OwnerId == x.Id && IsBusiness(o))).OrderByDescending(x => x.Cash).FirstOrDefault();
+                    if (h != null) FamilyOwns(b, h); else BankTakes(b);
+                }
+                b.Brand = BrandFor(b);
+            }
+            // landlords: rented homes belong to the property firms here, mortgaged as such things are
+            var firms = Buildings.Where(b => b.Type == BuildingType.Realty).ToList();
+            int fi = 0;
             foreach (var b in Buildings)
             {
                 if (b.Def.Homes == 0) continue;
                 bool ownerOccupied = b.Households.Count > 0 && GetHousehold(b.Households[0]).Owns;
-                if (ownerOccupied) { b.Owner = Owner.Household; b.OwnerId = b.Households[0]; continue; }
-                b.Owner = Owner.Outside; b.OwnerName = Pick(Names.Firms) + " Properties";
-            }
-            // businesses: small shops and farms belong to local families, big ones to outside firms
-            foreach (var b in Buildings)
-            {
-                var d = b.Def;
-                if (!IsBusiness(b)) continue;
-                bool local = b.Type == BuildingType.Farm || b.Type == BuildingType.Restaurant || b.Type == BuildingType.Cafe || b.Type == BuildingType.Bar ||
-                             b.Type == BuildingType.ClothingStore || b.Type == BuildingType.AutoRepair || b.Type == BuildingType.Construction ||
-                             b.Type == BuildingType.HairSalon || b.Type == BuildingType.Gym || b.Type == BuildingType.FurnitureWorkshop;
-                b.Owner = Owner.Outside; b.OwnerName = FirmName(b.Type);
-                if (b.Type == BuildingType.Bank) b.OwnerName = BankName;
-                if (local)
-                {
-                    var owner = People.Where(c => c.InLaborForce && c.WorkId < 0 && !c.Owner && c.Age > 26 && c.Age < 62 && QualifiesFor(c, b) != Role.None)
-                                      .OrderBy(c => Rand()).FirstOrDefault();
-                    if (owner != null)
-                    {
-                        b.Owner = Owner.Household; b.OwnerId = owner.HouseholdId; b.OwnerName = owner.Last;
-                        owner.Owner = true;
-                        Hire(b, owner, QualifiesFor(owner, b), true);
-                    }
-                }
+                if (ownerOccupied) { b.Owner = Owner.Household; b.OwnerId = b.Households[0]; b.OwnerName = GetHousehold(b.OwnerId).Name; continue; }
+                if (firms.Count == 0) { BankTakes(b); continue; }
+                var f = firms[fi++ % firms.Count];
+                FirmOwns(b, f);
+                if (Chance(0.6f)) PropertyLoan(b, GetHousehold(f.OwnerId), f, b.Value * (0.08 + Rand() * 0.17), false);   // bought years ago, mostly paid off
             }
             // staff everything from the people in town
             foreach (var b in Buildings)
@@ -306,7 +316,7 @@ namespace RealLife.Simulation
                     }
                 }
                 b.Staffing = b.Def.Cat == Category.Public ? 1f : Math.Max(0.3f, (float)b.Employees.Count / Math.Max(1, b.Def.TotalJobs));
-                if (IsBusiness(b)) b.Cash = MonthlyCosts(b) * 2.5;
+                if (IsBusiness(b)) b.Cash = MonthlyCosts(b) * 2.5 + LoanPayments(b) * 2;
             }
             // shops start with some stock
             foreach (var b in Buildings)
@@ -327,6 +337,7 @@ namespace RealLife.Simulation
         int StartStaff(Building b, JobSlot j)
         {
             var d = b.Def;
+            if (b.Type == BuildingType.Realty) { PlanFirmStaff(b); return j.Role == Role.PropertyManager ? b.WantManagers : b.WantHands; }
             if (d.Cat == Category.Public)
             {
                 if (b.Type == BuildingType.Elementary) return j.Role == Role.Teacher ? 3 : j.Count;
@@ -375,6 +386,7 @@ namespace RealLife.Simulation
                 case BuildingType.HairSalon: return f + " Salon";
                 case BuildingType.Gym: return f + " Fitness";
                 case BuildingType.Bank: return f + " Bank";
+                case BuildingType.Realty: return f + " Properties";
                 default: return f + " Co.";
             }
         }

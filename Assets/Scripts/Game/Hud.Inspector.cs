@@ -66,8 +66,38 @@ namespace RealLife.Game
                 case Owner.Household:
                     var h = T.GetHousehold(b.OwnerId);
                     return h != null ? "owned by the " + h.Name + " family" : "privately owned";
+                case Owner.Firm:
+                    var f = T.OwnerFirm(b);
+                    if (f != null) return "owned by " + T.Title(f);
+                    return "held by " + T.BankName + (b.Closed || b.ForSale || b.Def.Homes > 0 ? ", for sale" : "");
                 default: return !string.IsNullOrEmpty(b.OwnerName) ? "owned by " + b.OwnerName : "privately owned";
             }
+        }
+
+        /// <summary>A link to the company that owns this, if it's a firm in town.</summary>
+        void OwnerLink(Building b, Rows rows)
+        {
+            var f = T.OwnerFirm(b);
+            if (f == null) return;
+            var r = rows.Next(22, 1);
+            Ui.Small(new Rect(r.x, r.y, r.width * 0.45f, r.height), "Landlord");
+            if (Ui.Link(new Rect(r.x + r.width * 0.45f, r.y, r.width * 0.55f, r.height), T.Title(f))) gc.FocusBuilding(f);
+        }
+
+        /// <summary>A property firm's homes: how many, how full, the rent coming in and what it owes on them.</summary>
+        void PropertyFirm(Building b, Rows rows)
+        {
+            var homes = T.Portfolio(b).ToList();
+            int units = homes.Where(h => h.Built).Sum(h => h.Def.Homes), lived = homes.Sum(h => h.Households.Count);
+            double rent = homes.Sum(h => h.Rent * h.Households.Count), value = homes.Sum(h => h.Value);
+            rows.Header("Homes");
+            rows.Pair("Homes to let", units + (units > 0 ? " · " + Mathf.RoundToInt(lived * 100f / units) + "% let" : ""));
+            int building = homes.Count(h => !h.Built), selling = homes.Count(h => h.ForSale);
+            if (building > 0) rows.Pair("Going up", building + (building == 1 ? " building" : " buildings"));
+            if (selling > 0) rows.Pair("New houses for sale", selling.ToString(), Ui.Warn);
+            rows.Pair("Rent coming in", Town.Money(rent) + "/mo");
+            rows.Pair("Worth", Town.Money(value));
+            rows.Pair("Owes the bank", Town.Money(T.Debt(b)) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
         }
 
         void Blurb(BuildingDef d, Rows rows)
@@ -91,7 +121,7 @@ namespace RealLife.Game
             rows.Pair("In the bank", Town.Money(b.Cash), b.Cash < 0 ? Ui.Bad : Ui.Text);
             if (b.LossMonths >= 2) Ui.Small(rows.Next(20), Ui.Col("Losing money " + b.LossMonths + " months running.", Ui.Bad));
 
-            rows.Header("Trade");
+            if (d.Sells.HasValue || d.Serves != Service.None || d.Makes.HasValue || b.Type == BuildingType.Office || b.Type == BuildingType.Construction) rows.Header("Trade");
             if (d.Sells.HasValue)
             {
                 var g = d.Sells.Value;
@@ -108,6 +138,9 @@ namespace RealLife.Game
             }
             if (d.Input.HasValue) rows.Pair("Has " + Defs.Name(d.Input.Value).ToLower(), b.Stock[(int)d.Input.Value].ToString("0.#") + " " + Defs.GoodUnits[(int)d.Input.Value]);
             if (b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
+            if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
+            double owed = T.Debt(b);
+            if (owed > 1) rows.Pair("Loans", Town.Money(owed) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
             if (b.Type == BuildingType.Construction)
             {
                 int jobs = T.Buildings.Count(o => !o.Built && o.ContractorId == b.Id);
@@ -182,6 +215,7 @@ namespace RealLife.Game
             rows.Pair("Lived in", b.Households.Count + " of " + d.Homes);
             rows.Pair("Value", Town.Money(b.Value));
             if (!ownerLives) rows.Pair("Rent", Town.Money(b.Rent) + " a month" + PriceVs(b.Rent, d.Rent));
+            OwnerLink(b, rows);
             if (b.ForSale) rows.Pair("For sale", Town.Money(b.Value), Ui.Warn);
             rows.Header("Who lives here");
             if (b.Households.Count == 0) Ui.Small(rows.Next(20), "Empty.");
