@@ -52,3 +52,5 @@ __pycache__/
 /Assets/Resources/RealLife/Mat.meta
 /Assets/Settings/
 /Assets/Settings.meta
+/Assets/DefaultVolumeProfile.asset*
+/Assets/UniversalRenderPipelineGlobalSettings.asset*
