@@ -1,0 +1,16 @@
+{
+    "name": "RealLife.Game",
+    "rootNamespace": "RealLife.Game",
+    "references": [
+        "RealLife.Simulation"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,102 @@
+# Real Life
+
+A modern-day town where the economy is real. Every person in town is simulated: they're born, go to school (if there's a
+school), graduate or drop out, go to college or learn a trade, get jobs, get paid, pay rent or a mortgage, buy groceries and
+clothes and cars, go out for dinner, fall ill, marry, have kids, retire and die. Every business is a business: it hires the
+people it needs (if anyone in town has the right qualifications), sets its prices and wages, buys stock from makers in town or
+imports it, and keeps its own books. If it can't make payroll it borrows; if it can't borrow it closes.
+
+You're the unseen hand. You lay out the streets, zone the land, build the schools, clinics, police and fire stations, parks and
+bus depots, and set the laws. Developers, entrepreneurs and outside firms decide what gets built on the land you zone, based on
+what they can see: empty homes, customers turned away, sales nobody in town can make, people looking for work.
+
+Built in Unity 6 (6000.6.5f1) with the built-in render pipeline. All art is low-poly 3D generated in code, so there are no
+model or texture assets. The economy lives in a pure C# simulation (`Assets/Scripts/Simulation`) with no Unity dependencies,
+so it can be run and tested headless.
+
+## Open it
+
+1. Unity Hub → **Add** → **Add project from disk** → pick this folder.
+2. Open it with Unity 6000.6.5f1.
+3. The first time it opens, the project creates `Assets/Scenes/Main.unity` and opens it.
+4. Press **Play**. The game builds itself from code, so the scene stays empty in the editor.
+
+The town saves every month and when you quit, to `Application.persistentDataPath/reallife-save-v1.json`.
+**Start a new town** is at the bottom of the Laws panel.
+
+## Controls
+
+| | |
+|---|---|
+| **WASD / arrows**, middle-drag | Pan (Shift: faster) |
+| **Q / E**, right-drag | Turn |
+| **R / F**, right-drag up/down | Tilt |
+| **Wheel**, + / − | Zoom |
+| **Space** | Pause |
+| **1–5** | Speed 1x, 3x, 10x, 30x, 90x |
+| **T** | Road tool |
+| **X** or **Delete** | Bulldoze |
+| **Esc** | Back to Select, then clear the selection |
+| **F5** | Save now |
+
+Click any building or any person walking or driving to inspect them. Hold **Shift** while placing a public building to place
+several.
+
+## Time and money
+
+One day is about a real week; a month is four days and a year is 48. At 1x a day takes six minutes, so you can watch the
+morning commute; at 90x a year goes by in about three minutes. Money is in dollars at realistic monthly rates: a cashier
+earns about $2,350 a month, a teacher $4,600, a software developer $8,000, a doctor $14,500. A house costs around $230,000.
+
+## How the economy works
+
+**People.** Kids go to elementary school at 6 and high school at 12 — if there's a school with room and enough teachers.
+At 18 they graduate if they got enough schooling, otherwise they have no diploma. Graduates may go to the community college
+for a two-year trade certificate or a four-year degree (and medical school after that, if there's a hospital). Unemployed
+adults go back to learn a trade. Every job needs a credential: anyone can be a cashier, but an electrician needs a trade
+certificate, a teacher a degree and a doctor a medical degree. A town without schools ends up with jobs nobody can fill.
+
+**Households** share one bank account. Each month they're paid (less income tax), pay rent or mortgage, utilities,
+insurance, loan payments and tuition, put some aside, and what's left is spending money: dinners out, coffee, drinks, the gym,
+haircuts, clothes as they wear out, a new TV or sofa now and then, some online shopping. Groceries every week; fuel and
+repairs if they have a car. Families with savings and a steady job buy houses on a mortgage; young adults with a job move out
+of their parents' place; singles pair up and move in together; couples have children.
+
+**Businesses.** Shops buy stock from makers in town (a food plant for groceries, factories for clothes, electronics,
+furniture) when that's cheaper than importing it, and sell to households with sales tax on top. Restaurants, cafés, bars,
+gyms, salons and garages sell services. Farms grow crops for the food plant; factories export what the town can't buy at
+world prices. Offices bill clients outside town and are the best-paid jobs, if the town has the graduates to staff them.
+Construction companies build everything and do repair work; trucking depots haul goods (without one, outside hauliers charge
+more). The bank lends for homes, cars, college and businesses. Every month each business pays wages, utilities, upkeep and
+taxes, its owner takes what's above a cushion (profits from outside-owned firms leave town), and it decides how many staff it
+needs and what to charge: prices rise when it turns customers away and fall when stock piles up; wages rise when it can't
+hire.
+
+**Growth.** Zone land and the market decides. Open jobs bring families from outside if there are homes for them; empty
+homes and turned-away shoppers make developers build; people looking for work draw factories and offices. Your zone demand
+meters (top left) show what's wanted.
+
+**The town's books.** Income tax, sales tax, property tax, business tax and college tuition come in; public employees'
+pay, upkeep of buildings and roads, unemployment benefits and construction go out. You can run a deficit and borrow, at 5.5%
+a year.
+
+**The town line.** Money comes into town from exports, office work billed outside, pensions and outside investment, and
+leaves through imports, profits to outside owners, utilities and insurance, outside hauliers and retirement savings. The
+highway terminal's inspector shows last month's balance.
+
+## Laws (the Laws panel)
+
+Income, sales, property and business taxes; the minimum wage; unemployment benefit; how much of college tuition the town pays;
+public-sector pay; and how many teachers, doctors and nurses, police and firefighters the town funds. You can also close the
+town to newcomers.
+
+## The code
+
+| | |
+|---|---|
+| `Assets/Scripts/Simulation` | The whole economy, engine-free. `Town.cs` (state, map, clock), `Town.Day.cs` (the order of a day and a month), `Town.People.cs` (lives, school, migration), `Town.Jobs.cs` (labour market), `Town.Business.cs` (production, trade, books), `Town.Shopping.cs` (household spending), `Town.Housing.cs` (rent, mortgages, the bank), `Town.Development.cs` (developers, construction, the player's tools), `Town.Start.cs` (the starting town), `Defs.cs` (every number) |
+| `Assets/Scripts/Game` | The Unity side: `GameController` (clock, tools, save/load), `CameraRig`, `WorldView` (ground, roads, buildings, lighting), `Agents` (people and vehicles moving), `Nav` (road routes), `Hud*` (UI) |
+| `Assets/Scripts/Game/Art` | Low-poly models built in code: `MeshKit` (flat-shaded mesh builder), `BuildingArt` (every building), `PropArt` (trees, people, vehicles) |
+| `Assets/Resources/RealLife` | Three small shaders: vertex-coloured lit surfaces, window glass that lights up at night, and see-through overlays |
+| `tools/SimTest` | Runs the simulation headless for years and prints the economy month by month: `dotnet run -- 10 42` (years, seed). Add `x x schools` to have it build a high school and college like a player would |
+| `tools/UnityCheck` | Compiles the whole game against a stand-in UnityEngine and checks every model's faces point outwards |
