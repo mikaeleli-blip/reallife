@@ -74,7 +74,7 @@ namespace RealLife.Game
             bloom.highQualityFiltering.Override(true);
             color = profile.Add<ColorAdjustments>(true);
             color.contrast.Override(12f);
-            color.saturation.Override(6f);
+            color.saturation.Override(0f);
             color.postExposure.Override(0.35f);
             white = profile.Add<WhiteBalance>(true);
             white.temperature.Override(3f);
@@ -139,7 +139,7 @@ namespace RealLife.Game
             if (color != null)
             {
                 color.postExposure.value = Mathf.Lerp(0.3f, 0.8f, Night);
-                color.saturation.value = Mathf.Lerp(snow ? -4f : 6f, -14f, Night);
+                color.saturation.value = Mathf.Lerp(snow ? -6f : 0f, -14f, Night);
                 color.colorFilter.value = Color.Lerp(Color.white, Hex("#c9d6ff"), Night * 0.55f);
                 bloom.intensity.value = Mathf.Lerp(0.3f, 1.0f, Night);
                 bloom.threshold.value = Mathf.Lerp(1.05f, 0.85f, Night);

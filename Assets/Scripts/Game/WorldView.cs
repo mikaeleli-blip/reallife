@@ -106,12 +106,24 @@ namespace RealLife.Game
         // ================================================================== materials
         static Material S(string n) { return MaterialLibrary.Surface(n); }
 
-        Material Grass(bool woods)
+        Material Grass(bool woods, int variant = 0)
         {
             if (season == 0) return S("snow");
             var tint = BuildingArt.GrassTint(season);
-            if (woods) tint = new Color(tint.r * 0.86f, tint.g * 0.86f, tint.b * 0.86f, 1f);
-            return MaterialLibrary.Tinted("grass", tint);
+            var v = woods ? new Color(0.9f, 0.92f, 0.9f) : MeadowTints[variant % MeadowTints.Length];
+            return MaterialLibrary.Tinted("grass", new Color(tint.r * v.r, tint.g * v.g, tint.b * v.b));
+        }
+
+        /// <summary>A gentle patchiness for the lawns and verges: smooth noise over a few tiles, in four steps.</summary>
+        static int GrassVariant(int x, int y)
+        {
+            float fx = x / 5f, fy = y / 5f;
+            int ix = Mathf.FloorToInt(fx), iy = Mathf.FloorToInt(fy);
+            float tx = fx - ix, ty = fy - iy;
+            tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+            float a = (Hash(ix, iy) & 255) / 255f, b = (Hash(ix + 1, iy) & 255) / 255f, c = (Hash(ix, iy + 1) & 255) / 255f, d = (Hash(ix + 1, iy + 1) & 255) / 255f;
+            float n = Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), ty);
+            return Mathf.Clamp(Mathf.FloorToInt(n * 4), 0, 3);
         }
 
         Material Water { get { return season == 0 ? MaterialLibrary.Tinted("snow", new Color(0.86f, 0.92f, 1f)) : S("water"); } }
@@ -198,7 +210,7 @@ namespace RealLife.Game
                 if (!town.IsWater(x + 1, y) && x < town.Cols - 1) k.Quad(new Vector3(x1, -0.9f, z1), new Vector3(x1, 0, z1), new Vector3(x1, 0, z0), new Vector3(x1, -0.9f, z0), bank, 3f);
                 return;
             }
-            var m = t == Town.TileBits.Sand ? Bank : Grass(t == Town.TileBits.Trees);
+            var m = t == Town.TileBits.Sand ? Bank : Grass(t == Town.TileBits.Trees, GrassVariant(x, y));
             k.Flat(x0, z0, x1, z1, 0, m, 8f);
         }
 
@@ -272,27 +284,34 @@ namespace RealLife.Game
         }
 
         // ================================================================== the country round the map
-        /// <summary>Farmland and woods running off to the horizon on every side, rivers and the highway carried on out.</summary>
+        const float NearRing = 640f;
+
+        /// <summary>A patchwork of fields, meadows and woods running off to the horizon on every side; rivers and the
+        /// highway carried on out of the map.</summary>
         void RebuildCountry()
         {
             countrySeason = season;
             var k = new MeshKit();
-            float W = town.Cols * Tile, Hh = town.Rows * Tile, L = Country;
-            var grass = Grass(false);
-            // corners
-            k.Flat(-L, -L, 0, 0, 0, grass, 8f); k.Flat(W, -L, W + L, 0, 0, grass, 8f);
-            k.Flat(-L, Hh, 0, Hh + L, 0, grass, 8f); k.Flat(W, Hh, W + L, Hh + L, 0, grass, 8f);
-            // the four edges, a strip per tile so rivers and the highway carry on out of the map
+            float W = town.Cols * Tile, Hh = town.Rows * Tile, L = Country, N = NearRing;
+            // rivers and the highway first: a strip straight out from each edge tile that has one
+            var south = new bool[town.Cols]; var north = new bool[town.Cols]; var west = new bool[town.Rows]; var east = new bool[town.Rows];
             for (int x = 0; x < town.Cols; x++)
             {
-                EdgeStrip(k, x, 0, new Vector3(x * Tile, 0, 0), new Vector3((x + 1) * Tile, 0, 0), Vector3.back, WaterIn(x - 1, 0), WaterIn(x + 1, 0));
-                EdgeStrip(k, x, town.Rows - 1, new Vector3((x + 1) * Tile, 0, Hh), new Vector3(x * Tile, 0, Hh), Vector3.forward, WaterIn(x + 1, town.Rows - 1), WaterIn(x - 1, town.Rows - 1));
+                south[x] = EdgeStrip(k, x, 0, new Vector3(x * Tile, 0, 0), new Vector3((x + 1) * Tile, 0, 0), Vector3.back, WaterIn(x - 1, 0), WaterIn(x + 1, 0));
+                north[x] = EdgeStrip(k, x, town.Rows - 1, new Vector3((x + 1) * Tile, 0, Hh), new Vector3(x * Tile, 0, Hh), Vector3.forward, WaterIn(x + 1, town.Rows - 1), WaterIn(x - 1, town.Rows - 1));
             }
             for (int y = 0; y < town.Rows; y++)
             {
-                EdgeStrip(k, 0, y, new Vector3(0, 0, (y + 1) * Tile), new Vector3(0, 0, y * Tile), Vector3.left, WaterIn(0, y + 1), WaterIn(0, y - 1));
-                EdgeStrip(k, town.Cols - 1, y, new Vector3(W, 0, y * Tile), new Vector3(W, 0, (y + 1) * Tile), Vector3.right, WaterIn(town.Cols - 1, y - 1), WaterIn(town.Cols - 1, y + 1));
+                west[y] = EdgeStrip(k, 0, y, new Vector3(0, 0, (y + 1) * Tile), new Vector3(0, 0, y * Tile), Vector3.left, WaterIn(0, y + 1), WaterIn(0, y - 1));
+                east[y] = EdgeStrip(k, town.Cols - 1, y, new Vector3(W, 0, y * Tile), new Vector3(W, 0, (y + 1) * Tile), Vector3.right, WaterIn(town.Cols - 1, y - 1), WaterIn(town.Cols - 1, y + 1));
             }
+            // then the land round them: small parcels near the town, big ones further out
+            Parcels(k, 0, W, -N, 0, 40, south, null); Parcels(k, 0, W, Hh, Hh + N, 40, north, null);
+            Parcels(k, -N, 0, 0, Hh, 40, null, west); Parcels(k, W, W + N, 0, Hh, 40, null, east);
+            Parcels(k, -N, 0, -N, 0, 40, null, null); Parcels(k, W, W + N, -N, 0, 40, null, null);
+            Parcels(k, -N, 0, Hh, Hh + N, 40, null, null); Parcels(k, W, W + N, Hh, Hh + N, 40, null, null);
+            Parcels(k, -N, W + N, -L, -N, 160, south, null); Parcels(k, -N, W + N, Hh + N, Hh + L, 160, north, null);
+            Parcels(k, -L, -N, -L, Hh + L, 160, null, west); Parcels(k, W + N, W + L, -L, Hh + L, 160, null, east);
             if (countryside == null)
             {
                 countryside = new GameObject("Countryside");
@@ -307,8 +326,94 @@ namespace RealLife.Game
             countryside.GetComponent<MeshRenderer>().sharedMaterials = m.Materials;
         }
 
-        /// <summary>The land beyond one edge tile: from a to b along the map edge (b to the right looking out), out along `outward`.</summary>
-        void EdgeStrip(MeshKit k, int tx, int ty, Vector3 a, Vector3 b, Vector3 outward, bool waterLeft, bool waterRight)
+        /// <summary>Fills a rectangle of country with parcels on a size-P grid, leaving out the strips straight out from
+        /// edge tiles that carry a river or the highway (byColumn: along x; byRow: along z).</summary>
+        void Parcels(MeshKit k, float x0, float x1, float z0, float z1, float P, bool[] byColumn, bool[] byRow)
+        {
+            for (float gx = Mathf.Floor(x0 / P) * P; gx < x1 - 0.01f; gx += P)
+                for (float gz = Mathf.Floor(z0 / P) * P; gz < z1 - 0.01f; gz += P)
+                {
+                    float cx0 = Mathf.Max(gx, x0), cx1 = Mathf.Min(gx + P, x1), cz0 = Mathf.Max(gz, z0), cz1 = Mathf.Min(gz + P, z1);
+                    if (cx1 - cx0 < 0.01f || cz1 - cz0 < 0.01f) continue;
+                    uint h = Hash(Mathf.RoundToInt(gx / P) * 3 + (P > 50 ? 7919 : 0), Mathf.RoundToInt(gz / P) * 5 + 1);
+                    if (byColumn != null) Runs(cx0, cx1, byColumn, (a, b) => Parcel(k, a, b, cz0, cz1, h, P));
+                    else if (byRow != null) Runs(cz0, cz1, byRow, (a, b) => Parcel(k, cx0, cx1, a, b, h, P));
+                    else Parcel(k, cx0, cx1, cz0, cz1, h, P);
+                }
+        }
+
+        /// <summary>Splits [a0, a1] into the runs that miss the special tiles.</summary>
+        static void Runs(float a0, float a1, bool[] special, System.Action<float, float> emit)
+        {
+            float start = a0;
+            int t0 = Mathf.FloorToInt(a0 / Tile), t1 = Mathf.CeilToInt(a1 / Tile);
+            for (int t = t0; t < t1; t++)
+            {
+                if (t < 0 || t >= special.Length || !special[t]) continue;
+                float s0 = Mathf.Max(a0, t * Tile), s1 = Mathf.Min(a1, (t + 1) * Tile);
+                if (s0 > start + 0.01f) emit(start, s0);
+                start = Mathf.Max(start, s1);
+            }
+            if (a1 > start + 0.01f) emit(start, a1);
+        }
+
+        static readonly Color[] MeadowTints = { new Color(1f, 1f, 1f), new Color(0.93f, 0.96f, 0.93f), new Color(1.05f, 1.0f, 0.88f), new Color(0.97f, 0.93f, 0.95f) };
+
+        /// <summary>One parcel: a meadow, a crop field or (near the town) a wood, maybe with a line of trees along an edge.</summary>
+        void Parcel(MeshKit k, float x0, float x1, float z0, float z1, uint h, float P)
+        {
+            float W = town.Cols * Tile, Hh = town.Rows * Tile;
+            float cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+            float dist = Mathf.Max(Mathf.Max(-cx, cx - W), Mathf.Max(-cz, cz - Hh));
+            float r = (h & 1023) / 1023f;
+            bool near = dist < 320f;
+            if (near && r < 0.16f)
+            {
+                // a wood
+                k.Flat(x0, z0, x1, z1, 0, Grass(true), 8f);
+                float area = (x1 - x0) * (z1 - z0);
+                int n = Mathf.Min(14, Mathf.RoundToInt(area / 150f));
+                uint t = h;
+                for (int i = 0; i < n; i++)
+                {
+                    t = t * 1664525u + 1013904223u;
+                    float px = Mathf.Lerp(x0 + 2, x1 - 2, ((t >> 8) & 255) / 255f), pz = Mathf.Lerp(z0 + 2, z1 - 2, ((t >> 16) & 255) / 255f);
+                    float sc = 0.9f + ((t >> 4) & 15) / 25f;
+                    if (dist > 160 || (t >> 28) % 3 == 0) PropArt.Pine(k, new Vector3(px, 0, pz), sc * 1.25f, season);
+                    else PropArt.Tree(k, new Vector3(px, 0, pz), sc, season, t);
+                }
+                return;
+            }
+            Material m;
+            if (season == 0) m = S("snow");
+            else if (r < 0.5f)
+            {
+                string crop = season == 1 ? "field_young" : season == 2 ? (r < 0.3f ? "field_green" : "field_young") : (r < 0.35f ? "field_ripe" : "field_green");
+                m = S(crop);
+            }
+            else
+            {
+                var tint = BuildingArt.GrassTint(season);
+                var v = MeadowTints[(h >> 12) % (uint)MeadowTints.Length];
+                m = MaterialLibrary.Tinted("grass", new Color(tint.r * v.r, tint.g * v.g, tint.b * v.b));
+            }
+            k.Flat(x0, z0, x1, z1, 0, m, 8f);
+            // a hedgerow of trees down one side now and then
+            if (near && ((h >> 20) & 7) < 2 && x1 - x0 > 20)
+            {
+                uint t = h ^ 0x9e3779b9u;
+                for (float z = z0 + 3; z < z1 - 2; z += 7f)
+                {
+                    t = t * 1664525u + 1013904223u;
+                    if (((t >> 8) & 3) == 0) continue;
+                    PropArt.Tree(k, new Vector3(x0 + 1.2f, 0, z + ((t >> 12) & 3)), 0.85f + ((t >> 16) & 7) / 20f, season, t);
+                }
+            }
+        }
+
+        /// <summary>A river or the highway carried straight out from an edge tile (from a to b along the edge, out along
+        /// `outward`). Returns false, drawing nothing, for an ordinary land tile.</summary>
+        bool EdgeStrip(MeshKit k, int tx, int ty, Vector3 a, Vector3 b, Vector3 outward, bool waterLeft, bool waterRight)
         {
             float L = Country;
             Vector3 fa = a + outward * L, fb = b + outward * L;
@@ -321,39 +426,24 @@ namespace RealLife.Game
                 var bank = Bank;
                 if (!waterLeft) Wall(k, a, fa, -0.9f, 0f, (b - a).normalized, bank);
                 if (!waterRight) Wall(k, b, fb, -0.9f, 0f, (a - b).normalized, bank);
-                return;
+                return true;
             }
-            if (road)
-            {
-                // the highway: asphalt, a verge either side, a dashed centre line, lamps for a stretch
-                Vector3 side = (b - a).normalized;
-                Quad(k, a + Vector3.up * 0.05f, fa + Vector3.up * 0.05f, fb + Vector3.up * 0.05f, b + Vector3.up * 0.05f, Asphalt, 8f);
-                var walk = Walk;
-                Quad(k, a + Vector3.up * 0.2f, fa + Vector3.up * 0.2f, fa + side * 1.8f + Vector3.up * 0.2f, a + side * 1.8f + Vector3.up * 0.2f, walk, 2f);
-                Quad(k, b - side * 1.8f + Vector3.up * 0.2f, fb - side * 1.8f + Vector3.up * 0.2f, fb + Vector3.up * 0.2f, b + Vector3.up * 0.2f, walk, 2f);
-                Vector3 mid = (a + b) / 2;
-                if (season != 0)
-                    for (float d = 1; d < 600; d += 3.4f)
-                    {
-                        Vector3 p = mid + outward * d + Vector3.up * 0.07f;
-                        Quad(k, p - side * 0.1f, p - side * 0.1f + outward * 1.7f, p + side * 0.1f + outward * 1.7f, p + side * 0.1f, MaterialLibrary.Get(Yellow), 2f);
-                    }
-                for (float d = 10; d < 300; d += 20) PropArt.Lamp(k, a + side * 0.6f + outward * d + Vector3.up * 0.2f);
-                return;
-            }
-            Quad(k, a, fa, fb, b, Grass(false), 8f);
-            // woods thinning out with distance
-            uint h = Hash(tx * 7 + (int)(outward.x * 3), ty * 7 + (int)(outward.z * 3));
-            for (int i = 0; i < 3; i++)
-            {
-                h = h * 1664525u + 1013904223u;
-                float along = ((h >> 8) & 255) / 255f, dist = 6f + Mathf.Pow(((h >> 16) & 255) / 255f, 1.6f) * 160f;
-                if (((h >> 4) & 15) < 4) continue;
-                var p = Vector3.Lerp(a, b, 0.15f + along * 0.7f) + outward * dist;
-                float s = 0.85f + ((h >> 24) & 15) / 30f;
-                if ((h >> 28) % 2 == 0) PropArt.Pine(k, p, s * 1.2f, season);
-                else PropArt.Tree(k, p, s, season, h);
-            }
+            if (!road) return false;
+            // the highway: asphalt, a verge either side, a dashed centre line, lamps for a stretch
+            Vector3 side = (b - a).normalized;
+            Quad(k, a + Vector3.up * 0.05f, fa + Vector3.up * 0.05f, fb + Vector3.up * 0.05f, b + Vector3.up * 0.05f, Asphalt, 8f);
+            var walk = Walk;
+            Quad(k, a + Vector3.up * 0.2f, fa + Vector3.up * 0.2f, fa + side * 1.8f + Vector3.up * 0.2f, a + side * 1.8f + Vector3.up * 0.2f, walk, 2f);
+            Quad(k, b - side * 1.8f + Vector3.up * 0.2f, fb - side * 1.8f + Vector3.up * 0.2f, fb + Vector3.up * 0.2f, b + Vector3.up * 0.2f, walk, 2f);
+            Vector3 mid = (a + b) / 2;
+            if (season != 0)
+                for (float d = 1; d < 600; d += 3.4f)
+                {
+                    Vector3 p = mid + outward * d + Vector3.up * 0.07f;
+                    Quad(k, p - side * 0.1f, p - side * 0.1f + outward * 1.7f, p + side * 0.1f + outward * 1.7f, p + side * 0.1f, MaterialLibrary.Get(Yellow), 2f);
+                }
+            for (float d = 10; d < 300; d += 20) PropArt.Lamp(k, a + side * 0.6f + outward * d + Vector3.up * 0.2f);
+            return true;
         }
 
         /// <summary>An upright quad along p..q between two heights, facing `facing`.</summary>
@@ -390,7 +480,7 @@ namespace RealLife.Game
         {
             int cw = (town.Cols + Chunk - 1) / Chunk, ch = (town.Rows + Chunk - 1) / Chunk;
             var k = new MeshKit();
-            byte a = (byte)(zoneStrong ? 120 : 55);
+            byte a = (byte)(zoneStrong ? 95 : 28);
             for (int cy = 0; cy < ch; cy++)
                 for (int cx = 0; cx < cw; cx++)
                 {
@@ -402,8 +492,8 @@ namespace RealLife.Game
                             if (z == Zone.None || town.BuildingAt(x, y) != null) continue;
                             Color32 c = ZoneColor(z); c.a = a;
                             k.Flat(x * Tile + 0.6f, y * Tile + 0.6f, x * Tile + Tile - 0.6f, y * Tile + Tile - 0.6f, 0.12f, c);
-                            Color32 edge = ZoneColor(z); edge.a = (byte)(a + 60);
-                            k.Flat(x * Tile + 0.6f, y * Tile + 0.6f, x * Tile + Tile - 0.6f, y * Tile + 1.0f, 0.13f, edge);
+                            Color32 edge = ZoneColor(z); edge.a = (byte)(a + 90);
+                            k.Flat(x * Tile + 0.6f, y * Tile + 0.6f, x * Tile + Tile - 0.6f, y * Tile + 0.85f, 0.13f, edge);
                         }
                     SetChunk(zoneChunks, cy * cw + cx, "Zones", k, false, true);
                 }

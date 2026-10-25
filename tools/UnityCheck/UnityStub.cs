@@ -154,6 +154,7 @@ namespace UnityEngine
         public static int Min(int a, int b) => Math.Min(a, b); public static int Max(int a, int b) => Math.Max(a, b);
         public static int FloorToInt(float f) => (int)Math.Floor(f); public static int RoundToInt(float f) => (int)Math.Round(f);
         public static float Sqrt(float f) => (float)Math.Sqrt(f);
+        public static float Floor(float f) => (float)Math.Floor(f); public static int CeilToInt(float f) => (int)Math.Ceiling(f);
         public static float DeltaAngle(float a, float b) { float d = (b - a) % 360; if (d > 180) d -= 360; if (d < -180) d += 360; return d; }
         public static float Round(float f) => (float)Math.Round(f); public static float Exp(float f) => (float)Math.Exp(f); public static float Pow(float a, float b) => (float)Math.Pow(a, b);
     }

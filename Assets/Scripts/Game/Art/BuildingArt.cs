@@ -37,9 +37,10 @@ namespace RealLife.Game.Art
         {
             switch (season)
             {
-                case 1: return new Color(1.0f, 1.08f, 0.9f);
-                case 2: return new Color(0.92f, 0.98f, 0.85f);
-                case 3: return new Color(1.12f, 0.98f, 0.66f);
+                // the grass texture is a fresh green; pull it toward a lived-in lawn for each season
+                case 1: return new Color(0.92f, 0.86f, 0.96f);
+                case 2: return new Color(0.83f, 0.77f, 0.9f);
+                case 3: return new Color(1.04f, 0.8f, 0.72f);
                 default: return Color.white;
             }
         }

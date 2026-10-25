@@ -41,8 +41,8 @@ namespace RealLife.Game.Art
                 return;
             }
             if (season == 3) leaf = v == 0 ? MeshKit.Hex("#d9822b") : v == 1 ? MeshKit.Hex("#c0392b") : MeshKit.Hex("#e1b12c");
-            else if (season == 1) leaf = v == 0 ? MeshKit.Hex("#7dbb4d") : v == 1 ? MeshKit.Hex("#8fc95a") : MeshKit.Hex("#6aa84f");
-            else leaf = v == 0 ? MeshKit.Hex("#4f8f3a") : v == 1 ? MeshKit.Hex("#5a9a40") : MeshKit.Hex("#3f7f34");
+            else if (season == 1) leaf = v == 0 ? MeshKit.Hex("#6b9e47") : v == 1 ? MeshKit.Hex("#79a852") : MeshKit.Hex("#5d9145");
+            else leaf = v == 0 ? MeshKit.Hex("#46793a") : v == 1 ? MeshKit.Hex("#527f3d") : MeshKit.Hex("#3b6b33");
             k.Blob(p + new Vector3(0, h + 1.1f * scale, 0), new Vector3(1.9f, 1.8f, 1.9f) * scale, leaf);
             k.Blob(p + new Vector3(0.6f * scale, h + 2.1f * scale, 0.3f * scale), new Vector3(1.2f, 1.1f, 1.2f) * scale, MeshKit.Shade(leaf, 1.1f));
             k.Blob(p + new Vector3(-0.7f * scale, h + 0.7f * scale, -0.4f * scale), new Vector3(1.1f, 0.9f, 1.1f) * scale, MeshKit.Shade(leaf, 0.9f));
@@ -170,8 +170,9 @@ namespace RealLife.Game.Art
             var pole = M(MeshKit.Hex("#3d4248"), 0.45f, 0.5f);
             k.Box(p + new Vector3(-0.07f, 0, -0.07f), p + new Vector3(0.07f, 4.2f, 0.07f), pole, pole);
             k.Box(p + new Vector3(-0.25f, 4.2f, -0.25f), p + new Vector3(0.25f, 4.4f, 0.25f), pole, pole);
-            var bulb = MaterialLibrary.Glow(new Color(0.95f, 0.9f, 0.8f), new Color(1f, 0.82f, 0.55f), 5f);
-            k.Quad(p + new Vector3(-0.2f, 4.19f, 0.2f), p + new Vector3(-0.2f, 4.19f, -0.2f), p + new Vector3(0.2f, 4.19f, -0.2f), p + new Vector3(0.2f, 4.19f, 0.2f), bulb);
+            // a lantern under the cap, seen from above and from the side
+            var bulb = MaterialLibrary.Glow(new Color(0.95f, 0.9f, 0.8f), new Color(1f, 0.8f, 0.5f), 6f);
+            k.Box(p + new Vector3(-0.17f, 3.85f, -0.17f), p + new Vector3(0.17f, 4.2f, 0.17f), bulb, bulb);
         }
 
         /// <summary>A car parked at p, facing yaw.</summary>

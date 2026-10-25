@@ -261,7 +261,7 @@ namespace RealLife.Game.Art
             Ledge(k, f, c - 5.2f, c + 5.2f, 7.2f, 8.2f, 3.2f, stone, stoneTop);
             Vector3 l = f.At(c - 5.2f, 8.2f) + f.Normal * 3.2f, r = f.At(c + 5.2f, 8.2f) + f.Normal * 3.2f, apex = f.At(c, 10.4f) + f.Normal * 3.2f;
             k.Tri(l, apex, r, stone);
-            var copper = season == 0 ? S("snow") : T("roof_metal", new Color(0.45f, 0.62f, 0.52f));
+            var copper = T("roof_metal", new Color(0.45f, 0.62f, 0.52f));   // too steep to hold snow
             Vector3 lb = f.At(c - 5.2f, 8.2f), rb = f.At(c + 5.2f, 8.2f), ab = f.At(c, 10.4f);
             k.Quad(lb, ab, apex, l, copper); k.Quad(r, apex, ab, rb, copper);
             Sign(k, Out(f, 3.2f), c, 5f, 7.32f, 0.62f, SignRow.TownHall, false);
