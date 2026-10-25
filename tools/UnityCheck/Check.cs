@@ -24,12 +24,17 @@ static class Check
         bad += Audit("Site", site, 20, 20, false);
         foreach (var name in new[] { "car", "truck", "bus", "person" })
         {
-            Mesh m = name == "car" ? PropArt.CarMesh(new Color32(200, 0, 0, 255)) : name == "truck" ? PropArt.TruckMesh(new Color32(1, 1, 1, 255), new Color32(1, 1, 1, 255)) : name == "person" ? PropArt.Person(3, false) : null;
-            if (name == "bus") { var k = new MeshKit(); PropArt.Bus(k, new Color32(1, 1, 1, 255)); m = k.ToMesh("bus"); }
+            Model m = name == "car" ? PropArt.CarModel(new Color32(200, 0, 0, 255)) : name == "truck" ? PropArt.TruckModel(new Color32(1, 1, 1, 255), new Color32(1, 1, 1, 255)) : name == "person" ? PropArt.Person(3, false) : PropArt.BusModel(new Color32(1, 1, 1, 255));
             bad += Audit(name, m, 4, 10, false);
         }
         var tk = new MeshKit(); PropArt.Tree(tk, Vector3.zero, 1, 2, 7); PropArt.Pine(tk, new Vector3(5, 0, 0), 1, 2);
-        bad += Audit("trees", tk.ToMesh("t"), 10, 10, false);
+        bad += Audit("trees", tk.ToModel("t"), 10, 10, false);
+        foreach (int season in new[] { 0, 1, 3 })
+            foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
+            {
+                var d = Defs.Get(t);
+                bad += Audit(t + " s" + season + " closed", BuildingArt.Build(t, d.W * 10, d.H * 10, 777u, d.Floors, true, season), d.W * 10, d.H * 10, false, true);
+            }
         Console.WriteLine(bad == 0 ? "All meshes look right." : bad + " suspicious faces.");
         return 0;
     }
@@ -41,23 +46,24 @@ static class Check
         var c = new Color32(200, 200, 200, 255);
         bad += Convex("Box", k => k.Box(new Vector3(-1, 0, -2), new Vector3(3, 2, 1), c, c, false), new Vector3(1, 1, -0.5f));
         bad += Convex("Gable", k => k.Gable(-2, -3, 2, 3, 0, 2, c, c, 0f), new Vector3(0, 0.7f, 0));
-        bad += Convex("Hip wide", k => k.Hip(-3, -1, 3, 1, 0, 2, c, 0f), new Vector3(0, 0.5f, 0));
-        bad += Convex("Hip deep", k => k.Hip(-1, -3, 1, 3, 0, 2, c, 0f), new Vector3(0, 0.5f, 0));
+        // roofs carry soffit and fascia boards; check the slopes
+        bad += Convex("Hip wide", k => k.Hip(-3, -1, 3, 1, 0, 2, c, 0f), new Vector3(0, 0.5f, 0), n => n.y > 0.3f && n.y < 0.99f);
+        bad += Convex("Hip deep", k => k.Hip(-1, -3, 1, 3, 0, 2, c, 0f), new Vector3(0, 0.5f, 0), n => n.y > 0.3f && n.y < 0.99f);
         bad += Convex("Cylinder", k => k.Cylinder(Vector3.zero, 1, 1, 2, 8, c, c), new Vector3(0, 1, 0));
         bad += Convex("Cone", k => k.Cylinder(Vector3.zero, 1, 0, 2, 8, c, c), new Vector3(0, 0.5f, 0));
         bad += Convex("Blob", k => k.Blob(new Vector3(0, 2, 0), new Vector3(1, 1, 1), c), new Vector3(0, 2, 0));
         bad += Convex("Flat", k => k.Flat(-1, -1, 1, 1, 0, c), new Vector3(0, -1, 0));
-        bad += Convex("Windows", k => k.WindowsFront(-2, 2, 0, 2, -1, 2, 1, 1, 1, 5, 1f), new Vector3(0, 1, 0));
-        bad += Convex("Windows around", k => k.WindowsAround(new Vector3(-2, 0, -3), new Vector3(2, 3, 3), 1, 1, 0.5f, 0.5f, 0.5f, 5, 1f), new Vector3(0, 1.5f, 0));
+        // window frames are little boxes; the panes and frame fronts must face out
+        bad += Convex("Windows", k => k.WindowsFront(-2, 2, 0, 2, -1, 2, 1, 1, 1, 5, 1f), new Vector3(0, 1, 0), n => n.z < -0.5f);
         bad += Convex("Turned box", k => { k.Push(new Vector3(5, 0, 5), 90); k.Box(new Vector3(-1, 0, -2), new Vector3(3, 2, 1), c, c, false); k.Pop(); }, new Vector3(5 - 0.5f, 1, 5 - 1));
         return bad;
     }
 
-    static int Convex(string name, Action<MeshKit> build, Vector3 center)
+    static int Convex(string name, Action<MeshKit> build, Vector3 center, Func<Vector3, bool> only = null)
     {
-        var k = new MeshKit(); build(k); var m = k.ToMesh(name);
+        var k = new MeshKit(); build(k); var m = k.ToModel(name).Mesh;
         var v = m.vertices; int wrong = 0, n = 0;
-        for (int s = 0; s < 2; s++)
+        for (int s = 0; s < m.subMeshCount; s++)
         {
             var idx = m.GetTriangles(s);
             for (int i = 0; i < idx.Length; i += 3)
@@ -65,6 +71,7 @@ static class Check
                 Vector3 a = v[idx[i]], b = v[idx[i + 1]], cc = v[idx[i + 2]];
                 var nn = Vector3.Cross(b - a, cc - a);
                 if (nn.sqrMagnitude < 1e-10f) continue;
+                if (only != null && !only(nn.normalized)) continue;
                 n++;
                 if (Vector3.Dot(nn, (a + b + cc) / 3f - center) <= 0) wrong++;
             }
@@ -74,11 +81,15 @@ static class Check
     }
 
     /// <summary>Counts faces that look like they point the wrong way: walls facing into their own part, roofs facing down.</summary>
-    static int Audit(string name, Mesh m, float w, float d, bool verbose)
+    static int Audit(string name, Model model, float w, float d, bool verbose, bool quiet = false)
     {
+        var m = model.Mesh;
         var v = m.vertices; var n = m.normals;
-        int tris = 0, nan = 0, suspicious = 0;
-        for (int s = 0; s < 2; s++)
+        int tris = 0, nan = 0, suspicious = 0, outside = 0;
+        if (model.Materials.Length != m.subMeshCount) { Console.WriteLine($"{name}: {model.Materials.Length} materials for {m.subMeshCount} sub-meshes"); return 1; }
+        if (m.uv.Length != v.Length) { Console.WriteLine($"{name}: {m.uv.Length} uvs for {v.Length} vertices"); return 1; }
+        foreach (var p in v) if (Math.Abs(p.x) > w / 2 + 16 || Math.Abs(p.z) > d / 2 + 16 || p.y < -1 || p.y > 60) outside++;
+        for (int s = 0; s < m.subMeshCount; s++)
         {
             var idx = m.GetTriangles(s);
             for (int i = 0; i < idx.Length; i += 3)
@@ -98,9 +109,9 @@ static class Check
         }
         // the face-direction heuristic: ray from each face centroid along its normal; count how many faces it crosses
         // (an odd count for a closed mesh means the face points into a solid).
-        var all = Enumerable.Range(0, 2).SelectMany(s => m.GetTriangles(s)).ToArray();
+        var all = Enumerable.Range(0, m.subMeshCount).SelectMany(s => m.GetTriangles(s)).ToArray();
         int inward = 0;
-        for (int i = 0; i < all.Length; i += 3)
+        for (int i = 0; i < all.Length && !quiet; i += 3)
         {
             Vector3 a = v[all[i]], b = v[all[i + 1]], c = v[all[i + 2]];
             var nn = Vector3.Cross(b - a, c - a);
@@ -120,9 +131,9 @@ static class Check
                 if (verbose) Console.WriteLine($"  inward? centroid {(a + b + c) / 3f} normal {nn} hits {hits}");
             }
         }
-        string msg = $"{name,-28} {tris,6} tris, {v.Length,6} verts" + (nan > 0 ? $"  NaN {nan}" : "") + (suspicious > 0 ? $"  normal mismatch {suspicious}" : "");
-        Console.WriteLine(msg);
-        return nan + suspicious;
+        string msg = $"{name,-28} {tris,6} tris, {v.Length,6} verts, {m.subMeshCount,3} materials" + (nan > 0 ? $"  NaN {nan}" : "") + (suspicious > 0 ? $"  normal mismatch {suspicious}" : "") + (outside > 0 ? $"  FAR OUT {outside}" : "");
+        if (!quiet || nan + suspicious + outside > 0) Console.WriteLine(msg);
+        return nan + suspicious + (outside > 0 ? 1 : 0);
     }
 
     static bool RayTri(Vector3 o, Vector3 dir, Vector3 a, Vector3 b, Vector3 c)

@@ -36,6 +36,11 @@ namespace UnityEngine
         public static Vector3 up => new Vector3(0, 1, 0);
         public static Vector3 forward => new Vector3(0, 0, 1);
         public static Vector3 right => new Vector3(1, 0, 0);
+        public static Vector3 left => new Vector3(-1, 0, 0);
+        public static Vector3 back => new Vector3(0, 0, -1);
+        public static Vector3 down => new Vector3(0, -1, 0);
+        public static Vector3 Min(Vector3 a, Vector3 b) => new Vector3(Math.Min(a.x, b.x), Math.Min(a.y, b.y), Math.Min(a.z, b.z));
+        public static Vector3 Max(Vector3 a, Vector3 b) => new Vector3(Math.Max(a.x, b.x), Math.Max(a.y, b.y), Math.Max(a.z, b.z));
         public float sqrMagnitude => x * x + y * y + z * z;
         public float magnitude => (float)Math.Sqrt(sqrMagnitude);
         public Vector3 normalized { get { float m = magnitude; return m > 1e-5f ? this / m : zero; } }
@@ -78,6 +83,7 @@ namespace UnityEngine
             var t = 2f * Vector3.Cross(u, v);
             return v + q.w * t + Vector3.Cross(u, t);
         }
+        public static Quaternion Slerp(Quaternion a, Quaternion b, float t) => t < 0.5f ? a : b;
         public static Quaternion LookRotation(Vector3 f) { float yaw = (float)(Math.Atan2(f.x, f.z) * 180 / Math.PI); return Euler(0, yaw, 0); }
     }
     public struct Matrix4x4
@@ -106,7 +112,7 @@ namespace UnityEngine
     {
         public float r, g, b, a;
         public Color(float r, float g, float b, float a = 1) { this.r = r; this.g = g; this.b = b; this.a = a; }
-        public static Color white => new Color(1, 1, 1); public static Color clear => new Color(0, 0, 0, 0);
+        public static Color white => new Color(1, 1, 1); public static Color clear => new Color(0, 0, 0, 0); public static Color black => new Color(0, 0, 0);
         public static Color Lerp(Color a, Color b, float t) { t = Mathf.Clamp01(t); return new Color(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t); }
         public static Color operator *(Color c, float f) => new Color(c.r * f, c.g * f, c.b * f, c.a * f);
         public static implicit operator Color(Color32 c) => new Color(c.r / 255f, c.g / 255f, c.b / 255f, c.a / 255f);
@@ -147,6 +153,8 @@ namespace UnityEngine
         public static float Min(float a, float b) => Math.Min(a, b); public static float Max(float a, float b) => Math.Max(a, b);
         public static int Min(int a, int b) => Math.Min(a, b); public static int Max(int a, int b) => Math.Max(a, b);
         public static int FloorToInt(float f) => (int)Math.Floor(f); public static int RoundToInt(float f) => (int)Math.Round(f);
+        public static float Sqrt(float f) => (float)Math.Sqrt(f);
+        public static float DeltaAngle(float a, float b) { float d = (b - a) % 360; if (d > 180) d -= 360; if (d < -180) d += 360; return d; }
         public static float Round(float f) => (float)Math.Round(f); public static float Exp(float f) => (float)Math.Exp(f); public static float Pow(float a, float b) => (float)Math.Pow(a, b);
     }
     public class Object
@@ -190,12 +198,23 @@ namespace UnityEngine
     public enum LightShadows { None, Hard, Soft }
     public class Light : Behaviour { public LightType type; public LightShadows shadows; public float shadowStrength, shadowBias, shadowNormalBias, intensity; public Color color; }
     public enum FogMode { Linear = 1, Exponential, ExponentialSquared }
-    public static class RenderSettings { public static UnityEngine.Rendering.AmbientMode ambientMode; public static Color ambientSkyColor, ambientEquatorColor, ambientGroundColor, fogColor; public static bool fog; public static FogMode fogMode; public static float fogStartDistance, fogEndDistance; }
+    public static class DynamicGI { public static void UpdateEnvironment() { } }
+    public class ScriptableObject : Object { public static T CreateInstance<T>() where T : ScriptableObject, new() => new T(); }
+    public static class RenderSettings { public static Light sun; public static Material skybox; public static UnityEngine.Rendering.DefaultReflectionMode defaultReflectionMode; public static float reflectionIntensity; public static UnityEngine.Rendering.AmbientMode ambientMode; public static Color ambientSkyColor, ambientEquatorColor, ambientGroundColor, fogColor; public static bool fog; public static FogMode fogMode; public static float fogStartDistance, fogEndDistance; }
     public enum ShadowQuality { Disable, HardOnly, All }
     public enum ShadowResolution { Low, Medium, High, VeryHigh }
     public static class QualitySettings { public static ShadowQuality shadows; public static ShadowResolution shadowResolution; public static float shadowDistance; public static int shadowCascades, antiAliasing; }
-    public class Shader : Object { public static Shader Find(string n) => new Shader(); }
-    public class Material : Object { public Material(Shader s) { } public void SetFloat(string n, float v) { } public void SetColor(string n, Color c) { } }
+    public class Shader : Object { public static Shader Find(string n) => new Shader(); public static int PropertyToID(string n) => n.GetHashCode(); }
+    public enum MaterialGlobalIlluminationFlags { None, RealtimeEmissive, BakedEmissive, EmissiveIsBlack }
+    public class Material : Object
+    {
+        public Material(Shader s) { } public Material(Material m) { }
+        public MaterialGlobalIlluminationFlags globalIlluminationFlags; public bool enableInstancing;
+        public void SetFloat(string n, float v) { } public void SetColor(string n, Color c) { }
+        public void SetFloat(int n, float v) { } public void SetColor(int n, Color c) { } public void SetTexture(string n, Texture t) { }
+        public bool HasProperty(int n) => true; public bool HasProperty(string n) => true;
+        public void EnableKeyword(string k) { } public void DisableKeyword(string k) { }
+    }
     public static class Resources { public static T Load<T>(string p) where T : Object => null; }
     public class Texture : Object { }
     public enum TextureFormat { RGBA32 = 4 }
@@ -208,6 +227,9 @@ namespace UnityEngine
         public void SetVertices(List<Vector3> v) { vertices = v.ToArray(); }
         public void SetNormals(List<Vector3> v) { normals = v.ToArray(); }
         public void SetColors(List<Color32> v) { colors32 = v.ToArray(); }
+        public Vector2[] uv = new Vector2[0];
+        public void SetUVs(int ch, List<Vector2> v) { uv = v.ToArray(); }
+        public void RecalculateTangents() { }
         public void SetTriangles(List<int> t, int s) { SetTriangles(t.ToArray(), s); }
         public void SetTriangles(int[] t, int s) { while (tris.Count <= s) tris.Add(new int[0]); tris[s] = t; }
         public int[] GetTriangles(int s) => s < tris.Count ? tris[s] : new int[0];
@@ -270,6 +292,24 @@ namespace UnityEngine.Rendering
     public enum AmbientMode { Skybox, Trilight, Flat }
     public enum IndexFormat { UInt16, UInt32 }
     public enum ShadowCastingMode { Off, On }
+    public enum DefaultReflectionMode { Skybox, Custom }
+    public class VolumeParameter<T> { public T value; public bool overrideState; public void Override(T v) { value = v; overrideState = true; } }
+    public class VolumeComponent : ScriptableObject { }
+    public class VolumeProfile : ScriptableObject { public T Add<T>(bool overrides = false) where T : VolumeComponent, new() => new T(); }
+    public class Volume : Behaviour { public bool isGlobal; public float priority; public VolumeProfile sharedProfile; }
+}
+namespace UnityEngine.Rendering.Universal
+{
+    public enum TonemappingMode { None, Neutral, ACES }
+    public enum AntialiasingMode { None, FastApproximateAntialiasing, SubpixelMorphologicalAntiAliasing, TemporalAntiAliasing }
+    public class Tonemapping : VolumeComponent { public VolumeParameter<TonemappingMode> mode = new VolumeParameter<TonemappingMode>(); }
+    public class Bloom : VolumeComponent { public VolumeParameter<float> threshold = new VolumeParameter<float>(), intensity = new VolumeParameter<float>(), scatter = new VolumeParameter<float>(); public VolumeParameter<bool> highQualityFiltering = new VolumeParameter<bool>(); }
+    public class ColorAdjustments : VolumeComponent { public VolumeParameter<float> contrast = new VolumeParameter<float>(), saturation = new VolumeParameter<float>(), postExposure = new VolumeParameter<float>(); public VolumeParameter<Color> colorFilter = new VolumeParameter<Color>(); }
+    public class WhiteBalance : VolumeComponent { public VolumeParameter<float> temperature = new VolumeParameter<float>(); }
+    public class ShadowsMidtonesHighlights : VolumeComponent { public VolumeParameter<Vector4> shadows = new VolumeParameter<Vector4>(), highlights = new VolumeParameter<Vector4>(); }
+    public class Vignette : VolumeComponent { public VolumeParameter<float> intensity = new VolumeParameter<float>(), smoothness = new VolumeParameter<float>(); }
+    public class UniversalAdditionalCameraData : Behaviour { public bool renderPostProcessing, renderShadows; public AntialiasingMode antialiasing; }
+    public static class CameraExtensions { public static UniversalAdditionalCameraData GetUniversalAdditionalCameraData(this Camera c) => new UniversalAdditionalCameraData(); }
 }
 namespace UnityEngine.SceneManagement
 {

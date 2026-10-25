@@ -13,5 +13,7 @@
     <Compile Include="Check.cs" />
     <Compile Include="../../Assets/Scripts/**/*.cs" />
     <Compile Include="../../Assets/Editor/**/*.cs" />
+    <!-- the URP pipeline and material builder needs the real editor; it's a port of Mobland's, which compiles in Unity -->
+    <Compile Remove="../../Assets/Editor/GraphicsSetup.cs" />
   </ItemGroup>
 </Project>

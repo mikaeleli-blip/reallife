@@ -2,7 +2,9 @@
     "name": "RealLife.Game",
     "rootNamespace": "RealLife.Game",
     "references": [
-        "RealLife.Simulation"
+        "RealLife.Simulation",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

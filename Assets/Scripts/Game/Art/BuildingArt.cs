@@ -1,701 +1,673 @@
-using System.Collections.Generic;
 using RealLife.Simulation;
 using UnityEngine;
+using static RealLife.Game.Art.Facades;
 
 namespace RealLife.Game.Art
 {
-    /// <summary>
-    /// A low-poly model for every kind of building, made in code. Each is built in its own frame: the lot is w by d metres,
-    /// centred on the origin, with the street side along -z. The view turns it to face its road.
-    /// </summary>
-    public static class BuildingArt
+    /// <summary>Rows of the signs atlas (tools/textures/signs.py): keep them in step.</summary>
+    public static class SignRow
     {
+        public const int Market = 0, Grill = 1, Coffee = 2, Bar = 3, Apparel = 4, Electronics = 5, Furniture = 6, Fuel = 7, AutoSales = 8,
+            AutoRepair = 9, Hair = 10, Fitness = 11, Bank = 12, Offices = 13, Police = 14, Fire = 15, Clinic = 16, Hospital = 17, TownHall = 18,
+            Elementary = 19, HighSchool = 20, College = 21, BusDepot = 22, Logistics = 23, Builders = 24, Foods = 25, ApparelCo = 26, Tech = 27,
+            Workshop = 28, Apartments = 29, Pharmacy = 30, Open = 31;
+    }
+
+    /// <summary>
+    /// A model for every kind of building, made in code with textured facades (the Mobland approach): bay-mapped window
+    /// atlases that light up at night, brick, siding, stucco and metal walls, shingle and membrane roofs, and the details
+    /// that make a place read as real: cornices, canopies, balconies, signs, rooftop plant, porches, chimneys, yards.
+    /// Each is built in its own frame: the lot is w by d metres centred on the origin, the street side along -z.
+    /// </summary>
+    public static partial class BuildingArt
+    {
+        // ================================================================== materials and randomness
+        static Material S(string n, float glow = 0f) { return MaterialLibrary.Surface(n, glow); }
+        static Material T(string n, Color c) { return MaterialLibrary.Tinted(n, c); }
+        static Material C(Color32 c, float smooth = 0.2f, float metal = 0f) { return MaterialLibrary.Get(c, smooth, metal); }
         static Color32 H(string s) { return MeshKit.Hex(s); }
-
-        static readonly Color32 Grass = H("#86b45e"), Paving = H("#c9c5bb"), Asphalt = H("#4e5258"), Line = H("#eeeeee"), Concrete = H("#b9b6ad"),
-            Dark = H("#2f3338"), Door = H("#5a3d2b"), Trim = H("#f4f1ea"), Glass = H("#7fa6c0"), Metal = H("#8d96a0"), Brick = H("#b4583f"),
-            BrickDark = H("#8e4331"), White = H("#f2f2ee"), Roof = H("#5d646c"), Soil = H("#8b6a4a");
-        static readonly Color32[] HouseWalls = { H("#f2e8d5"), H("#e8d3b9"), H("#cfe0e8"), H("#d9e4c8"), H("#f0d9d2"), H("#e6e1f0"), H("#fbfbf7"), H("#d8c3a5"), H("#c9d6df"), H("#f3e2b3") };
-        static readonly Color32[] HouseRoofs = { H("#8a4b3a"), H("#5b6770"), H("#6e4e3a"), H("#44505c"), H("#9c5a3c"), H("#3e4a3d"), H("#7a7f86") };
-
         static uint Next(ref uint s) { s = s * 1664525u + 1013904223u; return s >> 8; }
         static float R(ref uint s) { return (Next(ref s) & 0xFFFF) / 65535f; }
+        static float Range(ref uint s, float a, float b) { return Mathf.Lerp(a, b, R(ref s)); }
+        static T Pick<T>(ref uint s, T[] arr) { return arr[Next(ref s) % (uint)arr.Length]; }
 
-        /// <summary>The model of a building. floors only matters for some types; closed shops go dark.</summary>
-        public static Mesh Build(BuildingType t, float w, float d, uint seed, int floors, bool closed, int season)
+        static readonly Color32 White = H("#f2f1ec"), Trim = H("#f4f2ec"), Dark = H("#2f3338"), Metal = H("#9aa3ab"), Concrete = H("#b9b6ad");
+
+        public static Color GrassTint(int season)
+        {
+            switch (season)
+            {
+                case 1: return new Color(1.0f, 1.08f, 0.9f);
+                case 2: return new Color(0.92f, 0.98f, 0.85f);
+                case 3: return new Color(1.12f, 0.98f, 0.66f);
+                default: return Color.white;
+            }
+        }
+
+        public static Material GrassMat(int season) { return season == 0 ? S("snow") : T("grass", GrassTint(season)); }
+        static Material RoofMat(string name, Color tint, int season) { return season == 0 ? S("snow") : T(name, tint); }
+
+        static void Lot(MeshKit k, float w, float d, Material m, float inset = 0.1f, float tile = 6f)
+        {
+            k.Flat(-w / 2 + inset, -d / 2 + inset, w / 2 - inset, d / 2 - inset, 0.06f, m, tile);
+        }
+
+        static void Tree(MeshKit k, float x, float z, float scale, int season, uint s) { PropArt.Tree(k, new Vector3(x, 0.06f, z), scale, season, s); }
+
+        /// <summary>The model of a building. Closed businesses go dark.</summary>
+        public static Model Build(BuildingType t, float w, float d, uint seed, int floors, bool closed, int season)
         {
             var k = new MeshKit();
+            uint s = seed | 1u;
+            for (int i = 0; i < 3; i++) Next(ref s);
             switch (t)
             {
-                case BuildingType.House: House(k, w, d, seed, season); break;
-                case BuildingType.Apartments: Apartments(k, w, d, seed, season); break;
-                case BuildingType.GroceryStore: Grocery(k, w, d, seed, closed); break;
-                case BuildingType.Restaurant: Shop(k, w, d, seed, closed, H("#c0392b"), H("#f6e9d7"), 1, true, H("#c0392b")); break;
-                case BuildingType.Cafe: Shop(k, w, d, seed, closed, H("#6d4c41"), H("#efe2cf"), 2, true, H("#2e8b7a")); break;
-                case BuildingType.Bar: Shop(k, w, d, seed, closed, H("#2c2f3a"), H("#5b4a42"), 2, false, H("#8e44ad")); break;
-                case BuildingType.ClothingStore: Shop(k, w, d, seed, closed, H("#8e44ad"), H("#ece8f3"), 2, true, H("#b07cc6")); break;
-                case BuildingType.ElectronicsStore: Shop(k, w, d, seed, closed, H("#1e6fb8"), H("#dfe7ee"), 2, false, H("#1e6fb8")); break;
-                case BuildingType.FurnitureStore: Shop(k, w, d, seed, closed, H("#d35400"), H("#efe4d4"), 1, true, H("#e67e22")); break;
-                case BuildingType.HairSalon: Shop(k, w, d, seed, closed, H("#e84393"), H("#fbe9f1"), 2, true, H("#fd79a8")); break;
-                case BuildingType.Gym: Shop(k, w, d, seed, closed, H("#27ae60"), H("#d9dde1"), 1, false, H("#2d3436")); break;
-                case BuildingType.GasStation: Gas(k, w, d, seed, closed); break;
-                case BuildingType.CarDealer: CarDealer(k, w, d, seed, closed); break;
-                case BuildingType.AutoRepair: AutoRepair(k, w, d, seed, closed); break;
-                case BuildingType.Office: Office(k, w, d, seed, floors, closed); break;
-                case BuildingType.Bank: Bank(k, w, d, seed, closed); break;
-                case BuildingType.Farm: Farm(k, w, d, seed, season); break;
-                case BuildingType.FoodPlant: Factory(k, w, d, seed, closed, H("#d8d3c8"), H("#2e86de"), true, false); break;
-                case BuildingType.GarmentFactory: Factory(k, w, d, seed, closed, Brick, H("#6c5ce7"), false, true); break;
-                case BuildingType.ElectronicsPlant: Factory(k, w, d, seed, closed, H("#eef1f4"), H("#0984e3"), false, false); break;
-                case BuildingType.FurnitureWorkshop: Workshop(k, w, d, seed, closed); break;
-                case BuildingType.Construction: Yard(k, w, d, seed, closed); break;
-                case BuildingType.Trucking: Depot(k, w, d, seed, closed); break;
-                case BuildingType.TownHall: TownHall(k, w, d, seed); break;
-                case BuildingType.Elementary: School(k, w, d, seed, 2, false); break;
-                case BuildingType.HighSchool: School(k, w, d, seed, 3, true); break;
-                case BuildingType.College: College(k, w, d, seed, season); break;
-                case BuildingType.Clinic: Clinic(k, w, d, seed, false); break;
-                case BuildingType.Hospital: Clinic(k, w, d, seed, true); break;
-                case BuildingType.Police: Station(k, w, d, seed, H("#34495e"), H("#2980b9"), false); break;
-                case BuildingType.FireStation: Station(k, w, d, seed, Brick, H("#c0392b"), true); break;
-                case BuildingType.Park: Park(k, w, d, seed, season); break;
-                case BuildingType.BusDepot: BusDepot(k, w, d, seed); break;
-                case BuildingType.FreightTerminal: Terminal(k, w, d, seed); break;
+                case BuildingType.House: House(k, w, d, ref s, season); break;
+                case BuildingType.Apartments: Apartments(k, w, d, ref s, season); break;
+                case BuildingType.GroceryStore: Grocery(k, w, d, ref s, closed, season); break;
+                case BuildingType.Restaurant: Shop(k, w, d, ref s, closed, season, 1, "gf_store_dark", SignRow.Grill, H("#8e2b23"), true); break;
+                case BuildingType.Cafe: Shop(k, w, d, ref s, closed, season, 2, "gf_store_wood", SignRow.Coffee, H("#2e6b5a"), true); break;
+                case BuildingType.Bar: Shop(k, w, d, ref s, closed, season, 2, "gf_store_dark", SignRow.Bar, null, false); break;
+                case BuildingType.ClothingStore: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.Apparel, H("#3d3d6b"), false); break;
+                case BuildingType.ElectronicsStore: Shop(k, w, d, ref s, closed, season, 2, "gf_store_dark", SignRow.Electronics, null, false); break;
+                case BuildingType.FurnitureStore: Shop(k, w, d, ref s, closed, season, 1, "gf_store_light", SignRow.Furniture, H("#a0522d"), false); break;
+                case BuildingType.HairSalon: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.Hair, H("#c76d8f"), false); break;
+                case BuildingType.Gym: Shop(k, w, d, ref s, closed, season, 1, "gf_store_dark", SignRow.Fitness, null, false); break;
+                case BuildingType.GasStation: Gas(k, w, d, ref s, closed, season); break;
+                case BuildingType.CarDealer: CarDealer(k, w, d, ref s, closed, season); break;
+                case BuildingType.AutoRepair: AutoRepair(k, w, d, ref s, closed, season); break;
+                case BuildingType.Office: Office(k, w, d, ref s, floors, closed, season); break;
+                case BuildingType.Bank: Bank(k, w, d, ref s, closed, season); break;
+                case BuildingType.Farm: Farm(k, w, d, ref s, season); break;
+                case BuildingType.FoodPlant: Plant(k, w, d, ref s, closed, season, "fac_metal_beige", SignRow.Foods, true, false); break;
+                case BuildingType.GarmentFactory: Plant(k, w, d, ref s, closed, season, "fac_tiltup", SignRow.ApparelCo, false, true); break;
+                case BuildingType.ElectronicsPlant: Plant(k, w, d, ref s, closed, season, "fac_metal_blue", SignRow.Tech, false, false); break;
+                case BuildingType.FurnitureWorkshop: Workshop(k, w, d, ref s, closed, season); break;
+                case BuildingType.Construction: Yard(k, w, d, ref s, closed, season); break;
+                case BuildingType.Trucking: Depot(k, w, d, ref s, closed, season); break;
+                case BuildingType.TownHall: TownHall(k, w, d, ref s, season); break;
+                case BuildingType.Elementary: School(k, w, d, ref s, season, false); break;
+                case BuildingType.HighSchool: School(k, w, d, ref s, season, true); break;
+                case BuildingType.College: College(k, w, d, ref s, season); break;
+                case BuildingType.Clinic: Clinic(k, w, d, ref s, season, false); break;
+                case BuildingType.Hospital: Clinic(k, w, d, ref s, season, true); break;
+                case BuildingType.Police: Station(k, w, d, ref s, season, false); break;
+                case BuildingType.FireStation: Station(k, w, d, ref s, season, true); break;
+                case BuildingType.Park: Park(k, w, d, ref s, season); break;
+                case BuildingType.BusDepot: BusDepot(k, w, d, ref s, season); break;
+                case BuildingType.FreightTerminal: Terminal(k, w, d, ref s, season); break;
             }
-            return k.ToMesh(t.ToString());
+            return k.ToModel(t.ToString());
         }
 
-        // ================================================================== bits
-        static void Lot(MeshKit k, float w, float d, Color32 c, float inset = 0.25f)
+        // ================================================================== houses
+        static readonly Color[] SidingTints =
         {
-            k.Flat(-w / 2 + inset, -d / 2 + inset, w / 2 - inset, d / 2 - inset, 0.08f, c);
-        }
+            new Color(1f, 1f, 1f), new Color(0.98f, 0.93f, 0.82f), new Color(0.78f, 0.86f, 0.93f), new Color(0.8f, 0.86f, 0.76f),
+            new Color(0.8f, 0.81f, 0.82f), new Color(0.98f, 0.9f, 0.66f), new Color(0.42f, 0.5f, 0.62f), new Color(0.7f, 0.36f, 0.32f),
+            new Color(0.84f, 0.78f, 0.7f), new Color(0.48f, 0.5f, 0.52f), new Color(0.62f, 0.72f, 0.66f),
+        };
+        static readonly Color[] ShingleTints =
+        {
+            new Color(0.55f, 0.55f, 0.57f), new Color(0.66f, 0.52f, 0.43f), new Color(0.5f, 0.56f, 0.64f), new Color(0.4f, 0.4f, 0.42f),
+            new Color(0.78f, 0.74f, 0.68f), new Color(0.45f, 0.55f, 0.48f), new Color(0.68f, 0.4f, 0.34f),
+        };
+        static readonly Color32[] Shutters = { H("#1e2a3a"), H("#22362a"), H("#5a1e22"), H("#2b2b2b"), H("#ffffff"), H("#3d5a73") };
 
-        /// <summary>A painted parking area with spaces along it, from x0..x1, z0..z1, with a few parked cars.</summary>
-        static void Parking(MeshKit k, float x0, float z0, float x1, float z1, ref uint s, float fill)
+        /// <summary>A house window from the 4 x 4 window atlas, with a sill and maybe shutters.</summary>
+        static void HouseWindow(MeshKit k, Face f, float along, float y, float ww, float wh, ref uint s, Material shutter)
         {
-            k.Flat(x0, z0, x1, z1, 0.1f, Asphalt);
-            float depth = z1 - z0;
-            for (float x = x0 + 0.6f; x < x1 - 2.2f; x += 2.8f)
+            int cell = (int)(Next(ref s) % 16), cu = cell % 4, cv = cell / 4;
+            Rect(k, f, along - ww / 2, along + ww / 2, y, y + wh, S("win_house", 1.4f), new Vector2(cu / 4f, cv / 4f), new Vector2((cu + 1) / 4f, (cv + 1) / 4f), 0.04f);
+            var trim = C(Trim, 0.35f);
+            Ledge(k, f, along - ww / 2 - 0.08f, along + ww / 2 + 0.08f, y - 0.07f, y + 0.02f, 0.12f, trim);
+            if (shutter != null)
             {
-                k.Flat(x, z0 + depth * 0.15f, x + 0.12f, z1 - depth * 0.15f, 0.12f, Line);
-                if (R(ref s) < fill) PropArt.Parked(k, new Vector3(x + 1.4f, 0.12f, (z0 + z1) / 2), R(ref s) < 0.5f ? 0 : 180, s);
+                Ledge(k, f, along - ww / 2 - 0.42f, along - ww / 2 - 0.06f, y, y + wh, 0.05f, shutter);
+                Ledge(k, f, along + ww / 2 + 0.06f, along + ww / 2 + 0.42f, y, y + wh, 0.05f, shutter);
             }
         }
 
-        /// <summary>A sign board above a shop front, with a glowing strip under it at night.</summary>
-        static void Sign(MeshKit k, float x0, float x1, float y0, float y1, float z, Color32 c, bool closed)
+        /// <summary>A front door from the door atlas, with a step and a porch light.</summary>
+        static void FrontDoor(MeshKit k, Face f, float along, ref uint s, float y = 0.18f)
         {
-            var col = closed ? H("#7f8c8d") : c;
-            k.Box(new Vector3(x0, y0, z - 0.25f), new Vector3(x1, y1, z), col, MeshKit.Shade(col, 0.9f));
-            if (!closed)
-                k.Quad(new Vector3(x0 + 0.3f, y0 - 0.12f, z - 0.27f), new Vector3(x0 + 0.3f, y0 + 0.02f, z - 0.27f), new Vector3(x1 - 0.3f, y0 + 0.02f, z - 0.27f), new Vector3(x1 - 0.3f, y0 - 0.12f, z - 0.27f), MeshKit.Shade(c, 1.4f), true);
+            int cell = (int)(Next(ref s) % 4);
+            Rect(k, f, along - 0.55f, along + 0.55f, y, y + 2.3f, S("door_house", 1.2f), new Vector2(cell / 4f, 0), new Vector2((cell + 1) / 4f, 1), 0.04f);
+            Ledge(k, f, along - 0.9f, along + 0.9f, 0, y, 1.0f, S("concrete"), null, 2f);
+            var glow = MaterialLibrary.Glow(new Color(0.9f, 0.85f, 0.7f), new Color(1f, 0.8f, 0.5f), 3f);
+            Ledge(k, f, along + 0.75f, along + 0.92f, y + 1.7f, y + 2.0f, 0.12f, glow);
         }
 
-        /// <summary>A striped awning over a shop front.</summary>
-        static void Awning(MeshKit k, float x0, float x1, float y, float z, float depth, Color32 a, Color32 b)
+        static void HouseWalls(MeshKit k, float x0, float x1, float z0, float z1, float h, Material wall, float tile = 2f)
         {
-            int n = Mathf.Max(2, Mathf.RoundToInt((x1 - x0) / 0.9f));
-            float sw = (x1 - x0) / n;
-            for (int i = 0; i < n; i++)
+            var faces = Faces(x0, x1, z0, z1);
+            foreach (var f in faces) Plain(k, f, 0.45f, h, wall, tile);
+            // a concrete foundation, set out a touch
+            var found = S("concrete");
+            k.Box(new Vector3(x0 - 0.04f, 0, z0 - 0.04f), new Vector3(x1 + 0.04f, 0.45f, z1 + 0.04f), found, found, 2f);
+            // corner boards
+            var trim = C(Trim, 0.35f);
+            foreach (var p in new[] { new Vector2(x0, z0), new Vector2(x1, z0), new Vector2(x0, z1), new Vector2(x1, z1) })
+                k.Box(new Vector3(p.x - 0.08f, 0.45f, p.y - 0.08f), new Vector3(p.x + 0.08f, h, p.y + 0.08f), trim, trim);
+        }
+
+        static void House(MeshKit k, float w, float d, ref uint s, int season)
+        {
+            Lot(k, w, d, GrassMat(season), 0.05f, 8f);
+            int style = (int)(Next(ref s) % 4);
+            bool flip = R(ref s) < 0.5f;
+            var sidingTint = Pick(ref s, SidingTints);
+            var shTint = Pick(ref s, ShingleTints);
+            var shutter = R(ref s) < 0.55f ? C(Pick(ref s, Shutters), 0.35f) : null;
+            switch (style)
             {
-                var c = i % 2 == 0 ? a : b;
-                float xa = x0 + i * sw, xb = xa + sw;
-                k.Quad(new Vector3(xa, y - 0.9f, z - depth), new Vector3(xa, y, z), new Vector3(xb, y, z), new Vector3(xb, y - 0.9f, z - depth), c);
-                k.Quad(new Vector3(xb, y - 0.9f, z - depth), new Vector3(xb, y, z), new Vector3(xa, y, z), new Vector3(xa, y - 0.9f, z - depth), MeshKit.Shade(c, 0.6f));
+                case 0: Colonial(k, w, d, ref s, season, sidingTint, shTint, shutter, flip); break;
+                case 1: Ranch(k, w, d, ref s, season, sidingTint, shTint, flip); break;
+                case 2: CapeCod(k, w, d, ref s, season, sidingTint, shTint, shutter, flip); break;
+                default: Farmhouse(k, w, d, ref s, season, flip); break;
             }
+            // the yard: a tree out back, a fence, a mailbox by the kerb
+            Tree(k, flip ? w / 2 - 1.6f : -w / 2 + 1.6f, d / 2 - 1.6f, Range(ref s, 0.8f, 1.1f), season, s);
+            var fence = T("wood", new Color(1f, 1f, 0.98f));
+            k.Box(new Vector3(-w / 2 + 0.15f, 0.06f, d / 2 - 0.25f), new Vector3(w / 2 - 0.15f, 1.15f, d / 2 - 0.15f), fence, C(White), 2f);
+            float mx = flip ? w / 2 - 0.7f : -w / 2 + 0.7f;
+            k.Box(new Vector3(mx - 0.04f, 0.06f, -d / 2 + 0.5f), new Vector3(mx + 0.04f, 1.0f, -d / 2 + 0.58f), C(Dark), C(Dark));
+            k.Box(new Vector3(mx - 0.12f, 1.0f, -d / 2 + 0.36f), new Vector3(mx + 0.12f, 1.22f, -d / 2 + 0.74f), C(Dark, 0.5f, 0.4f), C(Dark, 0.5f, 0.4f));
         }
 
-        /// <summary>A glass shop front on the -z face from x0..x1, up to height h.</summary>
-        static void Storefront(MeshKit k, float x0, float x1, float h, float z, bool closed, uint seed)
+        static void Bushes(MeshKit k, Face f, float a0, float a1, int season)
         {
-            float doorW = 1.2f, mid = (x0 + x1) / 2;
-            var lit = closed ? new Color32(18, 20, 26, 255) : new Color32(255, 236, 196, 255);
-            k.Quad(new Vector3(x0 + 0.3f, 0.5f, z - 0.03f), new Vector3(x0 + 0.3f, h, z - 0.03f), new Vector3(mid - doorW / 2 - 0.1f, h, z - 0.03f), new Vector3(mid - doorW / 2 - 0.1f, 0.5f, z - 0.03f), lit, true);
-            k.Quad(new Vector3(mid + doorW / 2 + 0.1f, 0.5f, z - 0.03f), new Vector3(mid + doorW / 2 + 0.1f, h, z - 0.03f), new Vector3(x1 - 0.3f, h, z - 0.03f), new Vector3(x1 - 0.3f, 0.5f, z - 0.03f), lit, true);
-            k.Box(new Vector3(mid - doorW / 2, 0.08f, z - 0.06f), new Vector3(mid + doorW / 2, 2.3f, z), closed ? H("#6b6b6b") : Dark);
-            if (closed)
+            for (float a = a0; a <= a1 + 0.01f; a += 1.1f) PropArt.Bush(k, f.At(a, 0.06f) + f.Normal * 0.55f, 0.75f, season);
+        }
+
+        /// <summary>Two-storey colonial: symmetrical windows, shutters, a portico over the door, a chimney.</summary>
+        static void Colonial(MeshKit k, float w, float d, ref uint s, int season, Color siding, Color shingle, Material shutter, bool flip)
+        {
+            float bw = 7.4f, bd = 6f, h = 5.7f;
+            float x0 = -bw / 2 + (flip ? 0.9f : -0.9f), x1 = x0 + bw, z0 = -d / 2 + 2.8f, z1 = z0 + bd;
+            var wall = T("wall_siding", siding);
+            HouseWalls(k, x0, x1, z0, z1, h, wall);
+            k.Gable(x0, z0, x1, z1, h, 2.4f, RoofMat("roof_shingle", shingle, season), wall, 0.4f);
+            var faces = Faces(x0, x1, z0, z1);
+            var f = faces[South];
+            FrontDoor(k, f, bw / 2, ref s);
+            HouseWindow(k, f, bw * 0.18f, 0.95f, 1.0f, 1.35f, ref s, shutter);
+            HouseWindow(k, f, bw * 0.82f, 0.95f, 1.0f, 1.35f, ref s, shutter);
+            for (int i = 0; i < 3; i++) HouseWindow(k, f, bw * (0.18f + 0.32f * i), 3.75f, 0.95f, 1.25f, ref s, shutter);
+            foreach (int side in new[] { East, West })
+                for (int fl = 0; fl < 2; fl++) HouseWindow(k, faces[side], bd / 2, fl == 0 ? 0.95f : 3.75f, 0.95f, 1.25f, ref s, null);
+            for (int i = 0; i < 2; i++) for (int fl = 0; fl < 2; fl++) HouseWindow(k, faces[North], bw * (0.28f + 0.44f * i), fl == 0 ? 0.95f : 3.75f, 0.95f, 1.25f, ref s, null);
+            // portico: a small roof on two columns
+            var white = C(Trim, 0.35f);
+            Ledge(k, f, bw / 2 - 1.2f, bw / 2 + 1.2f, 2.7f, 2.92f, 1.3f, white, RoofMat("roof_shingle", shingle, season));
+            foreach (float a in new[] { bw / 2 - 1.05f, bw / 2 + 1.05f })
+                k.Cylinder(f.At(a, 0.18f) + f.Normal * 1.15f, 0.1f, 0.1f, 2.52f, 8, white, white);
+            Bushes(k, f, 0.6f, bw / 2 - 1.6f, season);
+            Bushes(k, f, bw / 2 + 1.6f, bw - 0.6f, season);
+            // a brick chimney up the side
+            var brick = S("wall_brick_red");
+            float cx = flip ? x1 + 0.35f : x0 - 0.35f;
+            k.Box(new Vector3(cx - 0.45f, 0, z0 + bd / 2 - 0.6f), new Vector3(cx + 0.45f, h + 3.1f, z0 + bd / 2 + 0.6f), brick, C(H("#5a5a5a")));
+            // driveway to the street on the other side, sometimes a car on it
+            float dx = flip ? -w / 2 + 0.4f : w / 2 - 3.2f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 2.8f, z1, 0.08f, S("concrete"), 4f);
+            if (R(ref s) < 0.6f) PropArt.Parked(k, new Vector3(dx + 1.4f, 0.08f, z0 + 1.4f), R(ref s) < 0.5f ? 0 : 180, s);
+            k.Flat(x0 + bw / 2 - 0.6f, -d / 2 + 0.05f, x0 + bw / 2 + 0.6f, z0 - 0.9f, 0.08f, S("pavers"), 3f);
+        }
+
+        /// <summary>Single-storey ranch with an attached garage and a low hip roof.</summary>
+        static void Ranch(MeshKit k, float w, float d, ref uint s, int season, Color siding, Color shingle, bool flip)
+        {
+            float hw = 6.0f, gw = 3.3f, bd = 6.2f, h = 2.9f;
+            float total = hw + gw;
+            float x0 = -total / 2, z0 = -d / 2 + 2.6f, z1 = z0 + bd;
+            float gx0 = flip ? x0 : x0 + hw, gx1 = gx0 + gw;
+            bool brick = R(ref s) < 0.45f;
+            var wall = brick ? S(R(ref s) < 0.5f ? "wall_brick_red" : "wall_brick_tan") : T("wall_siding", siding);
+            HouseWalls(k, x0, x0 + total, z0, z1, h, wall);
+            k.Hip(x0, z0, x0 + total, z1, h, 1.7f, RoofMat("roof_shingle", shingle, season), 0.5f);
+            var faces = Faces(x0, x0 + total, z0, z1);
+            var f = faces[South];
+            float house0 = flip ? gw : 0;
+            float doorA = house0 + hw * 0.62f;
+            FrontDoor(k, f, doorA, ref s);
+            HouseWindow(k, f, house0 + hw * 0.22f, 0.95f, 1.6f, 1.3f, ref s, null);
+            HouseWindow(k, f, house0 + hw * 0.88f, 0.95f, 0.9f, 1.3f, ref s, null);
+            float ga0 = flip ? 0 : hw, ga1 = ga0 + gw;
+            Rect(k, f, ga0 + 0.35f, ga1 - 0.35f, 0.08f, 2.35f, S("garage_door"), new Vector2(0, 0), new Vector2(1, 1), 0.04f);
+            Ledge(k, f, ga0 + 0.25f, ga1 - 0.25f, 2.35f, 2.5f, 0.08f, C(Trim));
+            // the north face runs the other way: measure from its left (the east end)
+            float nh0 = flip ? 0 : gw;
+            HouseWindow(k, faces[North], nh0 + hw * 0.3f, 0.95f, 1.0f, 1.3f, ref s, null);
+            HouseWindow(k, faces[North], nh0 + hw * 0.75f, 0.95f, 1.0f, 1.3f, ref s, null);
+            HouseWindow(k, faces[flip ? East : West], bd / 2, 0.95f, 1.0f, 1.3f, ref s, null);
+            Bushes(k, f, house0 + 0.6f, house0 + hw * 0.45f, season);
+            // driveway to the garage
+            k.Flat(gx0 + 0.2f, -d / 2 + 0.05f, gx1 - 0.2f, z0, 0.08f, S("concrete"), 4f);
+            if (R(ref s) < 0.5f) PropArt.Parked(k, new Vector3((gx0 + gx1) / 2, 0.08f, z0 - 1.6f), 0, s);
+            k.Flat(x0 + doorA - 0.55f, -d / 2 + 0.05f, x0 + doorA + 0.55f, z0 - 1.0f, 0.08f, S("pavers"), 3f);
+        }
+
+        /// <summary>A storey and a half under a steep roof with two dormers.</summary>
+        static void CapeCod(MeshKit k, float w, float d, ref uint s, int season, Color siding, Color shingle, Material shutter, bool flip)
+        {
+            float bw = 7.6f, bd = 6.2f, h = 2.9f, rise = 3.8f;
+            float x0 = -bw / 2, x1 = bw / 2, z0 = -d / 2 + 2.8f, z1 = z0 + bd;
+            var wall = T(R(ref s) < 0.5f ? "wall_siding" : "wall_stucco", siding);
+            var roof = RoofMat("roof_shingle", shingle, season);
+            HouseWalls(k, x0, x1, z0, z1, h, wall);
+            k.Gable(x0, z0, x1, z1, h, rise, roof, wall, 0.35f);
+            var faces = Faces(x0, x1, z0, z1);
+            var f = faces[South];
+            FrontDoor(k, f, bw / 2, ref s);
+            HouseWindow(k, f, bw * 0.2f, 0.9f, 1.0f, 1.35f, ref s, shutter);
+            HouseWindow(k, f, bw * 0.8f, 0.9f, 1.0f, 1.35f, ref s, shutter);
+            HouseWindow(k, faces[East], bd / 2, 3.4f, 0.85f, 1.1f, ref s, null);
+            HouseWindow(k, faces[West], bd / 2, 3.4f, 0.85f, 1.1f, ref s, null);
+            HouseWindow(k, faces[North], bw * 0.3f, 0.9f, 1.0f, 1.35f, ref s, null);
+            HouseWindow(k, faces[North], bw * 0.7f, 0.9f, 1.0f, 1.35f, ref s, null);
+            // dormers on the front slope: built along their own x (pointing at the street), then turned
+            foreach (float cx in new[] { -bw * 0.22f, bw * 0.22f })
             {
-                // boards across the windows
-                k.Box(new Vector3(x0 + 0.4f, 1.1f, z - 0.1f), new Vector3(mid - doorW, 1.4f, z - 0.04f), H("#a0784f"));
-                k.Box(new Vector3(mid + doorW, 1.6f, z - 0.1f), new Vector3(x1 - 0.4f, 1.9f, z - 0.04f), H("#a0784f"));
+                float L = 1.9f, dw = 1.6f;
+                float zBack = z0 + bd / 2 - 0.3f;
+                k.Push(new Vector3(cx, 0, zBack), 90);
+                var df = Faces(0, L, -dw / 2, dw / 2);
+                float yb = h + 0.7f, yt = h + 2.1f;
+                foreach (int side in new[] { North, South, East }) Plain(k, df[side], yb, yt, wall, 2f);
+                k.Gable(0, -dw / 2, L, dw / 2, yt, 0.75f, roof, wall, 0.12f);
+                HouseWindow(k, df[East], dw / 2, yb + 0.2f, 0.8f, 1.0f, ref s, null);
+                k.Pop();
             }
+            Bushes(k, f, 0.6f, bw / 2 - 1.2f, season);
+            Bushes(k, f, bw / 2 + 1.2f, bw - 0.6f, season);
+            float dx = flip ? -w / 2 + 0.3f : w / 2 - 1.9f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 1.6f, z1, 0.08f, S("gravel"), 3f);
+            k.Flat(-0.55f, -d / 2 + 0.05f, 0.55f, z0 - 1.0f, 0.08f, S("pavers"), 3f);
         }
 
-        static void Tree(MeshKit k, float x, float z, float scale, int season, uint s) { PropArt.Tree(k, new Vector3(x, 0.08f, z), scale, season, s); }
-
-        static void Flag(MeshKit k, float x, float z, float h, Color32 c)
+        /// <summary>Modern farmhouse: board-and-batten, a dark metal roof, a porch across the front.</summary>
+        static void Farmhouse(MeshKit k, float w, float d, ref uint s, int season, bool flip)
         {
-            k.Box(new Vector3(x - 0.06f, 0, z - 0.06f), new Vector3(x + 0.06f, h, z + 0.06f), Metal);
-            k.Box(new Vector3(x + 0.06f, h - 1.1f, z - 0.02f), new Vector3(x + 1.7f, h - 0.1f, z + 0.02f), c);
-        }
-
-        // ================================================================== homes
-        static void House(MeshKit k, float w, float d, uint s, int season)
-        {
-            Lot(k, w, d, Grass, 0.15f);
-            var wall = HouseWalls[Next(ref s) % (uint)HouseWalls.Length];
-            var roof = HouseRoofs[Next(ref s) % (uint)HouseRoofs.Length];
-            bool two = R(ref s) < 0.55f, garage = R(ref s) < 0.5f, flip = R(ref s) < 0.5f;
-            float bw = garage ? 5.4f : 6.6f, bd = 5.6f, h = two ? 5.6f : 3.0f;
-            float bx = flip ? -w / 2 + 1.0f : w / 2 - 1.0f - bw;
-            float bz = -d / 2 + 2.4f;
-            // driveway and path
-            float gx = flip ? bx + bw : bx - 3.0f;
-            k.Flat(garage ? gx + 0.2f : bx + bw / 2 - 0.5f, -d / 2 + 0.2f, garage ? gx + 2.8f : bx + bw / 2 + 0.5f, bz, 0.1f, Paving);
-            k.Box(new Vector3(bx, 0.08f, bz), new Vector3(bx + bw, h, bz + bd), wall, wall);
-            k.Gable(bx, bz, bx + bw, bz + bd, h, 2.1f, roof, wall, 0.35f);
-            // door, windows
-            float doorX = bx + bw * 0.5f;
-            k.Box(new Vector3(doorX - 0.5f, 0.08f, bz - 0.06f), new Vector3(doorX + 0.5f, 2.2f, bz), Door);
-            k.Box(new Vector3(doorX - 0.9f, 2.25f, bz - 0.7f), new Vector3(doorX + 0.9f, 2.35f, bz), Trim);
-            k.WindowsFront(bx + 0.3f, doorX - 0.6f, 0.9f, 2.4f, bz, 1, 1, 1.1f, 1.0f, s, 0.6f);
-            k.WindowsFront(doorX + 0.6f, bx + bw - 0.3f, 0.9f, 2.4f, bz, 1, 1, 1.1f, 1.0f, s + 3, 0.6f);
-            if (two) k.WindowsFront(bx + 0.3f, bx + bw - 0.3f, 3.3f, 5.0f, bz, 3, 1, 0.9f, 1.0f, s + 9, 0.5f);
-            k.WindowsAround(new Vector3(bx, 0, bz), new Vector3(bx + bw, h, bz + bd), 2.4f, 2.6f, 0.8f, 1.0f, 0.9f, s + 17, 0.45f, true);
-            // chimney
-            if (R(ref s) < 0.6f) k.Box(new Vector3(bx + bw * 0.75f, h, bz + bd * 0.55f), new Vector3(bx + bw * 0.75f + 0.6f, h + 2.6f, bz + bd * 0.55f + 0.6f), BrickDark);
-            if (garage)
+            float bw = 7.8f, bd = 6.0f, h = 5.4f;
+            float x0 = -bw / 2, x1 = bw / 2, z0 = -d / 2 + 3.2f, z1 = z0 + bd;
+            bool darkHouse = R(ref s) < 0.35f;
+            var wall = T("wall_board", darkHouse ? new Color(0.32f, 0.34f, 0.36f) : new Color(0.98f, 0.98f, 0.97f));
+            var roof = RoofMat("roof_metal", darkHouse ? new Color(0.75f, 0.75f, 0.75f) : new Color(0.25f, 0.26f, 0.28f), season);
+            HouseWalls(k, x0, x1, z0, z1, h, wall);
+            k.Gable(x0, z0, x1, z1, h, 3.0f, roof, wall, 0.45f);
+            var faces = Faces(x0, x1, z0, z1);
+            var f = faces[South];
+            FrontDoor(k, f, bw * 0.5f, ref s, 0.45f);
+            HouseWindow(k, f, bw * 0.2f, 1.0f, 1.1f, 1.6f, ref s, null);
+            HouseWindow(k, f, bw * 0.8f, 1.0f, 1.1f, 1.6f, ref s, null);
+            HouseWindow(k, f, bw * 0.3f, 3.5f, 1.0f, 1.3f, ref s, null);
+            HouseWindow(k, f, bw * 0.7f, 3.5f, 1.0f, 1.3f, ref s, null);
+            foreach (int side in new[] { East, West }) HouseWindow(k, faces[side], bd / 2, 3.5f, 1.0f, 1.3f, ref s, null);
+            HouseWindow(k, faces[North], bw * 0.5f, 1.0f, 1.4f, 1.5f, ref s, null);
+            // the porch: a deck, posts and a shed roof
+            var deck = T("wood", new Color(0.8f, 0.7f, 0.58f));
+            var post = C(darkHouse ? Trim : H("#2b2d30"), 0.3f);
+            k.Box(new Vector3(x0 + 0.4f, 0, z0 - 2.0f), new Vector3(x1 - 0.4f, 0.45f, z0), deck, deck, 2f);
+            for (int i = 0; i < 4; i++)
             {
-                k.Box(new Vector3(gx, 0.08f, bz + 0.3f), new Vector3(gx + 3.0f, 2.8f, bz + bd), MeshKit.Shade(wall, 0.95f), roof);
-                k.Box(new Vector3(gx + 0.3f, 0.08f, bz + 0.24f), new Vector3(gx + 2.7f, 2.3f, bz + 0.3f), H("#d6d2c8"));
+                float px = Mathf.Lerp(x0 + 0.6f, x1 - 0.6f, i / 3f);
+                k.Box(new Vector3(px - 0.08f, 0.45f, z0 - 1.9f), new Vector3(px + 0.08f, 2.85f, z0 - 1.74f), post, post);
             }
-            else if (R(ref s) < 0.7f) PropArt.Parked(k, new Vector3(bx - 1.6f > -w / 2 ? bx - 1.6f : bx + bw + 1.6f, 0.1f, bz - 0.5f), 0, s);
-            // the yard
-            if (R(ref s) < 0.7f) Tree(k, flip ? w / 2 - 1.6f : -w / 2 + 1.6f, d / 2 - 1.8f, 0.8f + R(ref s) * 0.3f, season, s);
-            PropArt.Bush(k, new Vector3(bx + 0.5f, 0.08f, bz - 0.7f), 0.7f, season);
-            PropArt.Bush(k, new Vector3(bx + bw - 0.5f, 0.08f, bz - 0.7f), 0.7f, season);
-            // fence at the back
-            k.Box(new Vector3(-w / 2 + 0.2f, 0.08f, d / 2 - 0.3f), new Vector3(w / 2 - 0.2f, 1.2f, d / 2 - 0.2f), H("#efe9dd"));
+            k.Quad(new Vector3(x0 + 0.2f, 2.85f, z0 - 2.2f), new Vector3(x0 + 0.2f, 3.2f, z0), new Vector3(x1 - 0.2f, 3.2f, z0), new Vector3(x1 - 0.2f, 2.85f, z0 - 2.2f), roof, 2f);
+            k.Box(new Vector3(x0 + 0.2f, 2.7f, z0 - 2.2f), new Vector3(x1 - 0.2f, 2.85f, z0 - 2.05f), post, post);
+            float dx = flip ? -w / 2 + 0.3f : w / 2 - 3.0f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 2.7f, z1, 0.08f, S("gravel"), 3f);
+            if (R(ref s) < 0.6f) PropArt.Parked(k, new Vector3(dx + 1.35f, 0.08f, z1 - 2.5f), 0, s);
         }
 
-        static void Apartments(MeshKit k, float w, float d, uint s, int season)
+        // ================================================================== apartments
+        static readonly string[] AptUpper = { "fac_apt_brick", "fac_apt_tan", "fac_apt_cream", "fac_apt_grey" };
+
+        static string WallFor(string upper)
         {
-            Lot(k, w, d, Grass, 0.2f);
-            Color32[] walls = { H("#c46a4f"), H("#d9cbb0"), H("#a9afb5"), H("#e3d6c0"), H("#9c6b5a") };
-            var wall = walls[Next(ref s) % (uint)walls.Length];
-            int fl = 4 + (int)(Next(ref s) % 3);
-            float fh = 3.1f, h = fl * fh + 0.6f;
-            float x0 = -w / 2 + 2.2f, x1 = w / 2 - 2.2f, z0 = -d / 2 + 4.5f, z1 = d / 2 - 2.5f;
-            k.Flat(-w / 2 + 0.2f, -d / 2 + 0.2f, w / 2 - 0.2f, z0 - 0.4f, 0.1f, Paving);
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), wall, Roof);
-            k.Box(new Vector3(x0 - 0.1f, h, z0 - 0.1f), new Vector3(x1 + 0.1f, h + 0.6f, z0 + 0.25f), MeshKit.Shade(wall, 0.85f));
-            k.Box(new Vector3(x0 - 0.1f, h, z1 - 0.25f), new Vector3(x1 + 0.1f, h + 0.6f, z1 + 0.1f), MeshKit.Shade(wall, 0.85f));
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h, z1), 2.6f, fh, 1.3f, 1.5f, 0.8f, s, 0.55f);
-            // balconies on the front
-            for (int f = 1; f < fl; f++)
-                for (float x = x0 + 1.4f; x < x1 - 1.4f; x += 5.2f)
+            return upper == "fac_apt_brick" ? "wall_brick_red" : upper == "fac_apt_tan" ? "wall_brick_tan" : "wall_stucco";
+        }
+
+        static void Apartments(MeshKit k, float w, float d, ref uint s, int season)
+        {
+            Lot(k, w, d, GrassMat(season), 0.05f, 8f);
+            string upper = Pick(ref s, AptUpper);
+            var skin = new Skin { Upper = upper, Ground = "gf_apt_base", GroundH = 3.8f, Wall = WallFor(upper) };
+            float x0 = -w / 2 + 2f, x1 = w / 2 - 2f, z0 = -d / 2 + 4.5f, z1 = d / 2 - 2f;
+            int floors = 3 + (int)(Next(ref s) % 3);
+            int u = (int)(Next(ref s) % 4), v = (int)(Next(ref s) % 4);
+            float top = Block(k, x0, x1, z0, z1, skin, floors, u, v, true, true, "roof_membrane", season);
+            var faces = Faces(x0, x1, z0, z1);
+            var concrete = S("concrete");
+            var rail = C(H("#3b3e42"), 0.4f, 0.5f);
+            var glass = MaterialLibrary.Pane(new Color32(20, 22, 30, 255));
+            // balconies in front of the balcony doors (atlas columns 1 and 3) on the front and back
+            foreach (int side in new[] { South, North })
+            {
+                var f = faces[side];
+                int bays = Bays(f, skin.Bay);
+                float bw = f.Width / bays;
+                for (int i = 0; i < bays; i++)
                 {
-                    k.Box(new Vector3(x - 1.2f, f * fh + 0.1f, z0 - 1.1f), new Vector3(x + 1.2f, f * fh + 0.3f, z0), Concrete);
-                    k.Box(new Vector3(x - 1.2f, f * fh + 0.3f, z0 - 1.12f), new Vector3(x + 1.2f, f * fh + 1.2f, z0 - 1.02f), MeshKit.Shade(wall, 0.7f));
+                    int col = (u + i) % 4;
+                    if (col != 1 && col != 3) continue;
+                    float c = (i + 0.5f) * bw;
+                    for (int fl = 0; fl < floors; fl++)
+                    {
+                        float y = skin.GroundH + fl * skin.Floor;
+                        Balcony(k, f, c, y, bw * 0.82f, concrete, rail, glass);
+                    }
                 }
-            // entrance and roof boxes
-            k.Box(new Vector3(-1.4f, 0.08f, z0 - 1.6f), new Vector3(1.4f, 3.0f, z0), H("#4a4f55"), Concrete);
-            k.Quad(new Vector3(-1.0f, 0.3f, z0 - 1.63f), new Vector3(-1.0f, 2.5f, z0 - 1.63f), new Vector3(1.0f, 2.5f, z0 - 1.63f), new Vector3(1.0f, 0.3f, z0 - 1.63f), new Color32(255, 230, 180, 255), true);
-            k.Box(new Vector3(x0 + 1.5f, h, z0 + 2), new Vector3(x0 + 3.5f, h + 1.6f, z0 + 4), Metal);
-            k.Box(new Vector3(x1 - 4.0f, h, z1 - 4), new Vector3(x1 - 1.5f, h + 2.4f, z1 - 1.5f), H("#7d858d"));
-            Tree(k, -w / 2 + 1.1f, -d / 2 + 1.6f, 0.9f, season, s);
-            Tree(k, w / 2 - 1.1f, -d / 2 + 1.6f, 0.9f, season, s + 1);
-            PropArt.Lamp(k, new Vector3(-3.2f, 0.08f, -d / 2 + 1.0f));
+            }
+            // the entrance: a canopy over the door bay (ground atlas column 2) with a light under it
+            var front = faces[South];
+            int gb = Bays(front, skin.GroundBay);
+            float gbw = front.Width / gb;
+            for (int i = 0; i < gb; i++)
+            {
+                if ((u + i) % 4 != 2) continue;
+                float c = (i + 0.5f) * gbw;
+                Ledge(k, front, c - 1.6f, c + 1.6f, 3.05f, 3.25f, 1.8f, C(H("#4a4f55"), 0.4f, 0.3f));
+                var glow = MaterialLibrary.Glow(new Color(0.9f, 0.88f, 0.8f), new Color(1f, 0.85f, 0.6f), 2.5f);
+                Ledge(k, front, c - 0.4f, c + 0.4f, 3.0f, 3.05f, 1.6f, glow);
+                k.Flat(x0 + c - 1.0f, -d / 2 + 0.1f, x0 + c + 1.0f, z0, 0.08f, S("pavers"), 3f);
+                break;
+            }
+            uint rs = s;
+            RoofClutter(k, x0 + 0.5f, x1 - 0.5f, z0 + 0.5f, z1 - 0.5f, top, ref rs, 1.2f, S(skin.Wall));
+            // front garden: trees, a hedge, a lamp
+            Tree(k, -w / 2 + 1.2f, -d / 2 + 1.5f, 0.95f, season, s);
+            Tree(k, w / 2 - 1.2f, -d / 2 + 1.5f, 0.95f, season, s + 7);
+            for (float x = -w / 2 + 3f; x < w / 2 - 3f; x += 1.1f) if (Mathf.Abs(x) > 2.2f) PropArt.Bush(k, new Vector3(x, 0.06f, z0 - 0.7f), 0.7f, season);
+            PropArt.Lamp(k, new Vector3(-3.4f, 0.06f, -d / 2 + 0.6f));
+        }
+
+        static void Balcony(MeshKit k, Face f, float c, float y, float bw, Material slab, Material rail, Material glass)
+        {
+            const float depth = 1.25f;
+            Ledge(k, f, c - bw / 2, c + bw / 2, y - 0.18f, y + 0.02f, depth, slab, slab);
+            var n = f.Normal;
+            Vector3 a = f.At(c - bw / 2, y + 0.02f) + n * depth, b = f.At(c + bw / 2, y + 0.02f) + n * depth;
+            Vector3 up = Vector3.up * 1.0f;
+            // glass front and sides, both faces (it's seen from above)
+            k.Quad(a, a + up, b + up, b, glass); k.Quad(b, b + up, a + up, a, glass);
+            Vector3 ai = f.At(c - bw / 2, y + 0.02f), bi = f.At(c + bw / 2, y + 0.02f);
+            k.Quad(ai, ai + up, a + up, a, glass); k.Quad(a, a + up, ai + up, ai, glass);
+            k.Quad(b, b + up, bi + up, bi, glass); k.Quad(bi, bi + up, b + up, b, glass);
+            Vector3 r0 = a + up, r1 = b + up;
+            k.Box(Vector3.Min(r0, r1) - new Vector3(0.04f, 0, 0.04f), Vector3.Max(r0, r1) + new Vector3(0.04f, 0.06f, 0.04f), rail, rail);
         }
 
         // ================================================================== shops
-        static void Shop(MeshKit k, float w, float d, uint s, bool closed, Color32 sign, Color32 wall, int storeys, bool awning, Color32 awnColor)
-        {
-            Lot(k, w, d, Paving, 0.1f);
-            float x0 = -w / 2 + 0.5f, x1 = w / 2 - 0.5f, z0 = -d / 2 + 2.6f, z1 = d / 2 - 0.6f;
-            float h1 = 4.2f, h = storeys == 1 ? 5.0f : h1 + 3.4f;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), wall, Roof);
-            k.Box(new Vector3(x0 - 0.1f, h, z0 - 0.1f), new Vector3(x1 + 0.1f, h + 0.5f, z0 + 0.3f), MeshKit.Shade(wall, 0.85f));
-            Storefront(k, x0, x1, 3.0f, z0, closed, s);
-            Sign(k, x0 + 0.4f, x1 - 0.4f, 3.25f, 4.05f, z0, sign, closed);
-            if (awning && !closed) Awning(k, x0 + 0.3f, x1 - 0.3f, 3.15f, z0, 1.4f, awnColor, Trim);
-            if (storeys > 1) k.WindowsFront(x0 + 0.4f, x1 - 0.4f, h1 + 0.3f, h - 0.3f, z0, Mathf.Max(2, (int)((x1 - x0) / 2.4f)), 1, 1.2f, 1.6f, s, closed ? 0f : 0.5f);
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h, z1), 3.0f, 3.3f, 1.0f, 1.3f, 1.0f, s + 5, closed ? 0f : 0.35f, true);
-            // a table or two on the pavement for places that serve
-            if (awning && !closed && w > 12)
-                for (float x = x0 + 2.5f; x < x1 - 2; x += 4.5f)
-                {
-                    k.Cylinder(new Vector3(x, 0.08f, -d / 2 + 1.2f), 0.5f, 0.5f, 0.75f, 6, Trim, Trim);
-                    k.Cylinder(new Vector3(x, 2.0f, -d / 2 + 1.2f), 1.5f, 0.05f, 0.6f, 6, awnColor, awnColor);
-                    k.Box(new Vector3(x - 0.04f, 0.08f, -d / 2 + 1.16f), new Vector3(x + 0.04f, 2.0f, -d / 2 + 1.24f), Metal);
-                }
-            PropArt.Lamp(k, new Vector3(x1 - 0.4f, 0.08f, -d / 2 + 0.5f));
-        }
+        static readonly string[] ShopUpper = { "fac_apt_brick", "fac_apt_cream", "fac_apt_tan", "fac_apt_grey" };
 
-        static void Grocery(MeshKit k, float w, float d, uint s, bool closed)
+        static void Shop(MeshKit k, float w, float d, ref uint s, bool closed, int season, int storeys, string ground, int signRow, Color32? awning, bool tables)
         {
-            Lot(k, w, d, Paving, 0.1f);
-            float z0 = -d / 2 + 8.0f, z1 = d / 2 - 0.8f, x0 = -w / 2 + 1, x1 = w / 2 - 1, h = 6.5f;
-            Parking(k, -w / 2 + 0.5f, -d / 2 + 0.5f, w / 2 - 0.5f, z0 - 1.6f, ref s, closed ? 0.05f : 0.6f);
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), H("#e9e4d8"), Roof);
-            k.Box(new Vector3(x0, h - 1.4f, z0 - 0.3f), new Vector3(x1, h + 0.6f, z0), closed ? H("#7f8c8d") : H("#27ae60"));
-            Storefront(k, x0 + 1, x1 - 1, 3.6f, z0, closed, s);
-            k.Box(new Vector3(-3, 3.8f, z0 - 2.2f), new Vector3(3, 4.1f, z0), H("#dfe6e9"));
-            k.Box(new Vector3(x1 - 3, 0.1f, z0 - 1.2f), new Vector3(x1 - 1.2f, 1.0f, z0 - 0.4f), Metal);
-        }
-
-        static void Gas(MeshKit k, float w, float d, uint s, bool closed)
-        {
-            Lot(k, w, d, Concrete, 0.1f);
-            float cz = -d / 2 + 3.6f;
-            // canopy over the pumps
-            var red = closed ? H("#7f8c8d") : H("#e74c3c");
-            k.Box(new Vector3(-w / 2 + 1.5f, 4.6f, cz - 2.6f), new Vector3(w / 2 - 7.5f, 5.3f, cz + 2.6f), red, White);
-            k.Quad(new Vector3(-w / 2 + 1.7f, 4.58f, cz + 2.4f), new Vector3(-w / 2 + 1.7f, 4.58f, cz - 2.4f), new Vector3(w / 2 - 7.7f, 4.58f, cz - 2.4f), new Vector3(w / 2 - 7.7f, 4.58f, cz + 2.4f), new Color32(255, 248, 225, 255), true);
-            for (float x = -w / 2 + 3.5f; x < w / 2 - 8; x += 4.5f)
+            Lot(k, w, d, S("sidewalk"), 0.02f, 6f);
+            float x0 = -w / 2 + 0.4f, x1 = w / 2 - 0.4f, z0 = -d / 2 + 2.4f, z1 = d / 2 - 0.4f;
+            string upper = Pick(ref s, ShopUpper);
+            var skin = new Skin { Upper = upper, Ground = ground, GroundH = 4.2f, Wall = WallFor(upper) };
+            int u = (int)(Next(ref s) % 4), v = (int)(Next(ref s) % 4);
+            var faces = Faces(x0, x1, z0, z1);
+            var front = faces[South];
+            float top;
+            if (storeys >= 2) top = Block(k, x0, x1, z0, z1, skin, storeys - 1, u, v, false, true, "roof_membrane", season, closed);
+            else
             {
-                k.Box(new Vector3(x - 0.2f, 0.1f, cz - 0.2f), new Vector3(x + 0.2f, 4.6f, cz + 0.2f), White);
-                k.Box(new Vector3(x - 0.5f, 0.1f, cz + 0.4f), new Vector3(x + 0.5f, 1.6f, cz + 0.9f), red);
+                // one storey: the shopfront, a parapet band for the sign, blank walls round the rest
+                var wallMat = S(skin.Wall);
+                var groundMat = closed ? MaterialLibrary.Dark(ground, new Color(0.7f, 0.7f, 0.7f)) : S(ground, 1.8f);
+                top = 5.4f;
+                Band(k, front, 0, 4.2f, groundMat, 2.7f, 4.2f, 1, u, 0);
+                Plain(k, front, 4.2f, top, wallMat, 2f);
+                for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, top, wallMat, 2f);
+                FlatRoof(k, x0, x1, z0, z1, top, season == 0 ? S("snow") : S("roof_membrane"), wallMat, C(skin.Coping, 0.3f));
+            }
+            // sign board over the shopfront
+            float signW = Mathf.Min(front.Width - 1.2f, 7.5f);
+            Sign(k, front, front.Width / 2, signW, storeys >= 2 ? 4.35f : 4.45f, signW / 11f, signRow, closed);
+            if (closed)
+            {
+                var boards = T("wood", new Color(0.75f, 0.65f, 0.52f));
+                for (float a = 0.6f; a < front.Width - 1f; a += 2.7f) Ledge(k, front, a, a + 2.0f, 0.6f, 3.6f, 0.06f, boards);
+            }
+            else if (awning.HasValue)
+            {
+                Awning(k, front, 0.3f, front.Width - 0.3f, 3.85f, 1.5f, awning.Value);
+                if (tables)
+                    for (float a = 1.6f; a < front.Width - 1f; a += 2.8f)
+                        CafeTable(k, front.At(a, 0.06f) + front.Normal * 1.4f, awning.Value);
+            }
+            uint rs = s;
+            RoofClutter(k, x0 + 0.5f, x1 - 0.5f, z0 + 0.5f, z1 - 0.5f, top, ref rs, 0.8f, S(skin.Wall));
+            PropArt.Lamp(k, new Vector3(w / 2 - 0.8f, 0.06f, -d / 2 + 0.5f));
+            if (w > 12) Tree(k, -w / 2 + 1.2f, -d / 2 + 1.0f, 0.75f, season, s);
+        }
+
+        /// <summary>A striped canvas awning on a face.</summary>
+        static void Awning(MeshKit k, Face f, float a0, float a1, float y, float depth, Color32 col)
+        {
+            int n = Mathf.Max(2, Mathf.RoundToInt((a1 - a0) / 0.9f));
+            float sw = (a1 - a0) / n;
+            var ca = C(col, 0.1f); var cb = C(H("#f2efe6"), 0.1f);
+            for (int i = 0; i < n; i++)
+            {
+                var m = i % 2 == 0 ? ca : cb;
+                float xa = a0 + i * sw, xb = xa + sw;
+                Vector3 p0 = f.At(xa, y), p1 = f.At(xb, y), q0 = f.At(xa, y - 0.9f) + f.Normal * depth, q1 = f.At(xb, y - 0.9f) + f.Normal * depth;
+                k.Quad(q0, p0, p1, q1, m); k.Quad(q1, p1, p0, q0, m);
+                Vector3 d0 = q0 + Vector3.down * 0.3f, d1 = q1 + Vector3.down * 0.3f;
+                k.Quad(d0, q0, q1, d1, m); k.Quad(d1, q1, q0, d0, m);
+            }
+        }
+
+        static void CafeTable(MeshKit k, Vector3 p, Color32 col)
+        {
+            var white = C(H("#f4f4f2")); var dark = C(Dark, 0.4f, 0.4f);
+            k.Cylinder(p, 0.45f, 0.45f, 0.06f, 10, white, white);
+            k.Cylinder(p + Vector3.up * 0.7f, 0.42f, 0.42f, 0.04f, 10, white, white);
+            k.Box(p + new Vector3(-0.03f, 0, -0.03f), p + new Vector3(0.03f, 2.1f, 0.03f), dark, dark);
+            k.Cylinder(p + Vector3.up * 1.9f, 1.3f, 0.05f, 0.5f, 8, C(col, 0.1f), C(col, 0.1f));
+            foreach (var o in new[] { new Vector3(0.75f, 0, 0), new Vector3(-0.75f, 0, 0) })
+                k.Box(p + o + new Vector3(-0.2f, 0, -0.2f), p + o + new Vector3(0.2f, 0.45f, 0.2f), dark, dark);
+        }
+
+        static void Grocery(MeshKit k, float w, float d, ref uint s, bool closed, int season)
+        {
+            Lot(k, w, d, S("asphalt"), 0.05f, 8f);
+            float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = 0f, z1 = d / 2 - 0.8f, h = 7f;
+            var faces = Faces(x0, x1, z0, z1);
+            var wall = T("wall_stucco", new Color(0.93f, 0.89f, 0.8f));
+            var side = T("metal_panel", new Color(0.86f, 0.84f, 0.78f));
+            var green = C(H("#2e7d4f"), 0.35f);
+            var front = faces[South];
+            // the shopfront in the middle, solid walls either side
+            float g0 = front.Width * 0.18f, g1 = front.Width * 0.82f;
+            var store = closed ? MaterialLibrary.Dark("gf_store_light", new Color(0.7f, 0.7f, 0.7f)) : S("gf_store_light", 1.8f);
+            Rect(k, front, g0, g1, 0, 4.2f, store, new Vector2(0, 0), new Vector2(Mathf.Round((g1 - g0) / 2.7f) * 0.25f, 1));
+            k.Quad(front.At(0, 0), front.At(0, h), front.At(g0, h), front.At(g0, 0), wall, 3f);
+            k.Quad(front.At(g1, 0), front.At(g1, h), front.At(front.Width, h), front.At(front.Width, 0), wall, 3f);
+            k.Quad(front.At(g0, 4.2f), front.At(g0, h), front.At(g1, h), front.At(g1, 4.2f), wall, 3f);
+            for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, h, side, 2f);
+            FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), wall, green, 0.9f);
+            Ledge(k, front, -0.1f, front.Width + 0.1f, h - 0.4f, h + 0.9f, 0.2f, green);
+            Sign(k, front, front.Width / 2, 9f, 5.0f, 0.82f, SignRow.Market, closed);
+            Ledge(k, front, front.Width / 2 - 4f, front.Width / 2 + 4f, 3.9f, 4.15f, 2.4f, green, C(H("#e9e9e4")));
+            uint rs = s;
+            RoofClutter(k, x0 + 0.5f, x1 - 0.5f, z0 + 0.5f, z1 - 0.5f, h, ref rs, 2f, wall);
+            Parking(k, -w / 2 + 0.5f, -d / 2 + 0.5f, w / 2 - 0.5f, z0 - 3.2f, ref s, closed ? 0.05f : 0.55f);
+            var steel = C(Metal, 0.5f, 0.7f);
+            k.Box(new Vector3(x1 - 3.4f, 0.06f, z0 - 1.6f), new Vector3(x1 - 1.0f, 1.0f, z0 - 0.6f), steel, steel);
+            Tree(k, -w / 2 + 1.2f, -d / 2 + 1.2f, 0.85f, season, s);
+            Tree(k, w / 2 - 1.2f, -d / 2 + 1.2f, 0.85f, season, s + 3);
+        }
+
+        /// <summary>A parking lot: asphalt with painted bays and some cars.</summary>
+        static void Parking(MeshKit k, float x0, float z0, float x1, float z1, ref uint s, float fill)
+        {
+            k.Flat(x0, z0, x1, z1, 0.08f, S("asphalt"), 8f);
+            var paint = C(H("#f2f2ee"), 0.3f);
+            float depth = z1 - z0;
+            float rowD = Mathf.Min(5.2f, depth / 2);
+            for (int row = 0; row < 2 && rowD * (row + 1) <= depth + 0.01f; row++)
+            {
+                float rz0 = row == 0 ? z0 + 0.3f : z1 - rowD, rz1 = rz0 + rowD - 0.3f;
+                for (float x = x0 + 0.4f; x < x1 - 2.5f; x += 2.6f)
+                {
+                    k.Flat(x, rz0, x + 0.12f, rz1, 0.09f, paint);
+                    if (R(ref s) < fill) PropArt.Parked(k, new Vector3(x + 1.3f, 0.09f, (rz0 + rz1) / 2), row == 0 ? 0 : 180, s);
+                }
+            }
+        }
+
+        static void Gas(MeshKit k, float w, float d, ref uint s, bool closed, int season)
+        {
+            Lot(k, w, d, S("concrete"), 0.05f, 4f);
+            float cz = -d / 2 + 3.8f;
+            var red = closed ? C(H("#7f8c8d")) : C(H("#c0392b"), 0.4f);
+            var white = C(H("#f4f4f2"), 0.3f);
+            // canopy over the pumps, lit from below
+            float cx0 = -w / 2 + 1.2f, cx1 = w / 2 - 8.2f;
+            k.Box(new Vector3(cx0, 4.6f, cz - 2.8f), new Vector3(cx1, 5.4f, cz + 2.8f), red, season == 0 ? S("snow") : white);
+            var underside = closed ? C(H("#cfcfcf")) : MaterialLibrary.Glow(new Color(0.92f, 0.92f, 0.9f), new Color(1f, 0.97f, 0.9f), 2.2f);
+            k.Quad(new Vector3(cx0 + 0.1f, 4.59f, cz + 2.7f), new Vector3(cx0 + 0.1f, 4.59f, cz - 2.7f), new Vector3(cx1 - 0.1f, 4.59f, cz - 2.7f), new Vector3(cx1 - 0.1f, 4.59f, cz + 2.7f), underside);
+            var canopy = Faces(cx0, cx1, cz - 2.8f, cz + 2.8f);
+            Sign(k, canopy[South], canopy[South].Width / 2, 5f, 4.68f, 0.62f, SignRow.Fuel, closed);
+            for (float x = cx0 + 2f; x < cx1 - 1f; x += 4.4f)
+            {
+                k.Box(new Vector3(x - 0.18f, 0.06f, cz - 0.18f), new Vector3(x + 0.18f, 4.6f, cz + 0.18f), white, white);
+                k.Box(new Vector3(x - 1.2f, 0.06f, cz - 0.6f), new Vector3(x + 1.2f, 0.25f, cz + 0.6f), S("concrete"), S("concrete"));
+                k.Box(new Vector3(x - 0.45f, 0.25f, cz + 0.25f), new Vector3(x + 0.45f, 1.8f, cz + 0.6f), white, red);
+                k.Quad(new Vector3(x - 0.3f, 1.2f, cz + 0.24f), new Vector3(x - 0.3f, 1.6f, cz + 0.24f), new Vector3(x + 0.3f, 1.6f, cz + 0.24f), new Vector3(x + 0.3f, 1.2f, cz + 0.24f), new Color32(120, 220, 160, 255), true);
+                if (!closed && R(ref s) < 0.5f) PropArt.Parked(k, new Vector3(x, 0.06f, cz - 1.9f), 90, s);
             }
             // the shop
-            float sx0 = w / 2 - 6.5f, sx1 = w / 2 - 0.5f, sz0 = -d / 2 + 2.2f, sz1 = d / 2 - 0.6f;
-            k.Box(new Vector3(sx0, 0.08f, sz0), new Vector3(sx1, 3.6f, sz1), H("#f5f3ee"), Roof);
-            Storefront(k, sx0, sx1, 2.6f, sz0, closed, s);
-            k.Box(new Vector3(-w / 2 + 0.8f, 0.1f, d / 2 - 2), new Vector3(-w / 2 + 1.2f, 6.5f, d / 2 - 1.6f), Metal);
-            k.Box(new Vector3(-w / 2 + 0.2f, 5.0f, d / 2 - 2.2f), new Vector3(-w / 2 + 1.8f, 6.8f, d / 2 - 1.4f), red);
+            float sx0 = w / 2 - 7f, sx1 = w / 2 - 0.5f, sz0 = -d / 2 + 2.5f, sz1 = d / 2 - 0.5f;
+            var sf = Faces(sx0, sx1, sz0, sz1);
+            var store = closed ? MaterialLibrary.Dark("gf_store_light", new Color(0.7f, 0.7f, 0.7f)) : S("gf_store_light", 1.8f);
+            Band(k, sf[South], 0, 3.6f, store, 2.7f, 4.2f, 1, 1, 0);
+            Plain(k, sf[South], 3.6f, 4.4f, white, 2f);
+            for (int i = 0; i < 4; i++) if (i != South) Plain(k, sf[i], 0, 4.4f, T("wall_stucco", new Color(0.95f, 0.94f, 0.92f)), 2f);
+            FlatRoof(k, sx0, sx1, sz0, sz1, 4.4f, season == 0 ? S("snow") : S("roof_membrane"), white, red, 0.4f);
+            Ledge(k, sf[South], -0.05f, sf[South].Width + 0.05f, 3.6f, 4.4f, 0.15f, red);
+            // price pylon
+            k.Box(new Vector3(-w / 2 + 0.6f, 0.06f, -d / 2 + 0.6f), new Vector3(-w / 2 + 1.0f, 5.2f, -d / 2 + 1.0f), C(Metal, 0.5f, 0.6f), C(Metal));
+            k.Box(new Vector3(-w / 2 + 0.2f, 4.0f, -d / 2 + 0.7f), new Vector3(-w / 2 + 1.6f, 6.2f, -d / 2 + 0.9f), red, red);
+            k.Quad(new Vector3(-w / 2 + 0.35f, 4.2f, -d / 2 + 0.69f), new Vector3(-w / 2 + 0.35f, 5.4f, -d / 2 + 0.69f), new Vector3(-w / 2 + 1.45f, 5.4f, -d / 2 + 0.69f), new Vector3(-w / 2 + 1.45f, 4.2f, -d / 2 + 0.69f), new Color32(255, 240, 200, 255), true);
         }
 
-        static void CarDealer(MeshKit k, float w, float d, uint s, bool closed)
+        static void CarDealer(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
-            Lot(k, w, d, Paving, 0.1f);
-            float z0 = 0.5f, z1 = d / 2 - 1, x0 = -w / 2 + 1.5f, x1 = w / 2 - 1.5f, h = 5.5f;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), H("#eef1f4"), Roof);
-            k.WindowsFront(x0 + 0.2f, x1 - 0.2f, 0.4f, h - 0.6f, z0, 6, 1, 2.5f, h - 1.2f, s, closed ? 0 : 0.95f);
-            Sign(k, x0 + 2, x1 - 2, h - 0.2f, h + 1.2f, z0 + 0.2f, H("#0a3d62"), closed);
-            // cars for sale out front
+            Lot(k, w, d, S("concrete"), 0.05f, 4f);
+            float x0 = -w / 2 + 1.5f, x1 = w / 2 - 1.5f, z0 = 0.5f, z1 = d / 2 - 1, h = 6.2f;
+            var faces = Faces(x0, x1, z0, z1);
+            var glass = closed ? MaterialLibrary.Dark("fac_glass_blue", new Color(0.7f, 0.7f, 0.7f)) : S("fac_glass_blue", 1.4f);
+            Band(k, faces[South], 0, h, glass, 3.0f, h, 4, 0, 0);
+            Band(k, faces[East], 0, h, glass, 3.0f, h, 4, 1, 1);
+            Band(k, faces[West], 0, h, glass, 3.0f, h, 4, 2, 2);
+            Plain(k, faces[North], 0, h, T("metal_panel", new Color(0.92f, 0.93f, 0.95f)), 2f);
+            var trim = C(H("#0a3d62"), 0.4f, 0.3f);
+            FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), C(H("#e9ecef")), trim, 0.8f);
+            Ledge(k, faces[South], -0.1f, faces[South].Width + 0.1f, h - 0.2f, h + 0.9f, 0.25f, trim);
+            Sign(k, faces[South], faces[South].Width / 2, 7.5f, h + 0.02f, 0.68f, SignRow.AutoSales, closed);
             if (!closed)
-                for (float x = -w / 2 + 2.5f; x < w / 2 - 2; x += 3.2f)
-                    PropArt.Parked(k, new Vector3(x, 0.1f, -d / 2 + 4.5f), 160, s + (uint)(x * 13));
-            for (float x = -w / 2 + 1; x < w / 2; x += 6) Flag(k, x, -d / 2 + 0.8f, 5, H("#e74c3c"));
+                for (float x = -w / 2 + 2.6f; x < w / 2 - 2; x += 3.2f)
+                {
+                    PropArt.Parked(k, new Vector3(x, 0.06f, -d / 2 + 4.6f), 160, s + (uint)(x * 13));
+                    if (R(ref s) < 0.7f) PropArt.Parked(k, new Vector3(x, 0.06f, -d / 2 + 9.2f), 200, s + (uint)(x * 7));
+                }
+            for (float x = -w / 2 + 1; x < w / 2; x += 6) Flag(k, x, -d / 2 + 0.8f, 6f, H("#e74c3c"));
         }
 
-        static void AutoRepair(MeshKit k, float w, float d, uint s, bool closed)
+        static void Flag(MeshKit k, float x, float z, float h, Color32 col)
         {
-            Lot(k, w, d, Concrete, 0.1f);
-            float z0 = -d / 2 + 2.0f, z1 = d / 2 - 0.6f, x0 = -w / 2 + 0.5f, x1 = w / 2 - 0.5f, h = 5.2f;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), H("#bfc6cc"), Roof);
-            k.Box(new Vector3(x0 + 0.6f, 0.08f, z0 - 0.06f), new Vector3(-0.3f, 3.6f, z0), H("#8d969e"));
-            k.Box(new Vector3(0.3f, 0.08f, z0 - 0.06f), new Vector3(x1 - 0.6f, 3.6f, z0), H("#8d969e"));
-            for (float y = 0.5f; y < 3.6f; y += 0.45f) k.Box(new Vector3(x0 + 0.6f, y, z0 - 0.08f), new Vector3(x1 - 0.6f, y + 0.05f, z0 - 0.06f), H("#737b83"));
-            Sign(k, x0 + 0.5f, x1 - 0.5f, 3.9f, 4.8f, z0, H("#f39c12"), closed);
-            for (int i = 0; i < 3; i++) k.Cylinder(new Vector3(x1 - 0.2f, 0.1f + i * 0.35f, -d / 2 + 1.0f), 0.4f, 0.4f, 0.32f, 7, Dark, Dark);
-            if (!closed) PropArt.Parked(k, new Vector3(-2.2f, 0.1f, -d / 2 + 1.0f), 90, s);
+            var pole = C(H("#c9ced3"), 0.6f, 0.8f);
+            k.Box(new Vector3(x - 0.05f, 0.06f, z - 0.05f), new Vector3(x + 0.05f, h, z + 0.05f), pole, pole);
+            var cloth = C(col, 0.1f);
+            k.Box(new Vector3(x + 0.05f, h - 1.1f, z - 0.02f), new Vector3(x + 1.7f, h - 0.1f, z + 0.02f), cloth, cloth);
         }
 
-        static void Office(MeshKit k, float w, float d, uint s, int floors, bool closed)
+        static void AutoRepair(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
-            Lot(k, w, d, Paving, 0.1f);
+            Lot(k, w, d, S("concrete"), 0.05f, 4f);
+            float x0 = -w / 2 + 0.4f, x1 = w / 2 - 0.4f, z0 = -d / 2 + 2.2f, z1 = d / 2 - 0.4f, h = 5.6f;
+            var faces = Faces(x0, x1, z0, z1);
+            var doors = closed ? MaterialLibrary.Dark("gf_rollup", new Color(0.75f, 0.75f, 0.75f)) : S("gf_rollup", 1.5f);
+            Band(k, faces[South], 0, 4.7f, doors, 3.0f, 4.7f, 1, 1, 0);
+            var cladding = T("metal_panel", new Color(0.8f, 0.82f, 0.85f));
+            Plain(k, faces[South], 4.7f, h, cladding, 2f);
+            for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, h, cladding, 2f);
+            FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), C(H("#9aa3ab")), C(H("#f39c12"), 0.3f), 0.5f);
+            Sign(k, faces[South], faces[South].Width / 2, Mathf.Min(7f, faces[South].Width - 1f), 4.82f, 0.58f, SignRow.AutoRepair, closed);
+            var tire = C(H("#1b1b1b"), 0.25f);
+            for (int i = 0; i < 4; i++) k.Cylinder(new Vector3(x1 - 0.5f, 0.06f + i * 0.28f, -d / 2 + 1.0f), 0.38f, 0.38f, 0.26f, 10, tire, tire);
+            if (!closed) PropArt.Parked(k, new Vector3(-1.5f, 0.06f, -d / 2 + 1.0f), 90, s);
+        }
+
+        // ================================================================== offices and the bank
+        static void Office(MeshKit k, float w, float d, ref uint s, int floors, bool closed, int season)
+        {
+            Lot(k, w, d, S("pavers"), 0.02f, 3f);
+            string upper = Pick(ref s, new[] { "fac_glass_blue", "fac_glass_green", "fac_precast", "fac_glass_blue" });
+            var skin = new Skin { Upper = upper, Ground = "gf_lobby", GroundH = 4.8f, Floor = 3.15f, Wall = "wall_stone", Coping = upper == "fac_precast" ? H("#d6d1c6") : H("#3b4450"), Glow = 1.4f };
+            float x0 = -w / 2 + 3, x1 = w / 2 - 3, z0 = -d / 2 + 4.5f, z1 = d / 2 - 2.5f;
             int fl = floors + (int)(Next(ref s) % 4);
-            float fh = 3.6f, h = fl * fh + 1;
-            float x0 = -w / 2 + 3, x1 = w / 2 - 3, z0 = -d / 2 + 4, z1 = d / 2 - 2.5f;
-            Color32[] glass = { H("#5d7b93"), H("#4a6a7f"), H("#6e8796"), H("#3f5a6e") };
-            var frame = (Next(ref s) % 2) == 0 ? H("#d5d8dc") : H("#4d5359");
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), frame, Roof);
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h - 0.5f, z1), 1.9f, fh, 1.7f, 2.6f, 1.2f, s, closed ? 0 : 0.6f);
-            // lobby and a crown on top
-            k.Box(new Vector3(-3, 0.08f, z0 - 1.8f), new Vector3(3, 3.6f, z0), MeshKit.Shade(frame, 0.8f));
-            k.Quad(new Vector3(-2.6f, 0.3f, z0 - 1.83f), new Vector3(-2.6f, 3.2f, z0 - 1.83f), new Vector3(2.6f, 3.2f, z0 - 1.83f), new Vector3(2.6f, 0.3f, z0 - 1.83f), closed ? new Color32(18, 20, 26, 255) : new Color32(255, 244, 220, 255), true);
-            k.Box(new Vector3(x0 + 2, h, z0 + 2), new Vector3(x1 - 2, h + 2.4f, z1 - 2), glass[s % 4]);
-            k.Box(new Vector3(-0.1f, h + 2.4f, -0.1f), new Vector3(0.1f, h + 6, 0.1f), Metal);
-            PropArt.Lamp(k, new Vector3(-w / 2 + 1.2f, 0.08f, -d / 2 + 1));
-            PropArt.Lamp(k, new Vector3(w / 2 - 1.2f, 0.08f, -d / 2 + 1));
-        }
-
-        static void Bank(MeshKit k, float w, float d, uint s, bool closed)
-        {
-            Lot(k, w, d, Paving, 0.1f);
-            float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = -d / 2 + 3, z1 = d / 2 - 0.6f, h = 7.5f;
-            var stone = H("#e7e1d3");
-            k.Box(new Vector3(x0 - 0.4f, 0.08f, z0 - 1.6f), new Vector3(x1 + 0.4f, 0.6f, z1), H("#d6cfbd"));
-            k.Box(new Vector3(x0, 0.6f, z0), new Vector3(x1, h, z1), stone, Roof);
-            for (float x = x0 + 0.8f; x <= x1 - 0.6f; x += 2.2f) k.Cylinder(new Vector3(x, 0.6f, z0 - 0.9f), 0.4f, 0.4f, h - 1.6f, 8, Trim, Trim);
-            k.Box(new Vector3(x0, h - 1.0f, z0 - 1.5f), new Vector3(x1, h, z0), stone);
-            // pediment
-            k.Tri(new Vector3(x0, h, z0 - 1.5f), new Vector3(0, h + 2.2f, z0 - 1.5f), new Vector3(x1, h, z0 - 1.5f), MeshKit.Shade(stone, 1.05f));
-            k.Quad(new Vector3(x0, h, z0 - 1.5f), new Vector3(x0, h, z1), new Vector3(0, h + 2.2f, z1), new Vector3(0, h + 2.2f, z0 - 1.5f), Roof);
-            k.Quad(new Vector3(x1, h, z1), new Vector3(x1, h, z0 - 1.5f), new Vector3(0, h + 2.2f, z0 - 1.5f), new Vector3(0, h + 2.2f, z1), MeshKit.Shade(Roof, 0.85f));
-            k.Tri(new Vector3(x1, h, z1), new Vector3(0, h + 2.2f, z1), new Vector3(x0, h, z1), MeshKit.Shade(stone, 0.9f));
-            k.WindowsFront(x0 + 0.6f, x1 - 0.6f, 1.6f, 5.6f, z0, 4, 1, 1.0f, 3.0f, s, closed ? 0 : 0.6f);
-            k.Box(new Vector3(-0.8f, 0.6f, z0 - 0.05f), new Vector3(0.8f, 3.6f, z0), H("#2f2a24"));
-        }
-
-        // ================================================================== industry
-        static void Farm(MeshKit k, float w, float d, uint s, int season)
-        {
-            // fields in rows
-            Color32 crop, soil = Soil;
-            switch (season)
+            int u = (int)(Next(ref s) % 4), v = (int)(Next(ref s) % 4);
+            float top = Block(k, x0, x1, z0, z1, skin, fl, u, v, true, true, "roof_membrane", season, closed);
+            var faces = Faces(x0, x1, z0, z1);
+            Ledge(k, faces[South], faces[South].Width / 2 - 3.5f, faces[South].Width / 2 + 3.5f, 4.3f, 4.55f, 2.6f, C(H("#3b4450"), 0.5f, 0.6f));
+            Sign(k, faces[South], faces[South].Width / 2, 4.2f, 3.65f, 0.38f, SignRow.Offices, closed);
+            var mech = T("metal_panel", new Color(0.82f, 0.84f, 0.86f));
+            k.Box(new Vector3(x0 + 2.5f, top, z0 + 2), new Vector3(x1 - 2.5f, top + 3f, z1 - 2), mech, season == 0 ? S("snow") : S("roof_membrane"), 2f);
+            var dark = C(Dark, 0.4f, 0.5f);
+            float cz = (z0 + z1) / 2;
+            k.Box(new Vector3(-0.1f, top + 3f, cz - 0.1f), new Vector3(0.1f, top + 9f, cz + 0.1f), dark, dark);
+            var red = MaterialLibrary.Glow(new Color(0.6f, 0.1f, 0.1f), new Color(1f, 0.1f, 0.05f), 4f);
+            k.Box(new Vector3(-0.15f, top + 9f, cz - 0.15f), new Vector3(0.15f, top + 9.3f, cz + 0.15f), red, red);
+            uint rs = s;
+            RoofClutter(k, x0 + 0.5f, x0 + 2.3f, z0 + 0.5f, z1 - 0.5f, top, ref rs, 1f, mech);
+            var planter = S("concrete");
+            foreach (float x in new[] { -w / 2 + 1.5f, w / 2 - 1.5f })
             {
-                case 0: crop = H("#e9eef2"); soil = H("#dfe5ea"); break;
-                case 1: crop = H("#7fbf4f"); break;
-                case 2: crop = H("#cbb34a"); break;
-                default: crop = H("#d9a441"); break;
+                k.Box(new Vector3(x - 0.9f, 0.02f, -d / 2 + 0.8f), new Vector3(x + 0.9f, 0.6f, -d / 2 + 2.6f), planter, GrassMat(season), 2f);
+                Tree(k, x, -d / 2 + 1.7f, 0.85f, season, s);
             }
-            k.Flat(-w / 2 + 0.3f, -d / 2 + 0.3f, w / 2 - 0.3f, d / 2 - 0.3f, 0.07f, soil);
-            float fx1 = w / 2 - 11f;
-            for (float x = -w / 2 + 1; x < fx1; x += 1.6f)
-                k.Box(new Vector3(x, 0.07f, -d / 2 + 1), new Vector3(x + 0.9f, season == 0 ? 0.12f : 0.45f, d / 2 - 1), crop, MeshKit.Shade(crop, 1.1f));
-            // barn, silo, farmhouse, tractor
-            float bx0 = w / 2 - 9.5f, bx1 = w / 2 - 2.5f;
-            k.Flat(bx0 - 1, -d / 2 + 0.4f, w / 2 - 0.4f, d / 2 - 0.4f, 0.09f, H("#a89a7c"));
-            k.Box(new Vector3(bx0, 0.09f, 1), new Vector3(bx1, 5.0f, 11), H("#b03a2e"), H("#b03a2e"));
-            k.Gable(bx0, 1, bx1, 11, 5.0f, 3.0f, H("#5b5f63"), H("#b03a2e"), 0.4f);
-            k.Box(new Vector3(bx0 + 2, 0.09f, 0.94f), new Vector3(bx1 - 2, 3.8f, 1), Trim);
-            k.Cylinder(new Vector3(w / 2 - 2.2f, 0.09f, 12.5f), 1.6f, 1.6f, 9, 10, H("#c7ccd1"), H("#c7ccd1"));
-            k.Cylinder(new Vector3(w / 2 - 2.2f, 9.09f, 12.5f), 1.6f, 0, 1.6f, 10, Metal, Metal);
-            k.Box(new Vector3(bx0, 0.09f, -d / 2 + 2), new Vector3(bx0 + 5, 3.0f, -d / 2 + 7), H("#f3ead6"));
-            k.Gable(bx0, -d / 2 + 2, bx0 + 5, -d / 2 + 7, 3.0f, 1.8f, H("#6e4e3a"), H("#f3ead6"), 0.3f);
-            k.WindowsFront(bx0 + 0.3f, bx0 + 4.7f, 0.9f, 2.4f, -d / 2 + 2, 2, 1, 1.0f, 1.0f, s, 0.6f);
-            k.Push(new Vector3(bx1 - 1, 0.09f, -d / 2 + 4), 30);
-            k.Box(new Vector3(-0.9f, 0.6f, -1.6f), new Vector3(0.9f, 1.6f, 1.2f), H("#2e8b3a"));
-            k.Box(new Vector3(-0.7f, 1.6f, -0.2f), new Vector3(0.7f, 2.8f, 1.1f), H("#2e8b3a"));
-            k.Cylinder(new Vector3(-1.1f, 0, 0.6f), 0.9f, 0.9f, 0.5f, 8, Dark, Dark);
-            k.Cylinder(new Vector3(1.1f, 0, 0.6f), 0.9f, 0.9f, 0.5f, 8, Dark, Dark);
-            k.Pop();
-            k.Box(new Vector3(-w / 2 + 0.3f, 0.07f, -d / 2 + 0.3f), new Vector3(w / 2 - 0.3f, 1.0f, -d / 2 + 0.4f), H("#a0784f"));
+            PropArt.Lamp(k, new Vector3(-w / 2 + 3.5f, 0.02f, -d / 2 + 1));
+            PropArt.Lamp(k, new Vector3(w / 2 - 3.5f, 0.02f, -d / 2 + 1));
         }
 
-        static void Factory(MeshKit k, float w, float d, uint s, bool closed, Color32 wall, Color32 accent, bool tanks, bool sawtooth)
+        static void Bank(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
-            Lot(k, w, d, Concrete, 0.1f);
-            float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = -d / 2 + 3.5f, z1 = d / 2 - 1, h = 8f;
-            if (tanks) x1 = w / 2 - 6;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), wall, Roof);
-            k.Box(new Vector3(x0, h - 1.2f, z0 - 0.15f), new Vector3(x1, h - 0.4f, z0), closed ? H("#7f8c8d") : accent);
-            if (sawtooth)
-                for (float z = z0; z < z1 - 0.5f; z += 3.2f)
-                {
-                    float ze = Mathf.Min(z + 3.2f, z1);
-                    k.Quad(new Vector3(x0, h, z), new Vector3(x0, h + 2.2f, z), new Vector3(x1, h + 2.2f, z), new Vector3(x1, h, z), new Color32(240, 220, 170, 255), true);
-                    k.Quad(new Vector3(x0, h + 2.2f, z), new Vector3(x0, h, ze), new Vector3(x1, h, ze), new Vector3(x1, h + 2.2f, z), Roof);
-                    k.Tri(new Vector3(x0, h, ze), new Vector3(x0, h + 2.2f, z), new Vector3(x0, h, z), MeshKit.Shade(wall, 0.9f));
-                    k.Tri(new Vector3(x1, h, z), new Vector3(x1, h + 2.2f, z), new Vector3(x1, h, ze), MeshKit.Shade(wall, 0.9f));
-                }
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h - 1.6f, z1), 3.2f, 3.2f, 2.2f, 1.2f, 3.6f, s, closed ? 0 : 0.7f);
-            // loading doors and a chimney
-            k.Box(new Vector3(x0 + 1, 0.08f, z0 - 0.06f), new Vector3(x0 + 4.5f, 4.0f, z0), H("#8d969e"));
-            k.Box(new Vector3(x1 - 4.5f, 0.08f, z0 - 0.06f), new Vector3(x1 - 1, 4.0f, z0), H("#8d969e"));
-            k.Cylinder(new Vector3(x1 - 2.5f, h, z1 - 2.5f), 0.9f, 0.7f, 8, 8, BrickDark, Dark);
-            if (tanks)
+            Lot(k, w, d, S("pavers"), 0.02f, 3f);
+            float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = -d / 2 + 3.2f, z1 = d / 2 - 0.6f, h = 7.6f;
+            var stone = S("wall_stone");
+            var stoneTop = C(H("#ddd5c3"), 0.25f);
+            var faces = Faces(x0, x1, z0, z1);
+            k.Box(new Vector3(x0 - 0.5f, 0, z0 - 2.2f), new Vector3(x1 + 0.5f, 0.6f, z1), stone, stoneTop, 2f);
+            for (int i = 1; i < 3; i++) k.Box(new Vector3(x0 - 0.5f, 0, z0 - 2.2f - i * 0.35f), new Vector3(x1 + 0.5f, 0.6f - i * 0.2f, z0 - 2.2f), stone, stoneTop, 2f);
+            var glass = closed ? MaterialLibrary.Dark("gf_lobby", new Color(0.7f, 0.7f, 0.7f)) : S("gf_lobby", 1.5f);
+            var f = faces[South];
+            Rect(k, f, 0.3f, f.Width - 0.3f, 0.6f, h - 1.2f, glass, new Vector2(0, 0), new Vector2(Mathf.Round((f.Width - 0.6f) / 2.7f) * 0.25f, 1));
+            Plain(k, f, h - 1.2f, h, stone, 2f);
+            for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0.6f, h, stone, 2f);
+            FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), stone, stoneTop, 0.5f);
+            // portico: columns, entablature, pediment
+            var white = C(H("#efeae0"), 0.3f);
+            int cols = Mathf.Max(4, Mathf.RoundToInt(f.Width / 2.6f));
+            for (int i = 0; i < cols; i++)
             {
-                k.Cylinder(new Vector3(w / 2 - 3.2f, 0.08f, -2), 2.0f, 2.0f, 7, 10, H("#dfe4e8"), H("#dfe4e8"));
-                k.Cylinder(new Vector3(w / 2 - 3.2f, 0.08f, 4), 2.0f, 2.0f, 9, 10, H("#dfe4e8"), H("#dfe4e8"));
+                float a = Mathf.Lerp(0.7f, f.Width - 0.7f, i / (float)(cols - 1));
+                k.Cylinder(f.At(a, 0.6f) + f.Normal * 1.5f, 0.42f, 0.38f, h - 1.7f, 12, white, white);
             }
-            if (!closed) PropArt.Parked(k, new Vector3(-w / 2 + 3, 0.1f, -d / 2 + 1.5f), 90, s);
-        }
-
-        static void Workshop(MeshKit k, float w, float d, uint s, bool closed)
-        {
-            Lot(k, w, d, H("#a89a7c"), 0.1f);
-            var wood = H("#9a6a3f");
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, -d / 2 + 4), new Vector3(w / 2 - 6, 6, d / 2 - 1), wood, wood);
-            k.Gable(-w / 2 + 1, -d / 2 + 4, w / 2 - 6, d / 2 - 1, 6, 3, H("#5e4634"), wood, 0.5f);
-            k.WindowsAround(new Vector3(-w / 2 + 1, 0, -d / 2 + 4), new Vector3(w / 2 - 6, 5, d / 2 - 1), 3.5f, 3, 1.6f, 1.2f, 2.2f, s, closed ? 0 : 0.6f);
-            k.Box(new Vector3(-3, 0.08f, -d / 2 + 3.94f), new Vector3(1, 4, -d / 2 + 4), H("#5e4634"));
-            // stacks of timber
-            for (int i = 0; i < 3; i++)
-                k.Box(new Vector3(w / 2 - 5, 0.08f, -d / 2 + 2 + i * 5), new Vector3(w / 2 - 1, 1.2f + (i % 2) * 0.6f, -d / 2 + 5 + i * 5), H("#c69c6d"));
-            Sign(k, -w / 2 + 2, w / 2 - 8, 6.4f, 7.4f, -d / 2 + 4, H("#d35400"), closed);
-        }
-
-        static void Yard(MeshKit k, float w, float d, uint s, bool closed)
-        {
-            Lot(k, w, d, H("#b8a585"), 0.1f);
-            // office cabin, materials, machines, a fence
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, -d / 2 + 2), new Vector3(-w / 2 + 8, 3.0f, -d / 2 + 5), H("#f1c40f"), Roof);
-            k.WindowsFront(-w / 2 + 1.5f, -w / 2 + 7.5f, 1, 2.4f, -d / 2 + 2, 3, 1, 1.0f, 0.9f, s, closed ? 0 : 0.7f);
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, d / 2 - 7), new Vector3(-w / 2 + 6, 1.6f, d / 2 - 2), H("#c69c6d"));
-            k.Box(new Vector3(-w / 2 + 7, 0.08f, d / 2 - 6), new Vector3(-w / 2 + 11, 1.0f, d / 2 - 2), Concrete);
-            k.Cylinder(new Vector3(2, 0.08f, d / 2 - 4), 2.5f, 0, 2.5f, 8, H("#9b8b70"), H("#9b8b70"));
-            if (!closed)
-            {
-                k.Push(new Vector3(w / 2 - 5, 0.08f, -1), 20);
-                k.Box(new Vector3(-1.4f, 0.4f, -2), new Vector3(1.4f, 2.2f, 2), H("#f39c12"));
-                k.Box(new Vector3(-1.1f, 2.2f, -0.5f), new Vector3(1.1f, 3.6f, 1.6f), H("#f39c12"));
-                k.Box(new Vector3(-0.25f, 2.0f, -5.5f), new Vector3(0.25f, 2.5f, -2), H("#e67e22"));
-                k.Box(new Vector3(-1.6f, 0, -2.2f), new Vector3(1.6f, 0.6f, 2.2f), Dark);
-                k.Pop();
-                // a tower crane
-                float cx = w / 2 - 3, cz = d / 2 - 3;
-                for (float y = 0; y < 16; y += 2) k.Box(new Vector3(cx - 0.5f, y, cz - 0.5f), new Vector3(cx + 0.5f, y + 1.8f, cz + 0.5f), H("#f1c40f"));
-                k.Box(new Vector3(cx - 12, 16, cz - 0.4f), new Vector3(cx + 4, 16.8f, cz + 0.4f), H("#f1c40f"));
-                k.Box(new Vector3(cx + 2, 15, cz - 1), new Vector3(cx + 4, 16, cz + 1), Concrete);
-            }
-            Fence(k, w, d, 0.3f);
-        }
-
-        static void Fence(MeshKit k, float w, float d, float inset)
-        {
-            var c = H("#9aa3ab");
-            k.Box(new Vector3(-w / 2 + inset, 0.08f, d / 2 - inset - 0.1f), new Vector3(w / 2 - inset, 1.8f, d / 2 - inset), c);
-            k.Box(new Vector3(-w / 2 + inset, 0.08f, -d / 2 + inset), new Vector3(-w / 2 + inset + 0.1f, 1.8f, d / 2 - inset), c);
-            k.Box(new Vector3(w / 2 - inset - 0.1f, 0.08f, -d / 2 + inset), new Vector3(w / 2 - inset, 1.8f, d / 2 - inset), c);
-        }
-
-        static void Depot(MeshKit k, float w, float d, uint s, bool closed)
-        {
-            Lot(k, w, d, Concrete, 0.1f);
-            float z0 = 0, z1 = d / 2 - 1, x0 = -w / 2 + 1, x1 = w / 2 - 1, h = 7;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), H("#c9ced3"), Roof);
-            for (float x = x0 + 1; x < x1 - 3; x += 4)
-                k.Box(new Vector3(x, 0.9f, z0 - 0.06f), new Vector3(x + 3, 4.4f, z0), H("#7b848c"));
-            k.Box(new Vector3(x0, 0.08f, z0 - 1.2f), new Vector3(x1, 0.9f, z0), Concrete);
-            Sign(k, x0 + 2, x1 - 2, h - 1.2f, h - 0.2f, z0, H("#0a79df"), closed);
-            if (!closed)
-                for (int i = 0; i < 2; i++)
-                {
-                    k.Push(new Vector3(x0 + 4 + i * 8, 0.08f, -d / 2 + 4.5f), 0);
-                    PropArt.Truck(k, H("#ecf0f1"), i == 0 ? H("#0a79df") : H("#e1e5e8"));
-                    k.Pop();
-                }
-        }
-
-        // ================================================================== public
-        static void TownHall(MeshKit k, float w, float d, uint s)
-        {
-            Lot(k, w, d, Paving, 0.1f);
-            float x0 = -w / 2 + 2, x1 = w / 2 - 2, z0 = -d / 2 + 6, z1 = d / 2 - 1.5f, h = 9;
-            var stone = H("#ece6d8");
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), stone, Roof);
-            k.Box(new Vector3(x0 - 0.2f, h, z0 - 0.2f), new Vector3(x1 + 0.2f, h + 0.7f, z1 + 0.2f), H("#d8d0bd"));
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h, z1), 2.4f, 3.6f, 1.1f, 2.2f, 1.0f, s, 0.5f, true);
-            // portico and steps
-            k.Box(new Vector3(-5, 0.08f, z0 - 3.0f), new Vector3(5, 0.7f, z0), H("#d6cfbd"));
-            for (float x = -4.2f; x <= 4.3f; x += 2.1f) k.Cylinder(new Vector3(x, 0.7f, z0 - 2.2f), 0.45f, 0.45f, 6.6f, 8, Trim, Trim);
-            k.Box(new Vector3(-5, 7.3f, z0 - 3.0f), new Vector3(5, 8.2f, z0), stone);
-            k.Tri(new Vector3(-5, 8.2f, z0 - 3.0f), new Vector3(0, 10.6f, z0 - 3.0f), new Vector3(5, 8.2f, z0 - 3.0f), MeshKit.Shade(stone, 1.05f));
-            k.Quad(new Vector3(-5, 8.2f, z0 - 3.0f), new Vector3(-5, 8.2f, z0), new Vector3(0, 10.6f, z0), new Vector3(0, 10.6f, z0 - 3.0f), Roof);
-            k.Quad(new Vector3(5, 8.2f, z0), new Vector3(5, 8.2f, z0 - 3.0f), new Vector3(0, 10.6f, z0 - 3.0f), new Vector3(0, 10.6f, z0), MeshKit.Shade(Roof, 0.85f));
-            // clock tower and dome
-            k.Box(new Vector3(-2, h + 0.7f, 0), new Vector3(2, h + 5.5f, 4), stone);
-            k.Box(new Vector3(-1.1f, h + 2.0f, -0.15f), new Vector3(1.1f, h + 4.2f, 0), White);
-            k.Box(new Vector3(-0.08f, h + 3.0f, -0.2f), new Vector3(0.08f, h + 3.9f, -0.15f), Dark);
-            k.Cylinder(new Vector3(0, h + 5.5f, 2), 2.3f, 0, 3.4f, 10, H("#4f7f6a"), H("#4f7f6a"));
-            Flag(k, -w / 2 + 2, -d / 2 + 2, 9, H("#2e86de"));
-            Flag(k, w / 2 - 3.8f, -d / 2 + 2, 9, H("#c0392b"));
-        }
-
-        static void School(MeshKit k, float w, float d, uint s, int floors, bool field)
-        {
-            Lot(k, w, d, Grass, 0.1f);
-            float h = floors * 3.6f + 0.5f;
-            float x0 = -w / 2 + 1.5f, x1 = field ? -w / 2 + w * 0.55f : w / 2 - 1.5f, z0 = -d / 2 + 3.5f, z1 = z0 + 7;
-            k.Flat(-w / 2 + 0.3f, -d / 2 + 0.3f, x1, z0, 0.1f, Paving);
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), Brick, Roof);
-            k.Box(new Vector3(x0, 0.08f, z1), new Vector3(x0 + 7, h, d / 2 - 1.5f), Brick, Roof);
-            k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h, z1), 2.2f, 3.6f, 1.5f, 1.7f, 0.9f, s, 0.3f);
-            k.WindowsAround(new Vector3(x0, 0, z1), new Vector3(x0 + 7, h, d / 2 - 1.5f), 2.2f, 3.6f, 1.5f, 1.7f, 0.9f, s + 3, 0.3f, true);
-            k.Box(new Vector3((x0 + x1) / 2 - 2, 0.08f, z0 - 1.5f), new Vector3((x0 + x1) / 2 + 2, 3.2f, z0), Trim, Concrete);
-            Sign(k, (x0 + x1) / 2 - 3, (x0 + x1) / 2 + 3, h - 1.4f, h - 0.4f, z0, H("#1e3799"), false);
-            Flag(k, x0 + 1, -d / 2 + 1.2f, 8, H("#2e86de"));
-            if (field)
-            {
-                // a sports field with a running track
-                float fx0 = x1 + 1.5f, fx1 = w / 2 - 1, fz0 = -d / 2 + 1.5f, fz1 = d / 2 - 1.5f;
-                k.Flat(fx0, fz0, fx1, fz1, 0.09f, H("#b5523b"));
-                k.Flat(fx0 + 1.4f, fz0 + 1.4f, fx1 - 1.4f, fz1 - 1.4f, 0.11f, H("#5fa04a"));
-                k.Flat((fx0 + fx1) / 2 - 0.08f, fz0 + 1.4f, (fx0 + fx1) / 2 + 0.08f, fz1 - 1.4f, 0.12f, Line);
-                k.Box(new Vector3(fx0 + 2, 0.1f, (fz0 + fz1) / 2 - 1.5f), new Vector3(fx0 + 2.15f, 2.4f, (fz0 + fz1) / 2 + 1.5f), White);
-                k.Box(new Vector3(fx1 - 2.15f, 0.1f, (fz0 + fz1) / 2 - 1.5f), new Vector3(fx1 - 2, 2.4f, (fz0 + fz1) / 2 + 1.5f), White);
-            }
-            else
-            {
-                // a playground
-                float px = x0 + 10, pz = z1 + 4;
-                k.Flat(px - 1, pz - 1, w / 2 - 1.5f, d / 2 - 1.5f, 0.1f, H("#d9b98c"));
-                k.Box(new Vector3(px, 0.1f, pz), new Vector3(px + 0.15f, 2.6f, pz + 0.15f), H("#e74c3c"));
-                k.Box(new Vector3(px + 3, 0.1f, pz), new Vector3(px + 3.15f, 2.6f, pz + 0.15f), H("#e74c3c"));
-                k.Box(new Vector3(px, 2.5f, pz), new Vector3(px + 3.15f, 2.65f, pz + 0.15f), H("#e74c3c"));
-                k.Box(new Vector3(px + 0.8f, 0.6f, pz - 0.2f), new Vector3(px + 1.4f, 0.7f, pz + 0.35f), H("#f1c40f"));
-                k.Box(new Vector3(px + 1.8f, 0.6f, pz - 0.2f), new Vector3(px + 2.4f, 0.7f, pz + 0.35f), H("#3498db"));
-                k.Quad(new Vector3(px + 6.2f, 0.1f, pz + 3), new Vector3(px + 6.2f, 2.0f, pz), new Vector3(px + 5, 2.0f, pz), new Vector3(px + 5, 0.1f, pz + 3), H("#1abc9c"));
-            }
-        }
-
-        static void College(MeshKit k, float w, float d, uint s, int season)
-        {
-            Lot(k, w, d, Grass, 0.1f);
-            var stone = H("#c9a27e");
-            // a quad with paths, three halls and a clock tower
-            k.Flat(-1, -d / 2 + 0.3f, 1, d / 2 - 8, 0.1f, Paving);
-            k.Flat(-w / 2 + 8, -2, w / 2 - 8, 0, 0.1f, Paving);
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, -d / 2 + 3), new Vector3(-w / 2 + 8, 10, d / 2 - 3), stone, Roof);
-            k.Gable(-w / 2 + 1, -d / 2 + 3, -w / 2 + 8, d / 2 - 3, 10, 3, H("#5d4a3c"), stone);
-            k.Box(new Vector3(w / 2 - 8, 0.08f, -d / 2 + 3), new Vector3(w / 2 - 1, 10, d / 2 - 3), stone, Roof);
-            k.Gable(w / 2 - 8, -d / 2 + 3, w / 2 - 1, d / 2 - 3, 10, 3, H("#5d4a3c"), stone);
-            k.Box(new Vector3(-w / 2 + 8, 0.08f, d / 2 - 8), new Vector3(w / 2 - 8, 11, d / 2 - 1), stone, Roof);
-            k.WindowsAround(new Vector3(-w / 2 + 1, 0, -d / 2 + 3), new Vector3(-w / 2 + 8, 10, d / 2 - 3), 2.4f, 3.3f, 1.1f, 2.0f, 1.0f, s, 0.4f);
-            k.WindowsAround(new Vector3(w / 2 - 8, 0, -d / 2 + 3), new Vector3(w / 2 - 1, 10, d / 2 - 3), 2.4f, 3.3f, 1.1f, 2.0f, 1.0f, s + 1, 0.4f);
-            k.WindowsAround(new Vector3(-w / 2 + 8, 0, d / 2 - 8), new Vector3(w / 2 - 8, 11, d / 2 - 1), 2.4f, 3.3f, 1.1f, 2.0f, 1.0f, s + 2, 0.4f);
-            k.Box(new Vector3(-2, 11, d / 2 - 6), new Vector3(2, 19, d / 2 - 2), stone);
-            k.Box(new Vector3(-1.1f, 14.4f, d / 2 - 6.15f), new Vector3(1.1f, 16.6f, d / 2 - 6), White);
-            k.Box(new Vector3(-0.08f, 15.4f, d / 2 - 6.2f), new Vector3(0.08f, 16.3f, d / 2 - 6.15f), Dark);
-            k.Hip(-2, d / 2 - 6, 2, d / 2 - 2, 19, 3, H("#3f6f5a"), 0.3f);
-            for (int i = 0; i < 4; i++) Tree(k, -6 + i * 4, -d / 2 + 6 + (i % 2) * 6, 1.0f, season, s + (uint)i);
-        }
-
-        static void Clinic(MeshKit k, float w, float d, uint s, bool hospital)
-        {
-            Lot(k, w, d, Paving, 0.1f);
-            if (!hospital)
-            {
-                float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = -d / 2 + 3, z1 = d / 2 - 0.6f, h = 7.2f;
-                k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), White, Roof);
-                k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, h, z1), 2.4f, 3.4f, 1.6f, 1.5f, 0.9f, s, 0.6f, true);
-                k.Box(new Vector3(-2.5f, 0.08f, z0 - 2.0f), new Vector3(2.5f, 3.3f, z0), H("#dfe6e9"));
-                k.Quad(new Vector3(-2.1f, 0.3f, z0 - 2.03f), new Vector3(-2.1f, 2.8f, z0 - 2.03f), new Vector3(2.1f, 2.8f, z0 - 2.03f), new Vector3(2.1f, 0.3f, z0 - 2.03f), new Color32(255, 248, 230, 255), true);
-                Cross(k, x1 - 2.2f, h - 1.8f, z0 - 0.2f, 1.0f);
-            }
-            else
-            {
-                float x0 = -w / 2 + 3, x1 = w / 2 - 3, z0 = -d / 2 + 5, z1 = d / 2 - 2;
-                k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, 8, z1), White, Roof);
-                k.Box(new Vector3(-6, 8, z0 + 3), new Vector3(6, 24, z1 - 4), H("#eef2f4"), Roof);
-                k.WindowsAround(new Vector3(x0, 0, z0), new Vector3(x1, 8, z1), 2.4f, 3.6f, 1.6f, 1.6f, 0.9f, s, 0.6f);
-                k.WindowsAround(new Vector3(-6, 8, z0 + 3), new Vector3(6, 24, z1 - 4), 2.2f, 3.4f, 1.6f, 1.6f, 8.8f, s + 1, 0.65f);
-                Cross(k, 0, 20, z0 + 2.75f, 2.0f);
-                // helipad
-                k.Cylinder(new Vector3(0, 24, (z0 + z1) / 2 - 0.5f), 4, 4, 0.2f, 12, H("#59626b"), H("#59626b"));
-                k.Box(new Vector3(-1.2f, 24.2f, (z0 + z1) / 2 - 2), new Vector3(-0.7f, 24.25f, (z0 + z1) / 2 + 1), White);
-                k.Box(new Vector3(0.7f, 24.2f, (z0 + z1) / 2 - 2), new Vector3(1.2f, 24.25f, (z0 + z1) / 2 + 1), White);
-                k.Box(new Vector3(-0.7f, 24.2f, (z0 + z1) / 2 - 0.75f), new Vector3(0.7f, 24.25f, (z0 + z1) / 2 - 0.25f), White);
-                k.Box(new Vector3(-4, 0.08f, z0 - 3), new Vector3(4, 3.5f, z0), H("#dfe6e9"));
-                PropArt.Parked(k, new Vector3(-w / 2 + 3, 0.1f, -d / 2 + 2.5f), 90, 3);
-            }
-        }
-
-        static void Cross(MeshKit k, float x, float y, float z, float s)
-        {
-            var red = new Color32(230, 50, 50, 255);
-            k.Quad(new Vector3(x - 0.3f * s, y - 1 * s, z), new Vector3(x - 0.3f * s, y + 1 * s, z), new Vector3(x + 0.3f * s, y + 1 * s, z), new Vector3(x + 0.3f * s, y - 1 * s, z), red, true);
-            k.Quad(new Vector3(x - 1 * s, y - 0.3f * s, z - 0.01f), new Vector3(x - 1 * s, y + 0.3f * s, z - 0.01f), new Vector3(x + 1 * s, y + 0.3f * s, z - 0.01f), new Vector3(x + 1 * s, y - 0.3f * s, z - 0.01f), red, true);
-            k.Box(new Vector3(x - 1.1f * s, y - 1.1f * s, z + 0.01f), new Vector3(x + 1.1f * s, y + 1.1f * s, z + 0.15f), White);
-        }
-
-        static void Station(MeshKit k, float w, float d, uint s, Color32 wall, Color32 accent, bool fire)
-        {
-            Lot(k, w, d, Concrete, 0.1f);
-            float x0 = -w / 2 + 1, x1 = w / 2 - 1, z0 = -d / 2 + 2.6f, z1 = d / 2 - 0.6f, h = 7.4f;
-            k.Box(new Vector3(x0, 0.08f, z0), new Vector3(x1, h, z1), wall, Roof);
-            k.Box(new Vector3(x0, h - 1, z0 - 0.15f), new Vector3(x1, h - 0.3f, z0), accent);
-            if (fire)
-            {
-                for (int i = 0; i < 2; i++)
-                {
-                    float gx = x0 + 1.5f + i * 5;
-                    k.Box(new Vector3(gx, 0.08f, z0 - 0.06f), new Vector3(gx + 4, 4.6f, z0), H("#ecf0f1"));
-                    k.WindowsFront(gx + 0.3f, gx + 3.7f, 3.0f, 4.3f, z0 - 0.07f, 3, 1, 0.9f, 0.8f, s, 0.8f);
-                }
-                k.Push(new Vector3(x0 + 5.5f, 0.1f, -d / 2 + 1.35f), 90, new Vector3(0.9f, 0.9f, 0.9f));
-                PropArt.Truck(k, H("#c0392b"), H("#e74c3c"));
-                k.Pop();
-            }
-            else
-            {
-                k.WindowsFront(x0 + 0.5f, x1 - 0.5f, 1, 6, z0, 4, 2, 1.4f, 1.6f, s, 0.7f);
-                k.Box(new Vector3(-1, 0.08f, z0 - 0.06f), new Vector3(1, 2.6f, z0), Dark);
-                PropArt.Parked(k, new Vector3(x1 - 3, 0.1f, -d / 2 + 1.2f), 90, 1);
-                k.Box(new Vector3(x1 - 3.4f, 1.48f, -d / 2 + 0.9f), new Vector3(x1 - 2.6f, 1.68f, -d / 2 + 1.5f), accent);
-            }
-            Flag(k, x1 - 0.5f, -d / 2 + 0.6f, 8, H("#2e86de"));
-        }
-
-        static void Park(MeshKit k, float w, float d, uint s, int season)
-        {
-            Lot(k, w, d, season == 0 ? H("#e8eef0") : H("#78b356"), 0.1f);
-            k.Flat(-1, -d / 2 + 0.3f, 1, d / 2 - 0.3f, 0.11f, H("#d8c9a3"));
-            k.Flat(-w / 2 + 0.3f, -1, w / 2 - 0.3f, 1, 0.11f, H("#d8c9a3"));
-            k.Cylinder(new Vector3(0, 0.1f, 0), 2.6f, 2.6f, 0.6f, 12, Concrete, H("#5dade2"));
-            k.Cylinder(new Vector3(0, 0.7f, 0), 0.5f, 0.3f, 1.6f, 8, Concrete, Concrete);
-            for (int i = 0; i < 6; i++)
-            {
-                float a = i * 1.05f + 0.4f, r = 6.5f + (i % 2) * 1.5f;
-                Tree(k, Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.9f + (i % 3) * 0.15f, season, s + (uint)i);
-            }
-            PropArt.Bench(k, new Vector3(3.6f, 0.1f, -2.2f), 0);
-            PropArt.Bench(k, new Vector3(-3.6f, 0.1f, 2.2f), 180);
-            PropArt.Lamp(k, new Vector3(2, 0.1f, -d / 2 + 2));
-            PropArt.Lamp(k, new Vector3(-2, 0.1f, d / 2 - 2));
-        }
-
-        static void BusDepot(MeshKit k, float w, float d, uint s)
-        {
-            Lot(k, w, d, Asphalt, 0.1f);
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, d / 2 - 6), new Vector3(w / 2 - 1, 6, d / 2 - 1), H("#d0d6db"), Roof);
-            for (float x = -w / 2 + 2; x < w / 2 - 3; x += 4) k.Box(new Vector3(x, 0.08f, d / 2 - 6.06f), new Vector3(x + 3.2f, 4.6f, d / 2 - 6), H("#7f8c8d"));
-            k.Box(new Vector3(-w / 2 + 1, 4.4f, -d / 2 + 1), new Vector3(w / 2 - 1, 4.8f, 1), H("#2980b9"), H("#e1e8ed"));
-            for (float x = -w / 2 + 1.5f; x < w / 2; x += 6) k.Box(new Vector3(x, 0.08f, -d / 2 + 1), new Vector3(x + 0.25f, 4.4f, -d / 2 + 1.25f), Metal);
-            for (int i = 0; i < 3; i++) { k.Push(new Vector3(-6 + i * 6, 0.08f, -d / 2 + 6.5f), 0); PropArt.Bus(k, i == 1 ? H("#f1c40f") : H("#2980b9")); k.Pop(); }
-        }
-
-        static void Terminal(MeshKit k, float w, float d, uint s)
-        {
-            Lot(k, w, d, Concrete, 0.1f);
-            k.Box(new Vector3(-w / 2 + 1, 0.08f, 0), new Vector3(w / 2 - 1, 8, d / 2 - 1), H("#b0b8bf"), Roof);
-            for (float x = -w / 2 + 2; x < w / 2 - 3; x += 4) k.Box(new Vector3(x, 0.9f, -0.06f), new Vector3(x + 3, 4.6f, 0), H("#6c7a89"));
-            Color32[] c = { H("#c0392b"), H("#2980b9"), H("#27ae60"), H("#f39c12"), H("#8e44ad") };
-            for (int i = 0; i < 4; i++)
-                for (int j = 0; j < 1 + i % 2; j++)
-                    k.Box(new Vector3(-w / 2 + 1.5f + i * 4.4f, 0.08f + j * 2.6f, -d / 2 + 1.5f), new Vector3(-w / 2 + 4.0f + i * 4.4f, 2.68f + j * 2.6f, -d / 2 + 8.0f), c[(i + j) % 5]);
-            // a green highway sign
-            k.Box(new Vector3(w / 2 - 1.2f, 0.08f, -d / 2 + 1), new Vector3(w / 2 - 1, 5.5f, -d / 2 + 1.2f), Metal);
-            k.Box(new Vector3(w / 2 - 4.8f, 4.2f, -d / 2 + 0.85f), new Vector3(w / 2 - 0.6f, 6.2f, -d / 2 + 1.0f), H("#1e7a3c"));
-        }
-
-        // ================================================================== building sites
-        /// <summary>A site under construction: footings, a frame going up with the work done, a fence and (for big jobs) a crane.</summary>
-        public static Mesh Site(float w, float d, float progress, float height, bool started)
-        {
-            var k = new MeshKit();
-            Lot(k, w, d, Soil, 0.1f);
-            if (started)
-            {
-                k.Box(new Vector3(-w / 2 + 1, 0.08f, -d / 2 + 1.5f), new Vector3(w / 2 - 1, 0.5f, d / 2 - 1), Concrete);
-                float top = Mathf.Max(0.6f, height * progress);
-                float fh = 3.2f;
-                for (float x = -w / 2 + 1.2f; x <= w / 2 - 1.1f; x += Mathf.Max(2.5f, (w - 2.4f) / 4))
-                    for (float z = -d / 2 + 1.7f; z <= d / 2 - 1.1f; z += Mathf.Max(2.5f, (d - 2.6f) / 3))
-                        k.Box(new Vector3(x - 0.15f, 0.5f, z - 0.15f), new Vector3(x + 0.15f, top, z + 0.15f), H("#9aa3ab"));
-                for (float y = fh; y < top; y += fh)
-                    k.Box(new Vector3(-w / 2 + 1, y, -d / 2 + 1.5f), new Vector3(w / 2 - 1, y + 0.25f, d / 2 - 1), Concrete);
-                if (progress > 0.6f)
-                    k.Box(new Vector3(-w / 2 + 1.05f, 0.5f, -d / 2 + 1.55f), new Vector3(w / 2 - 1.05f, Mathf.Min(top, height * (progress - 0.5f) * 2), d / 2 - 1.05f), H("#d7cbb5"));
-                if (w * d >= 350)
-                {
-                    float cx = w / 2 - 1.5f, cz = d / 2 - 1.5f, ch = height + 8;
-                    for (float y = 0; y < ch; y += 2) k.Box(new Vector3(cx - 0.45f, y, cz - 0.45f), new Vector3(cx + 0.45f, y + 1.8f, cz + 0.45f), H("#f1c40f"));
-                    k.Box(new Vector3(cx - w * 0.9f, ch, cz - 0.35f), new Vector3(cx + 3, ch + 0.7f, cz + 0.35f), H("#f1c40f"));
-                }
-            }
-            else
-            {
-                for (int i = 0; i < 3; i++) k.Box(new Vector3(-3 + i * 2.2f, 0.08f, -1), new Vector3(-1.6f + i * 2.2f, 0.9f, 1.5f), H("#c69c6d"));
-            }
-            // a site fence with a gap at the front
-            var f = H("#e67e22");
-            k.Box(new Vector3(-w / 2 + 0.3f, 0.08f, -d / 2 + 0.3f), new Vector3(-1.5f, 1.3f, -d / 2 + 0.4f), f);
-            k.Box(new Vector3(1.5f, 0.08f, -d / 2 + 0.3f), new Vector3(w / 2 - 0.3f, 1.3f, -d / 2 + 0.4f), f);
-            k.Box(new Vector3(-w / 2 + 0.3f, 0.08f, d / 2 - 0.4f), new Vector3(w / 2 - 0.3f, 1.3f, d / 2 - 0.3f), f);
-            k.Box(new Vector3(-w / 2 + 0.3f, 0.08f, -d / 2 + 0.3f), new Vector3(-w / 2 + 0.4f, 1.3f, d / 2 - 0.3f), f);
-            k.Box(new Vector3(w / 2 - 0.4f, 0.08f, -d / 2 + 0.3f), new Vector3(w / 2 - 0.3f, 1.3f, d / 2 - 0.3f), f);
-            return k.ToMesh("site");
-        }
-
-        /// <summary>How tall a finished building of this type is, for the site's frame.</summary>
-        public static float Height(BuildingType t, int floors)
-        {
-            switch (t)
-            {
-                case BuildingType.House: return 6;
-                case BuildingType.Apartments: return 17;
-                case BuildingType.Office: return floors * 3.6f + 4;
-                case BuildingType.Hospital: return 24;
-                case BuildingType.College: return 11;
-                case BuildingType.Park: return 1;
-                case BuildingType.Farm: return 5;
-                default: return 7;
-            }
+            Ledge(k, f, -0.4f, f.Width + 0.4f, h - 1.1f, h, 2.0f, stone, stoneTop);
+            Sign(k, Out(f, 2.0f), f.Width / 2, 4.5f, h - 0.95f, 0.5f, SignRow.Bank, closed);
+            var roofTop = season == 0 ? S("snow") : T("roof_metal", new Color(0.45f, 0.55f, 0.5f));
+            Vector3 l = f.At(-0.4f, h) + f.Normal * 2.0f, r = f.At(f.Width + 0.4f, h) + f.Normal * 2.0f, apex = f.At(f.Width / 2, h + 2.2f) + f.Normal * 2.0f;
+            k.Tri(l, apex, r, stone);
+            Vector3 lb = f.At(-0.4f, h), rb = f.At(f.Width + 0.4f, h), ab = f.At(f.Width / 2, h + 2.2f);
+            k.Quad(lb, ab, apex, l, roofTop); k.Quad(r, apex, ab, rb, roofTop);
+            Tree(k, -w / 2 + 0.9f, -d / 2 + 0.9f, 0.7f, season, s);
         }
     }
 }

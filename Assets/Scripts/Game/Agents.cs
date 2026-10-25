@@ -36,7 +36,7 @@ namespace RealLife.Game
         int next, planned = -1;
         float lastHour;
         readonly Stack<GameObject>[] pools = { new Stack<GameObject>(), new Stack<GameObject>(), new Stack<GameObject>() };
-        Mesh[] people, kids, cars, trucks;
+        Model[] people, kids, cars, trucks;
         Transform root;
 
         public void Bind(Town t, WorldView v)
@@ -47,12 +47,12 @@ namespace RealLife.Game
             if (root == null) { root = new GameObject("Agents").transform; root.SetParent(transform, false); }
             if (people == null)
             {
-                people = new Mesh[14]; kids = new Mesh[6];
+                people = new Model[14]; kids = new Model[6];
                 for (int i = 0; i < people.Length; i++) people[i] = PropArt.Person((uint)(i * 2654435761u + 7), false);
                 for (int i = 0; i < kids.Length; i++) kids[i] = PropArt.Person((uint)(i * 40503u + 11), true);
-                cars = new Mesh[PropArt.CarColors.Length];
-                for (int i = 0; i < cars.Length; i++) cars[i] = PropArt.CarMesh(PropArt.CarColors[i]);
-                trucks = new[] { PropArt.TruckMesh(MeshKit.Hex("#ecf0f1"), MeshKit.Hex("#0a79df")), PropArt.TruckMesh(MeshKit.Hex("#c0392b"), MeshKit.Hex("#dfe4e8")), PropArt.TruckMesh(MeshKit.Hex("#2d3436"), MeshKit.Hex("#f39c12")) };
+                cars = new Model[PropArt.CarColors.Length];
+                for (int i = 0; i < cars.Length; i++) cars[i] = PropArt.CarModel(PropArt.CarColors[i]);
+                trucks = new[] { PropArt.TruckModel(MeshKit.Hex("#ecf0f1"), MeshKit.Hex("#0a79df")), PropArt.TruckModel(MeshKit.Hex("#c0392b"), MeshKit.Hex("#dfe4e8")), PropArt.TruckModel(MeshKit.Hex("#2d3436"), MeshKit.Hex("#f39c12")) };
             }
         }
 
@@ -165,10 +165,9 @@ namespace RealLife.Game
                 go.transform.SetParent(root, false);
                 go.AddComponent<MeshFilter>();
                 var r = go.AddComponent<MeshRenderer>();
-                r.sharedMaterials = new[] { view.Lit, view.Windows };
                 r.shadowCastingMode = t.Kind == 0 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
             }
-            Mesh m;
+            Model m;
             if (t.Kind == 2) m = trucks[t.Seed % (uint)trucks.Length];
             else if (t.Kind == 1)
             {
@@ -180,7 +179,8 @@ namespace RealLife.Game
                 var c = town.GetCitizen(t.Citizen);
                 m = c != null && c.Age < 14 ? kids[(uint)c.Id % (uint)kids.Length] : people[(uint)t.Citizen % (uint)people.Length];
             }
-            go.GetComponent<MeshFilter>().sharedMesh = m;
+            go.GetComponent<MeshFilter>().sharedMesh = m.Mesh;
+            go.GetComponent<MeshRenderer>().sharedMaterials = m.Materials;
             go.name = t.Kind == 0 ? "Person " + t.Citizen : go.name;
             go.SetActive(true);
             return go;

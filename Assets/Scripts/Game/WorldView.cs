@@ -6,28 +6,27 @@ using UnityEngine;
 namespace RealLife.Game
 {
     /// <summary>
-    /// Draws the town: ground, water, woods, roads, zoned lots and every building, rebuilt when the map changes. Also the sun
-    /// and the time of day, the selection outline and the placement preview.
+    /// Draws the town: textured ground, water, woods, roads, zoned lots and every building, rebuilt when the map changes;
+    /// the country round it; the selection outline and the placement preview. The sky and light are the Atmosphere's.
     /// </summary>
     public sealed class WorldView : MonoBehaviour
     {
         public const float Tile = Nav.Tile;
         const int Chunk = 16;
+        const float Country = 2200f;   // how far the land runs past the edge of the map
 
         Town town;
         CameraRig rig;
-        public Material Lit { get; private set; }
-        public Material Windows { get; private set; }
-        public Material Overlay { get; private set; }
-        Material zoneMat;
-        Light sun;
+        Atmosphere atmo;
+        Material overlay, zoneMat;
 
         readonly Dictionary<int, GameObject> chunks = new Dictionary<int, GameObject>();
         readonly Dictionary<int, GameObject> treeChunks = new Dictionary<int, GameObject>();
         readonly Dictionary<int, int> treeHash = new Dictionary<int, int>();
         readonly Dictionary<int, GameObject> zoneChunks = new Dictionary<int, GameObject>();
         readonly Dictionary<int, BuildingObj> buildings = new Dictionary<int, BuildingObj>();
-        int mapVersion = -1, season = -1;
+        GameObject countryside;
+        int mapVersion = -1, season = -1, countrySeason = -1;
         bool zoneStrong, zoneStrongShown;
         GameObject ghost, highlight, hover;
         Mesh ghostMesh, highlightMesh, hoverMesh;
@@ -35,41 +34,16 @@ namespace RealLife.Game
         sealed class BuildingObj { public GameObject Go; public string Key; public Mesh Mesh; }
 
         public Nav Nav { get; private set; }
+        public float Night { get { return atmo != null ? atmo.Night : 0f; } }
 
         // ================================================================== setup
         void Awake()
         {
-            Lit = MakeMat("RealLife/Lit", "Standard");
-            Windows = MakeMat("RealLife/Window", "Standard");
-            Overlay = MakeMat("RealLife/Overlay", "Sprites/Default");
-            Windows.SetColor("_Color", new Color(0.26f, 0.33f, 0.42f));
-            zoneMat = MakeMat("RealLife/Overlay", "Sprites/Default");
-            var sg = new GameObject("Sun");
-            sun = sg.AddComponent<Light>();
-            sun.type = LightType.Directional;
-            sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.75f;
-            sun.shadowBias = 0.05f;
-            sun.shadowNormalBias = 0.4f;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            QualitySettings.shadows = ShadowQuality.All;
-            QualitySettings.shadowResolution = ShadowResolution.High;
-            QualitySettings.shadowDistance = 700f;
-            QualitySettings.shadowCascades = 2;
-            QualitySettings.antiAliasing = 4;
-            ghost = Obj("Ghost", Overlay, out ghostMesh);
-            highlight = Obj("Selection", Overlay, out highlightMesh);
-            hover = Obj("Hover", Overlay, out hoverMesh);
-        }
-
-        static Material MakeMat(string shader, string fallback)
-        {
-            var sh = Resources.Load<Shader>(shader);
-            if (sh == null) sh = Shader.Find(shader);
-            if (sh == null) sh = Shader.Find(fallback);
-            return new Material(sh);
+            overlay = MaterialLibrary.Overlay();
+            zoneMat = MaterialLibrary.Overlay();
+            ghost = Obj("Ghost", overlay, out ghostMesh);
+            highlight = Obj("Selection", overlay, out highlightMesh);
+            hover = Obj("Hover", overlay, out hoverMesh);
         }
 
         GameObject Obj(string name, Material mat, out Mesh mesh)
@@ -89,13 +63,19 @@ namespace RealLife.Game
         public void Bind(Town t, CameraRig r)
         {
             town = t; rig = r;
+            if (atmo == null)
+            {
+                atmo = gameObject.AddComponent<Atmosphere>();
+                atmo.Init(r.Cam);
+            }
             Nav = new Nav(t);
             foreach (var c in chunks.Values) Destroy(c);
             foreach (var c in treeChunks.Values) Destroy(c);
             foreach (var c in zoneChunks.Values) Destroy(c);
             foreach (var b in buildings.Values) { Destroy(b.Go); if (b.Mesh != null) Destroy(b.Mesh); }
+            if (countryside != null) Destroy(countryside);
             chunks.Clear(); treeChunks.Clear(); treeHash.Clear(); zoneChunks.Clear(); buildings.Clear();
-            mapVersion = -1; season = -1;
+            mapVersion = -1; season = -1; countrySeason = -1;
             var agents = GetComponent<Agents>();
             if (agents == null) agents = gameObject.AddComponent<Agents>();
             agents.Bind(t, this);
@@ -115,10 +95,30 @@ namespace RealLife.Game
                 RebuildGround();
                 RebuildZones();
                 SyncBuildings(all);
+                if (countrySeason != season) RebuildCountry();
             }
             else if (Time.frameCount % 15 == 0) SyncBuildings(false);
-            Lighting();
+            if (atmo != null) atmo.Apply(town.Hour, season, rig != null ? rig.Distance : 300f);
+            float zl = Mathf.Lerp(1f, 0.32f, Night);
+            zoneMat.SetColor("_Color", new Color(zl, zl, zl, Mathf.Lerp(1f, 0.6f, Night)));
         }
+
+        // ================================================================== materials
+        static Material S(string n) { return MaterialLibrary.Surface(n); }
+
+        Material Grass(bool woods)
+        {
+            if (season == 0) return S("snow");
+            var tint = BuildingArt.GrassTint(season);
+            if (woods) tint = new Color(tint.r * 0.86f, tint.g * 0.86f, tint.b * 0.86f, 1f);
+            return MaterialLibrary.Tinted("grass", tint);
+        }
+
+        Material Water { get { return season == 0 ? MaterialLibrary.Tinted("snow", new Color(0.86f, 0.92f, 1f)) : S("water"); } }
+        Material Bank { get { return season == 0 ? S("snow") : S("sand"); } }
+        Material Asphalt { get { return season == 0 ? MaterialLibrary.Tinted("asphalt", new Color(1.2f, 1.22f, 1.26f)) : S("asphalt"); } }
+        Material Walk { get { return season == 0 ? S("snow") : S("sidewalk"); } }
+        Material Curb { get { return S("concrete"); } }
 
         // ================================================================== ground, water, roads and trees
         void RebuildGround()
@@ -136,7 +136,7 @@ namespace RealLife.Game
                             GroundTile(k, x, y);
                             if (town.IsRoad(x, y)) RoadTile(k, x, y);
                         }
-                    SetChunk(chunks, key, "Ground " + key, k, Lit, true);
+                    SetChunk(chunks, key, "Ground " + key, k, false, false);
                     // trees only change when the woods do
                     int hash = 17;
                     for (int y = cy * Chunk; y < Mathf.Min(town.Rows, (cy + 1) * Chunk); y++)
@@ -149,11 +149,11 @@ namespace RealLife.Game
                     for (int y = cy * Chunk; y < Mathf.Min(town.Rows, (cy + 1) * Chunk); y++)
                         for (int x = cx * Chunk; x < Mathf.Min(town.Cols, (cx + 1) * Chunk); x++)
                             if (town.HasTrees(x, y) && town.BuildingAt(x, y) == null && !town.IsRoad(x, y)) Trees(k, x, y);
-                    SetChunk(treeChunks, key, "Trees " + key, k, Lit, true);
+                    SetChunk(treeChunks, key, "Trees " + key, k, true, false);
                 }
         }
 
-        void SetChunk(Dictionary<int, GameObject> set, int key, string name, MeshKit k, Material mat, bool shadows)
+        void SetChunk(Dictionary<int, GameObject> set, int key, string name, MeshKit k, bool shadows, bool isOverlay)
         {
             GameObject go;
             if (!set.TryGetValue(key, out go))
@@ -162,28 +162,26 @@ namespace RealLife.Game
                 go.transform.SetParent(transform, false);
                 go.AddComponent<MeshFilter>();
                 var r = go.AddComponent<MeshRenderer>();
-                r.sharedMaterials = mat == Lit ? new[] { Lit, Windows } : new[] { mat };
                 r.shadowCastingMode = shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+                if (isOverlay) { r.sharedMaterial = zoneMat; r.receiveShadows = false; }
                 set[key] = go;
             }
             var mf = go.GetComponent<MeshFilter>();
+            var mr = go.GetComponent<MeshRenderer>();
+            if (isOverlay)
+            {
+                if (mf.sharedMesh == null) mf.sharedMesh = new Mesh { name = name };
+                k.ToOverlay(mf.sharedMesh);
+                return;
+            }
             if (mf.sharedMesh != null) Destroy(mf.sharedMesh);
-            mf.sharedMesh = k.VertexCount > 0 ? k.ToMesh(name) : null;
+            if (k.VertexCount == 0) { mf.sharedMesh = null; return; }
+            var m = k.ToModel(name);
+            mf.sharedMesh = m.Mesh;
+            mr.sharedMaterials = m.Materials;
         }
 
         static uint Hash(int x, int y) { uint h = (uint)(x * 73856093) ^ (uint)(y * 19349663); h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15; return h; }
-
-        Color32 GrassColor(int x, int y)
-        {
-            float n = (Hash(x, y) & 255) / 255f;
-            switch (season)
-            {
-                case 0: return MeshKit.Mix(MeshKit.Hex("#e7ecef"), MeshKit.Hex("#f6f8fa"), n);
-                case 1: return MeshKit.Mix(MeshKit.Hex("#86bd5a"), MeshKit.Hex("#93c463"), n);
-                case 2: return MeshKit.Mix(MeshKit.Hex("#7aae4f"), MeshKit.Hex("#88b65a"), n);
-                default: return MeshKit.Mix(MeshKit.Hex("#a2a956"), MeshKit.Hex("#b5ac5e"), n);
-            }
-        }
 
         void GroundTile(MeshKit k, int x, int y)
         {
@@ -191,18 +189,17 @@ namespace RealLife.Game
             int t = town.Terrain(x, y);
             if (t == Town.TileBits.Water)
             {
-                k.Flat(x0, z0, x1, z1, -0.9f, season == 0 ? MeshKit.Hex("#b9d3e0") : MeshKit.Hex("#4f93c0"));
+                k.Flat(x0, z0, x1, z1, -0.9f, Water, 12f);
                 // banks down to the water
-                var bank = season == 0 ? MeshKit.Hex("#d9dfe3") : MeshKit.Hex("#c8b48a");
-                if (!town.IsWater(x, y - 1) && y > 0) k.Quad(new Vector3(x1, -0.9f, z0), new Vector3(x1, 0, z0), new Vector3(x0, 0, z0), new Vector3(x0, -0.9f, z0), bank);
-                if (!town.IsWater(x, y + 1) && y < town.Rows - 1) k.Quad(new Vector3(x0, -0.9f, z1), new Vector3(x0, 0, z1), new Vector3(x1, 0, z1), new Vector3(x1, -0.9f, z1), bank);
-                if (!town.IsWater(x - 1, y) && x > 0) k.Quad(new Vector3(x0, -0.9f, z0), new Vector3(x0, 0, z0), new Vector3(x0, 0, z1), new Vector3(x0, -0.9f, z1), bank);
-                if (!town.IsWater(x + 1, y) && x < town.Cols - 1) k.Quad(new Vector3(x1, -0.9f, z1), new Vector3(x1, 0, z1), new Vector3(x1, 0, z0), new Vector3(x1, -0.9f, z0), bank);
+                var bank = Bank;
+                if (!town.IsWater(x, y - 1) && y > 0) k.Quad(new Vector3(x1, -0.9f, z0), new Vector3(x1, 0, z0), new Vector3(x0, 0, z0), new Vector3(x0, -0.9f, z0), bank, 3f);
+                if (!town.IsWater(x, y + 1) && y < town.Rows - 1) k.Quad(new Vector3(x0, -0.9f, z1), new Vector3(x0, 0, z1), new Vector3(x1, 0, z1), new Vector3(x1, -0.9f, z1), bank, 3f);
+                if (!town.IsWater(x - 1, y) && x > 0) k.Quad(new Vector3(x0, -0.9f, z0), new Vector3(x0, 0, z0), new Vector3(x0, 0, z1), new Vector3(x0, -0.9f, z1), bank, 3f);
+                if (!town.IsWater(x + 1, y) && x < town.Cols - 1) k.Quad(new Vector3(x1, -0.9f, z1), new Vector3(x1, 0, z1), new Vector3(x1, 0, z0), new Vector3(x1, -0.9f, z0), bank, 3f);
                 return;
             }
-            Color32 c = t == Town.TileBits.Sand ? (season == 0 ? MeshKit.Hex("#eef1f3") : MeshKit.Hex("#dccb9a")) : GrassColor(x, y);
-            if (t == Town.TileBits.Trees) c = MeshKit.Shade(c, 0.9f);
-            k.Flat(x0, z0, x1, z1, 0, c);
+            var m = t == Town.TileBits.Sand ? Bank : Grass(t == Town.TileBits.Trees);
+            k.Flat(x0, z0, x1, z1, 0, m, 8f);
         }
 
         void Trees(MeshKit k, int x, int y)
@@ -226,7 +223,7 @@ namespace RealLife.Game
             return town.IsRoad(x, y);
         }
 
-        static readonly Color32 Asphalt = MeshKit.Hex("#50545a"), Curb = MeshKit.Hex("#c9c6be"), Paint = MeshKit.Hex("#f4f1e4"), Yellow = MeshKit.Hex("#e8c547");
+        static readonly Color32 Paint = MeshKit.Hex("#f4f1e4"), Yellow = MeshKit.Hex("#e8c547");
 
         void RoadTile(MeshKit k, int x, int y)
         {
@@ -234,28 +231,29 @@ namespace RealLife.Game
             const float sw = 1.8f, sh = 0.2f;
             bool n = RoadAt(x, y + 1), e = RoadAt(x + 1, y), s = RoadAt(x, y - 1), w = RoadAt(x - 1, y);
             int links = (n ? 1 : 0) + (e ? 1 : 0) + (s ? 1 : 0) + (w ? 1 : 0);
-            var asphalt = season == 0 ? MeshKit.Hex("#6a6e74") : Asphalt;
-            k.Flat(x0, z0, x1, z1, 0.05f, asphalt);
-            var curb = season == 0 ? MeshKit.Hex("#eef1f3") : Curb;
+            k.Flat(x0, z0, x1, z1, 0.05f, Asphalt, 8f);
+            var curb = Curb; var walk = Walk;
             // pavements on the sides with no road, and the four corners
-            if (!n) k.Box(new Vector3(x0, 0, z1 - sw), new Vector3(x1, sh, z1), curb, curb);
-            if (!s) k.Box(new Vector3(x0, 0, z0), new Vector3(x1, sh, z0 + sw), curb, curb);
-            if (!e) k.Box(new Vector3(x1 - sw, 0, z0), new Vector3(x1, sh, z1), curb, curb);
-            if (!w) k.Box(new Vector3(x0, 0, z0), new Vector3(x0 + sw, sh, z1), curb, curb);
-            if (n && e) k.Box(new Vector3(x1 - sw, 0, z1 - sw), new Vector3(x1, sh, z1), curb, curb);
-            if (n && w) k.Box(new Vector3(x0, 0, z1 - sw), new Vector3(x0 + sw, sh, z1), curb, curb);
-            if (s && e) k.Box(new Vector3(x1 - sw, 0, z0), new Vector3(x1, sh, z0 + sw), curb, curb);
-            if (s && w) k.Box(new Vector3(x0, 0, z0), new Vector3(x0 + sw, sh, z0 + sw), curb, curb);
-            if (season == 0) return;
-            // markings: dashes down straight roads, zebra crossings at junctions
-            if (links == 2 && n && s) for (float z = z0 + 1; z < z1; z += 3.4f) k.Flat(cx - 0.1f, z, cx + 0.1f, z + 1.7f, 0.07f, Yellow);
-            else if (links == 2 && e && w) for (float xx = x0 + 1; xx < x1; xx += 3.4f) k.Flat(xx, cz - 0.1f, xx + 1.7f, cz + 0.1f, 0.07f, Yellow);
-            else if (links >= 3)
+            if (!n) k.Box(new Vector3(x0, 0, z1 - sw), new Vector3(x1, sh, z1), curb, walk, 2f);
+            if (!s) k.Box(new Vector3(x0, 0, z0), new Vector3(x1, sh, z0 + sw), curb, walk, 2f);
+            if (!e) k.Box(new Vector3(x1 - sw, 0, z0), new Vector3(x1, sh, z1), curb, walk, 2f);
+            if (!w) k.Box(new Vector3(x0, 0, z0), new Vector3(x0 + sw, sh, z1), curb, walk, 2f);
+            if (n && e) k.Box(new Vector3(x1 - sw, 0, z1 - sw), new Vector3(x1, sh, z1), curb, walk, 2f);
+            if (n && w) k.Box(new Vector3(x0, 0, z1 - sw), new Vector3(x0 + sw, sh, z1), curb, walk, 2f);
+            if (s && e) k.Box(new Vector3(x1 - sw, 0, z0), new Vector3(x1, sh, z0 + sw), curb, walk, 2f);
+            if (s && w) k.Box(new Vector3(x0, 0, z0), new Vector3(x0 + sw, sh, z0 + sw), curb, walk, 2f);
+            if (season != 0)
             {
-                if (n) Zebra(k, x0 + sw, z1 - 1.5f, x1 - sw, z1 - 0.3f, true);
-                if (s) Zebra(k, x0 + sw, z0 + 0.3f, x1 - sw, z0 + 1.5f, true);
-                if (e) Zebra(k, x1 - 1.5f, z0 + sw, x1 - 0.3f, z1 - sw, false);
-                if (w) Zebra(k, x0 + 0.3f, z0 + sw, x0 + 1.5f, z1 - sw, false);
+                // markings: dashes down straight roads, zebra crossings at junctions
+                if (links == 2 && n && s) for (float z = z0 + 1; z < z1; z += 3.4f) k.Flat(cx - 0.1f, z, cx + 0.1f, z + 1.7f, 0.07f, Yellow);
+                else if (links == 2 && e && w) for (float xx = x0 + 1; xx < x1; xx += 3.4f) k.Flat(xx, cz - 0.1f, xx + 1.7f, cz + 0.1f, 0.07f, Yellow);
+                else if (links >= 3)
+                {
+                    if (n) Zebra(k, x0 + sw, z1 - 1.5f, x1 - sw, z1 - 0.3f, true);
+                    if (s) Zebra(k, x0 + sw, z0 + 0.3f, x1 - sw, z0 + 1.5f, true);
+                    if (e) Zebra(k, x1 - 1.5f, z0 + sw, x1 - 0.3f, z1 - sw, false);
+                    if (w) Zebra(k, x0 + 0.3f, z0 + sw, x0 + 1.5f, z1 - sw, false);
+                }
             }
             // street lights on every other tile
             if (links <= 2 && ((x + y) & 1) == 0)
@@ -271,6 +269,109 @@ namespace RealLife.Game
         {
             if (acrossX) for (float x = x0 + 0.2f; x < x1 - 0.3f; x += 0.9f) k.Flat(x, z0, x + 0.5f, z1, 0.07f, Paint);
             else for (float z = z0 + 0.2f; z < z1 - 0.3f; z += 0.9f) k.Flat(x0, z, x1, z + 0.5f, 0.07f, Paint);
+        }
+
+        // ================================================================== the country round the map
+        /// <summary>Farmland and woods running off to the horizon on every side, rivers and the highway carried on out.</summary>
+        void RebuildCountry()
+        {
+            countrySeason = season;
+            var k = new MeshKit();
+            float W = town.Cols * Tile, Hh = town.Rows * Tile, L = Country;
+            var grass = Grass(false);
+            // corners
+            k.Flat(-L, -L, 0, 0, 0, grass, 8f); k.Flat(W, -L, W + L, 0, 0, grass, 8f);
+            k.Flat(-L, Hh, 0, Hh + L, 0, grass, 8f); k.Flat(W, Hh, W + L, Hh + L, 0, grass, 8f);
+            // the four edges, a strip per tile so rivers and the highway carry on out of the map
+            for (int x = 0; x < town.Cols; x++)
+            {
+                EdgeStrip(k, x, 0, new Vector3(x * Tile, 0, 0), new Vector3((x + 1) * Tile, 0, 0), Vector3.back, WaterIn(x - 1, 0), WaterIn(x + 1, 0));
+                EdgeStrip(k, x, town.Rows - 1, new Vector3((x + 1) * Tile, 0, Hh), new Vector3(x * Tile, 0, Hh), Vector3.forward, WaterIn(x + 1, town.Rows - 1), WaterIn(x - 1, town.Rows - 1));
+            }
+            for (int y = 0; y < town.Rows; y++)
+            {
+                EdgeStrip(k, 0, y, new Vector3(0, 0, (y + 1) * Tile), new Vector3(0, 0, y * Tile), Vector3.left, WaterIn(0, y + 1), WaterIn(0, y - 1));
+                EdgeStrip(k, town.Cols - 1, y, new Vector3(W, 0, y * Tile), new Vector3(W, 0, (y + 1) * Tile), Vector3.right, WaterIn(town.Cols - 1, y - 1), WaterIn(town.Cols - 1, y + 1));
+            }
+            if (countryside == null)
+            {
+                countryside = new GameObject("Countryside");
+                countryside.transform.SetParent(transform, false);
+                countryside.AddComponent<MeshFilter>();
+                countryside.AddComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            }
+            var mf = countryside.GetComponent<MeshFilter>();
+            if (mf.sharedMesh != null) Destroy(mf.sharedMesh);
+            var m = k.ToModel("Countryside");
+            mf.sharedMesh = m.Mesh;
+            countryside.GetComponent<MeshRenderer>().sharedMaterials = m.Materials;
+        }
+
+        /// <summary>The land beyond one edge tile: from a to b along the map edge (b to the right looking out), out along `outward`.</summary>
+        void EdgeStrip(MeshKit k, int tx, int ty, Vector3 a, Vector3 b, Vector3 outward, bool waterLeft, bool waterRight)
+        {
+            float L = Country;
+            Vector3 fa = a + outward * L, fb = b + outward * L;
+            bool water = town.IsWater(tx, ty);
+            bool road = town.IsRoad(tx, ty) && RoadAt(tx + (int)outward.x, ty + (int)outward.z);
+            if (water)
+            {
+                var down = Vector3.down * 0.9f;
+                Quad(k, a + down, fa + down, fb + down, b + down, Water, 12f);
+                var bank = Bank;
+                if (!waterLeft) Wall(k, a, fa, -0.9f, 0f, (b - a).normalized, bank);
+                if (!waterRight) Wall(k, b, fb, -0.9f, 0f, (a - b).normalized, bank);
+                return;
+            }
+            if (road)
+            {
+                // the highway: asphalt, a verge either side, a dashed centre line, lamps for a stretch
+                Vector3 side = (b - a).normalized;
+                Quad(k, a + Vector3.up * 0.05f, fa + Vector3.up * 0.05f, fb + Vector3.up * 0.05f, b + Vector3.up * 0.05f, Asphalt, 8f);
+                var walk = Walk;
+                Quad(k, a + Vector3.up * 0.2f, fa + Vector3.up * 0.2f, fa + side * 1.8f + Vector3.up * 0.2f, a + side * 1.8f + Vector3.up * 0.2f, walk, 2f);
+                Quad(k, b - side * 1.8f + Vector3.up * 0.2f, fb - side * 1.8f + Vector3.up * 0.2f, fb + Vector3.up * 0.2f, b + Vector3.up * 0.2f, walk, 2f);
+                Vector3 mid = (a + b) / 2;
+                if (season != 0)
+                    for (float d = 1; d < 600; d += 3.4f)
+                    {
+                        Vector3 p = mid + outward * d + Vector3.up * 0.07f;
+                        Quad(k, p - side * 0.1f, p - side * 0.1f + outward * 1.7f, p + side * 0.1f + outward * 1.7f, p + side * 0.1f, MaterialLibrary.Get(Yellow), 2f);
+                    }
+                for (float d = 10; d < 300; d += 20) PropArt.Lamp(k, a + side * 0.6f + outward * d + Vector3.up * 0.2f);
+                return;
+            }
+            Quad(k, a, fa, fb, b, Grass(false), 8f);
+            // woods thinning out with distance
+            uint h = Hash(tx * 7 + (int)(outward.x * 3), ty * 7 + (int)(outward.z * 3));
+            for (int i = 0; i < 3; i++)
+            {
+                h = h * 1664525u + 1013904223u;
+                float along = ((h >> 8) & 255) / 255f, dist = 6f + Mathf.Pow(((h >> 16) & 255) / 255f, 1.6f) * 160f;
+                if (((h >> 4) & 15) < 4) continue;
+                var p = Vector3.Lerp(a, b, 0.15f + along * 0.7f) + outward * dist;
+                float s = 0.85f + ((h >> 24) & 15) / 30f;
+                if ((h >> 28) % 2 == 0) PropArt.Pine(k, p, s * 1.2f, season);
+                else PropArt.Tree(k, p, s, season, h);
+            }
+        }
+
+        /// <summary>An upright quad along p..q between two heights, facing `facing`.</summary>
+        static void Wall(MeshKit k, Vector3 p, Vector3 q, float y0, float y1, Vector3 facing, Material m)
+        {
+            Vector3 a = new Vector3(p.x, y0, p.z), b = new Vector3(p.x, y1, p.z), c = new Vector3(q.x, y1, q.z), d = new Vector3(q.x, y0, q.z);
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), facing) >= 0) k.Quad(a, b, c, d, m, 3f);
+            else k.Quad(d, c, b, a, m, 3f);
+        }
+
+        bool WaterIn(int x, int y) { return town.InBounds(x, y) && town.IsWater(x, y); }
+
+        /// <summary>A quad from four corners given anticlockwise seen from above (a, then along the left side, ...); faces up.</summary>
+        static void Quad(MeshKit k, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Material m, float tile)
+        {
+            var n = Vector3.Cross(b - a, c - a);
+            if (n.y >= 0) k.Quad(a, b, c, d, m, tile);
+            else k.Quad(a, d, c, b, m, tile);
         }
 
         // ================================================================== zoned land
@@ -304,7 +405,7 @@ namespace RealLife.Game
                             Color32 edge = ZoneColor(z); edge.a = (byte)(a + 60);
                             k.Flat(x * Tile + 0.6f, y * Tile + 0.6f, x * Tile + Tile - 0.6f, y * Tile + 1.0f, 0.13f, edge);
                         }
-                    SetChunk(zoneChunks, cy * cw + cx, "Zones", k, zoneMat, false);
+                    SetChunk(zoneChunks, cy * cw + cx, "Zones", k, false, true);
                 }
         }
 
@@ -332,8 +433,7 @@ namespace RealLife.Game
                     o = new BuildingObj { Go = new GameObject(d.Name + " " + b.Id) };
                     o.Go.transform.SetParent(transform, false);
                     o.Go.AddComponent<MeshFilter>();
-                    var r = o.Go.AddComponent<MeshRenderer>();
-                    r.sharedMaterials = new[] { Lit, Windows };
+                    o.Go.AddComponent<MeshRenderer>();
                     buildings[b.Id] = o;
                 }
                 if (o.Key == key && !rebuildAll) continue;
@@ -341,9 +441,11 @@ namespace RealLife.Game
                 bool sideways = b.Facing == 1 || b.Facing == 3;
                 float w = (sideways ? d.H : d.W) * Tile, dep = (sideways ? d.W : d.H) * Tile;
                 if (o.Mesh != null) Destroy(o.Mesh);
-                o.Mesh = b.Built ? BuildingArt.Build(b.Type, w, dep, (uint)(b.Id * 2654435761u), d.Floors, b.Closed && Town.IsBusiness(b), season)
-                                 : BuildingArt.Site(w, dep, b.BuildFraction, BuildingArt.Height(b.Type, d.Floors), b.Started);
-                o.Go.GetComponent<MeshFilter>().sharedMesh = o.Mesh;
+                var model = b.Built ? BuildingArt.Build(b.Type, w, dep, (uint)(b.Id * 2654435761u), d.Floors, b.Closed && Town.IsBusiness(b), season)
+                                    : BuildingArt.Site(w, dep, b.BuildFraction, BuildingArt.Height(b.Type, d.Floors), b.Started);
+                o.Mesh = model.Mesh;
+                o.Go.GetComponent<MeshFilter>().sharedMesh = model.Mesh;
+                o.Go.GetComponent<MeshRenderer>().sharedMaterials = model.Materials;
                 o.Go.transform.localPosition = FootprintCenter(b);
                 o.Go.transform.localRotation = Quaternion.Euler(0, Yaw(b.Facing), 0);
             }
@@ -375,7 +477,7 @@ namespace RealLife.Game
             if (b == null) return;
             var k = new MeshKit(); var d = b.Def;
             Outline(k, b.X * Tile, b.Y * Tile, (b.X + d.W) * Tile, (b.Y + d.H) * Tile, 0.4f, 1.0f, new Color32(255, 220, 80, 230));
-            Fill(highlightMesh, k);
+            k.ToOverlay(highlightMesh);
         }
 
         public void ShowHover(int x, int y, int w, int h, Color32 c)
@@ -387,7 +489,7 @@ namespace RealLife.Game
             if (w <= 0) return;
             var k = new MeshKit();
             Outline(k, x * Tile, y * Tile, (x + w) * Tile, (y + h) * Tile, 0.35f, 0.6f, c);
-            Fill(hoverMesh, k);
+            k.ToOverlay(hoverMesh);
         }
 
         /// <summary>Tinted tiles under the cursor: where a road, zone or building would go.</summary>
@@ -410,56 +512,9 @@ namespace RealLife.Game
             var k = new MeshKit();
             if (tiles != null) foreach (var t in tiles) k.Flat(t.x * Tile + 0.3f, t.y * Tile + 0.3f, t.x * Tile + Tile - 0.3f, t.y * Tile + Tile - 0.3f, 0.3f, c);
             if (bad != null) foreach (var t in bad) k.Flat(t.x * Tile + 0.3f, t.y * Tile + 0.3f, t.x * Tile + Tile - 0.3f, t.y * Tile + Tile - 0.3f, 0.3f, badColor);
-            Fill(ghostMesh, k);
+            k.ToOverlay(ghostMesh);
         }
 
         public void HideGhost() { ShowGhost(null, default(Color32)); ShowHover(0, 0, 0, 0, default(Color32)); }
-
-        static void Fill(Mesh target, MeshKit k)
-        {
-            var m = k.ToMesh("tmp");
-            target.Clear();
-            target.vertices = m.vertices; target.normals = m.normals; target.colors32 = m.colors32;
-            target.subMeshCount = 1;
-            target.SetTriangles(m.GetTriangles(0), 0);
-            target.RecalculateBounds();
-            Destroy(m);
-        }
-
-        // ================================================================== sun, sky and night
-        public float Night { get; private set; }
-
-        void Lighting()
-        {
-            float hour = town.Hour;
-            // the sun rises at 6 and sets at 20
-            float day = Mathf.InverseLerp(6f, 20f, hour);
-            float elev = Mathf.Sin(Mathf.Clamp01(day) * Mathf.PI);
-            bool up = hour > 6f && hour < 20f;
-            float dusk = Mathf.Clamp01(Mathf.Min(Mathf.Abs(hour - 6.5f), Mathf.Abs(hour - 19.5f)) / 1.6f);
-            Night = up ? Mathf.Clamp01(1 - elev * 4f) : 1f;
-            float azimuth = Mathf.Lerp(-80, 260, day);
-            sun.transform.rotation = up ? Quaternion.Euler(Mathf.Lerp(8, 62, elev), azimuth, 0) : Quaternion.Euler(50, 150, 0);
-            var warm = new Color(1f, 0.72f, 0.48f); var noon = new Color(1f, 0.97f, 0.9f); var moon = new Color(0.55f, 0.62f, 0.85f);
-            sun.color = up ? Color.Lerp(warm, noon, Mathf.Clamp01(elev * 2.2f)) : moon;
-            sun.intensity = up ? Mathf.Lerp(0.35f, 1.15f, Mathf.Clamp01(elev * 1.8f)) : 0.22f;
-            Color skyDay = new Color(0.55f, 0.75f, 0.95f), skyDusk = new Color(0.95f, 0.6f, 0.42f), skyNight = new Color(0.05f, 0.07f, 0.14f);
-            if (season == 0) skyDay = new Color(0.72f, 0.8f, 0.88f);
-            Color sky = up ? Color.Lerp(skyDusk, skyDay, dusk) : skyNight;
-            sky = Color.Lerp(sky, skyNight, Night * 0.85f);
-            RenderSettings.ambientSkyColor = Color.Lerp(sky, Color.white, 0.25f) * (up ? 1f : 0.5f);
-            RenderSettings.ambientEquatorColor = Color.Lerp(sky, new Color(0.6f, 0.6f, 0.6f), 0.5f) * (up ? 0.85f : 0.4f);
-            RenderSettings.ambientGroundColor = new Color(0.35f, 0.33f, 0.3f) * (up ? 0.8f : 0.3f);
-            RenderSettings.fogColor = sky;
-            if (rig != null)
-            {
-                rig.Cam.backgroundColor = sky;
-                RenderSettings.fogStartDistance = rig.Distance * 1.6f;
-                RenderSettings.fogEndDistance = rig.Distance * 5f + 400;
-            }
-            Windows.SetFloat("_Glow", Mathf.SmoothStep(0, 1, Night));
-            float zl = Mathf.Lerp(1f, 0.32f, Night);
-            zoneMat.SetColor("_Color", new Color(zl, zl, zl, Mathf.Lerp(1f, 0.6f, Night)));
-        }
     }
 }

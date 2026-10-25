@@ -45,3 +45,10 @@ desktop.ini
 # Headless test build output
 tools/**/bin/
 tools/**/obj/
+__pycache__/
+
+# generated in the editor by Real Life > Graphics (Assets/Editor/GraphicsSetup.cs)
+/Assets/Resources/RealLife/Mat/
+/Assets/Resources/RealLife/Mat.meta
+/Assets/Settings/
+/Assets/Settings.meta
