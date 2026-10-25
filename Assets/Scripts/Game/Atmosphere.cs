@@ -115,8 +115,8 @@ namespace RealLife.Game
             Sun.shadowStrength = Mathf.Lerp(0.55f, 0.82f, Daylight);
 
             bool snow = season == 0;
-            Color skyDay = snow ? Hex("#a9b8c8") : Hex("#9fb8d6"), skyDusk = Hex("#b98d7c"), skyNight = Hex("#26304a");
-            Color eqDay = snow ? Hex("#a3a7ab") : Hex("#949386"), eqDusk = Hex("#8a6a58"), eqNight = Hex("#1c2030");
+            Color skyDay = snow ? Hex("#a9b8c8") : Hex("#9fb8d6"), skyDusk = Hex("#b98d7c"), skyNight = Hex("#323e60");
+            Color eqDay = snow ? Hex("#a3a7ab") : Hex("#949386"), eqDusk = Hex("#8a6a58"), eqNight = Hex("#262c42");
             Color grDay = snow ? Hex("#8e9298") : Hex("#4f4a40"), grNight = Hex("#0b0c10");
             RenderSettings.ambientSkyColor = Color.Lerp(Color.Lerp(skyNight, skyDay, Daylight), skyDusk, golden * 0.5f);
             RenderSettings.ambientEquatorColor = Color.Lerp(Color.Lerp(eqNight, eqDay, Daylight), eqDusk, golden * 0.5f);
