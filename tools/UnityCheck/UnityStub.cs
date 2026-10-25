@@ -137,6 +137,7 @@ namespace UnityEngine
         public static float Clamp(float v, float a, float b) => v < a ? a : v > b ? b : v;
         public static int Clamp(int v, int a, int b) => v < a ? a : v > b ? b : v;
         public static float Clamp01(float v) => Clamp(v, 0, 1);
+        public static float Sign(float f) => f >= 0 ? 1 : -1;
         public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
         public static float LerpAngle(float a, float b, float t) => Lerp(a, b, t);
         public static float InverseLerp(float a, float b, float v) => a == b ? 0 : Clamp01((v - a) / (b - a));

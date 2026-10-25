@@ -37,7 +37,7 @@ namespace RealLife.Game
         void BuildingInfo(Building b, Rows rows)
         {
             var d = b.Def;
-            Ui.Title(rows.Next(28, 0), T.PlaceName(b) == d.Name.ToLower() ? d.Name : T.PlaceName(b));
+            Ui.Title(rows.Next(28, 0), T.Title(b));
             Ui.Small(rows.Next(20), d.Name + " · " + OwnerText(b));
             string status = !b.Built ? "Under construction" : b.Closed ? "Closed" : b.ForSale ? "For sale: " + Town.Money(b.Value) : Town.IsBusiness(b) ? (T.Connected(b) ? "Open" : "Open, but not connected to the highway") : "";
             if (status != "") Ui.Bold(rows.Next(22), status, b.Closed || !T.Connected(b) ? Ui.Bad : !b.Built ? Ui.Warn : Ui.Good);
@@ -46,7 +46,7 @@ namespace RealLife.Game
                 Ui.Bar(rows.Next(10), b.BuildFraction, Ui.Warn);
                 rows.Pair("Progress", Mathf.RoundToInt(b.BuildFraction * 100) + "% of " + d.Work.ToString("0") + " labour-days");
                 var con = T.Contractor(b);
-                rows.Pair("Builder", con != null ? T.PlaceName(con) : "outside contractors");
+                rows.Pair("Builder", con != null ? T.Title(con) : "Outside contractors");
                 rows.Pair("Still to pay", Town.Money(b.ContractLeft));
                 Blurb(d, rows);
                 return;
@@ -256,7 +256,7 @@ namespace RealLife.Game
             Ui.Small(rows.Next(20), (int)c.Age + (c.Female ? ", woman" : ", man") + (c.IsChild ? "" : " · " + Defs.EduName(c.Edu).ToLower()) + (c.Dropout ? " (dropped out)" : ""));
             var work = T.WorkOf(c);
             string status; Color sc = Ui.Text;
-            if (work != null) status = (c.Owner ? "Runs " : "") + Defs.Get(c.Role).Name + " at " + T.PlaceName(work) + " · " + Town.Money(c.Wage) + "/mo";
+            if (work != null) status = Defs.Get(c.Role).Name + (c.Owner ? " and owner" : "") + " at " + T.Ref(work) + " · " + Town.Money(c.Wage) + "/mo";
             else if (c.Stage != Stage.None) { var s = T.GetBuilding(c.SchoolId); status = s != null ? Defs.StageName(c.Stage) + ", year " + (1 + (int)c.StageYears) : "No school place"; if (s == null) sc = Ui.Bad; }
             else if (c.Retired) status = "Retired";
             else if (c.IsChild) status = c.Age < 6 ? "Too young for school" : "Not in school";

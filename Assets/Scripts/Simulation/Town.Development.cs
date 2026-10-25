@@ -251,7 +251,7 @@ namespace RealLife.Simulation
             else
             {
                 b.Cash += working; Trade.Investment += working;
-                AddLog(b.OwnerName + " opened a " + d.Name.ToLower() + " in town, hiring.", LogKind.Good, b.Id);
+                AddLog(b.OwnerName + " opened " + (d.Name.StartsWith("O") || d.Name.StartsWith("E") || d.Name.StartsWith("A") ? "an " : "a ") + d.Name.ToLower() + " in town and is hiring.", LogKind.Good, b.Id);
             }
             MapVersion++;
         }

@@ -333,12 +333,14 @@ namespace RealLife.Simulation
         public void CloseBusiness(Building b, string why)
         {
             if (b.Closed) return;
-            AddLog("The " + PlaceName(b) + " closed" + (why != null ? ": " + why : "") + ". " + b.Employees.Count + " people lost their jobs.", LogKind.Bad, b.Id);
+            int n = b.Employees.Count;
+            var who = Ref(b);
+            AddLog(char.ToUpperInvariant(who[0]) + who.Substring(1) + " closed" + (why != null ? ": " + why : "") + ". " + (n == 0 ? "Nobody worked there." : n == 1 ? "One person lost their job." : n + " people lost their jobs."), LogKind.Bad, b.Id);
             foreach (var id in b.Employees.ToList())
             {
                 var c = GetCitizen(id);
                 if (c == null) continue;
-                Note(c, "Lost their job when the " + PlaceName(b) + " closed.");
+                Note(c, "Lost their job when " + Ref(b) + " closed.");
                 c.Owner = false; LeaveJob(c, null);
             }
             foreach (var l in Loans.ToList()) if (l.Kind == LoanKind.Business && l.BuildingId == b.Id) { Loans.Remove(l); }

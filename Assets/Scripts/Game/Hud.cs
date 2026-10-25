@@ -258,7 +258,7 @@ namespace RealLife.Game
         public string Describe(Building b)
         {
             var d = b.Def;
-            string s = T.PlaceName(b);
+            string s = T.Title(b);
             if (s.ToLower() != d.Name.ToLower()) s += "  (" + d.Name + ")";
             if (!b.Built) return s + "\nUnder construction: " + Mathf.RoundToInt(b.BuildFraction * 100) + "%";
             if (b.Closed) return s + "\nClosed";

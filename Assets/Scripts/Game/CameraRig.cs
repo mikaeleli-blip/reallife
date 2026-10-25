@@ -62,7 +62,9 @@ namespace RealLife.Game
                 {
                     // zoom toward the point under the mouse
                     float before = distGoal;
-                    distGoal = Mathf.Clamp(distGoal * Mathf.Pow(0.87f, wheel), MinDistance, MaxDistance);
+                    // some mice report 0.1 a notch, others 1: every wheel event is at least one full step
+                    float steps = Mathf.Sign(wheel) * Mathf.Max(1f, Mathf.Abs(wheel));
+                    distGoal = Mathf.Clamp(distGoal * Mathf.Pow(0.85f, steps), MinDistance, MaxDistance);
                     Vector3 hit;
                     if (wheel > 0 && GroundPoint(Input.mousePosition, out hit)) pivotGoal = Vector3.Lerp(pivotGoal, hit, (1 - distGoal / before) * 0.9f);
                 }

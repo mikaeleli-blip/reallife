@@ -123,7 +123,7 @@ namespace RealLife.Simulation
             if (c.WorkId >= 0) LeaveJob(c, null);
             c.WorkId = b.Id; c.Role = r; c.Wage = PayFor(b, c, r); c.JoblessDays = 0; c.DaysWorked = 0;
             if (!b.Employees.Contains(c.Id)) b.Employees.Add(c.Id);
-            if (!silent) Note(c, "Started as " + Defs.Get(r).Name.ToLower() + " at the " + PlaceName(b) + ".");
+            if (!silent) Note(c, "Started as " + Defs.Get(r).Name.ToLower() + " at " + Ref(b) + ".");
         }
 
         public void LeaveJob(Citizen c, string reason)
@@ -133,15 +133,51 @@ namespace RealLife.Simulation
             c.WorkId = -1; c.Role = Role.None; c.Wage = 0; c.AtWork = false;
         }
 
+        static string ShortName(BuildingType t)
+        {
+            switch (t)
+            {
+                case BuildingType.Construction: return "Construction";
+                case BuildingType.Trucking: return "Trucking";
+                case BuildingType.ClothingStore: return "Clothing";
+                case BuildingType.ElectronicsStore: return "Electronics";
+                case BuildingType.FurnitureStore: return "Furniture";
+                case BuildingType.FurnitureWorkshop: return "Furniture Works";
+                case BuildingType.GroceryStore: return "Market";
+                case BuildingType.AutoRepair: return "Auto Repair";
+                case BuildingType.Office: return "Offices";
+                case BuildingType.FoodPlant: return "Foods";
+                case BuildingType.GarmentFactory: return "Garments";
+                case BuildingType.ElectronicsPlant: return "Electronics Plant";
+                default: return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(Defs.Get(t).Name);
+            }
+        }
+
+        /// <summary>A place as it's mentioned in a sentence: "the clinic", "Garcia's Restaurant", "Northwind Market".</summary>
+        public string Ref(Building b)
+        {
+            if (b == null) return "";
+            var d = b.Def;
+            bool named = d.Cat != Category.Public && d.Cat != Category.Residential && d.Cat != Category.Special && !(b.Closed && b.Built) && !string.IsNullOrEmpty(b.OwnerName);
+            return named ? PlaceName(b) : "the " + PlaceName(b);
+        }
+
+        /// <summary>A place's name with a capital letter, for the start of a line or a title.</summary>
+        public string Title(Building b)
+        {
+            var s = PlaceName(b);
+            return string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
+        }
+
         /// <summary>"Northwind Market", "Garcia's Restaurant", "the clinic".</summary>
         public string PlaceName(Building b)
         {
             if (b == null) return "";
             var d = b.Def;
-            if (d.Cat == Category.Public) return d.Name.ToLower();
-            if (d.Cat == Category.Residential) return d.Name.ToLower();
-            if (b.Owner == Owner.Household && !string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName + "'s " + d.Name;
-            if (!string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName + (b.Type == BuildingType.Bank ? "" : " " + d.Name.ToLower());
+            if (d.Cat == Category.Public || d.Cat == Category.Residential || d.Cat == Category.Special) return d.Name.ToLower();
+            if (b.Closed && b.Built) return "empty " + d.Name.ToLower();
+            if (b.Owner == Owner.Household && !string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName + (b.OwnerName.EndsWith("s") ? "' " : "'s ") + ShortName(b.Type);
+            if (!string.IsNullOrEmpty(b.OwnerName)) return b.OwnerName;
             return d.Name.ToLower();
         }
 
@@ -229,7 +265,7 @@ namespace RealLife.Simulation
                 double was = c.Wage;
                 Hire(op.Building, c, op.Role, false);
                 op.Count--; open[best] = op;
-                if (Chance(0.25f)) AddLog(c.Name + " left the " + PlaceName(cur) + " for a better-paid job as " + Defs.Get(op.Role).Name.ToLower() + " (" + Money(was) + " → " + Money(c.Wage) + " a month).", LogKind.Info, c.Id, true);
+                if (Chance(0.25f)) AddLog(c.Name + " left " + Ref(cur) + " for a better-paid job as " + Defs.Get(op.Role).Name.ToLower() + " (" + Money(was) + " → " + Money(c.Wage) + " a month).", LogKind.Info, c.Id, true);
             }
         }
 
@@ -271,8 +307,8 @@ namespace RealLife.Simulation
                 {
                     var c = staff[i];
                     LeaveJob(c, why);
-                    Note(c, "Laid off from the " + PlaceName(b) + ".");
-                    if (Chance(0.35f)) AddLog(PlaceName(b) + " laid off " + c.Name + (why != null ? ": " + why : "."), LogKind.Bad, c.Id, true);
+                    Note(c, "Laid off from " + Ref(b) + ".");
+                    if (Chance(0.35f)) AddLog(Title(b) + " laid off " + c.Name + (why != null ? ": " + why + "." : "."), LogKind.Bad, c.Id, true);
                 }
             }
         }

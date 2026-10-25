@@ -21,13 +21,13 @@ namespace RealLife.Simulation
             for (int i = 0; i < 10; i++) t.Rand();
             t.Tiles = new int[t.Cols * t.Rows];
             t.Name = t.Pick(Names.Towns);
+            t.BankName = t.Pick(Names.Firms) + " Bank";
             t.Index();
             t.Terraform();
             t.LayOutTown();
             t.Index();
             t.Populate();
-            t.Treasury = 1500000;
-            t.BankName = t.Pick(Names.Firms) + " Bank";
+            t.Treasury = 3000000;
             t.BankCapital = 9000000;
             // a year of history before you arrive, so the town's economy has settled
             for (int d = 0; d < Balance.DaysPerYear; d++) t.Advance(1f);
@@ -365,6 +365,16 @@ namespace RealLife.Simulation
                 case BuildingType.Trucking: return f + " Logistics";
                 case BuildingType.Construction: return f + " Builders";
                 case BuildingType.Farm: return f + " Farms";
+                case BuildingType.Restaurant: return f + " Grill";
+                case BuildingType.Cafe: return f + " Coffee";
+                case BuildingType.Bar: return f + " Tavern";
+                case BuildingType.ClothingStore: return f + " Outfitters";
+                case BuildingType.ElectronicsStore: return f + " Tech";
+                case BuildingType.FurnitureStore: return f + " Home";
+                case BuildingType.AutoRepair: return f + " Auto Service";
+                case BuildingType.HairSalon: return f + " Salon";
+                case BuildingType.Gym: return f + " Fitness";
+                case BuildingType.Bank: return f + " Bank";
                 default: return f + " Co.";
             }
         }

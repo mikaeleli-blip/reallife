@@ -257,7 +257,7 @@ namespace RealLife.Simulation
             h.CarWear = 1; h.CarBroken = false; h.Fuel = Math.Max(h.Fuel, 1);
             var buyer = ms.FirstOrDefault(m => !m.IsChild);
             if (buyer != null) Note(buyer, "Bought a new car" + (loan > 0 ? " on a car loan" : "") + ".");
-            if (Chance(0.2f) && buyer != null) AddLog("The " + h.Name + " family bought a new car" + (outOfTown ? " in the next town over." : " at the " + PlaceName(dealer) + "."), LogKind.Info, buyer.Id, true);
+            if (Chance(0.2f) && buyer != null) AddLog("The " + h.Name + " family bought a new car" + (outOfTown ? " in the next town over." : " at " + Ref(dealer) + "."), LogKind.Info, buyer.Id, true);
         }
 
         /// <summary>A breakdown fixed, or (routine) a service: oil, tyres, brakes.</summary>

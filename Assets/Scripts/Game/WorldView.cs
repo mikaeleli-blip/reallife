@@ -19,6 +19,7 @@ namespace RealLife.Game
         public Material Lit { get; private set; }
         public Material Windows { get; private set; }
         public Material Overlay { get; private set; }
+        Material zoneMat;
         Light sun;
 
         readonly Dictionary<int, GameObject> chunks = new Dictionary<int, GameObject>();
@@ -42,6 +43,7 @@ namespace RealLife.Game
             Windows = MakeMat("RealLife/Window", "Standard");
             Overlay = MakeMat("RealLife/Overlay", "Sprites/Default");
             Windows.SetColor("_Color", new Color(0.26f, 0.33f, 0.42f));
+            zoneMat = MakeMat("RealLife/Overlay", "Sprites/Default");
             var sg = new GameObject("Sun");
             sun = sg.AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -302,7 +304,7 @@ namespace RealLife.Game
                             Color32 edge = ZoneColor(z); edge.a = (byte)(a + 60);
                             k.Flat(x * Tile + 0.6f, y * Tile + 0.6f, x * Tile + Tile - 0.6f, y * Tile + 1.0f, 0.13f, edge);
                         }
-                    SetChunk(zoneChunks, cy * cw + cx, "Zones", k, Overlay, false);
+                    SetChunk(zoneChunks, cy * cw + cx, "Zones", k, zoneMat, false);
                 }
         }
 
@@ -456,6 +458,8 @@ namespace RealLife.Game
                 RenderSettings.fogEndDistance = rig.Distance * 5f + 400;
             }
             Windows.SetFloat("_Glow", Mathf.SmoothStep(0, 1, Night));
+            float zl = Mathf.Lerp(1f, 0.32f, Night);
+            zoneMat.SetColor("_Color", new Color(zl, zl, zl, Mathf.Lerp(1f, 0.6f, Night)));
         }
     }
 }

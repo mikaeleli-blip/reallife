@@ -149,7 +149,7 @@ namespace RealLife.Game
             foreach (var b in T.Buildings.Where(Town.IsBusiness).Where(b => b.Built).OrderBy(b => b.Closed).ThenByDescending(b => b.LastRevenue))
             {
                 var r = rows.Next(22, 1);
-                if (Ui.Link(new Rect(r.x, r.y, r.width * 0.62f, r.height), T.PlaceName(b) == b.Def.Name.ToLower() ? b.Def.Name : T.PlaceName(b), b.Closed ? Ui.Dim : Ui.Text)) gc.FocusBuilding(b);
+                if (Ui.Link(new Rect(r.x, r.y, r.width * 0.62f, r.height), T.Title(b), b.Closed ? Ui.Dim : Ui.Text)) gc.FocusBuilding(b);
                 if (b.Closed) Ui.Right(r, "closed", Ui.Dim);
                 else Ui.Right(r, b.Employees.Count + " staff  " + Town.Money(b.LastProfit), b.LastProfit >= 0 ? Ui.Good : Ui.Bad);
             }
