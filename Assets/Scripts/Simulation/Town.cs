@@ -164,6 +164,14 @@ namespace RealLife.Simulation
 
         // ================================================================== formatting
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+        /// <summary>A family by name: the Nelsons, the Joneses.</summary>
+        public static string Family(string surname)
+        {
+            if (string.IsNullOrEmpty(surname)) return surname;
+            bool es = surname.EndsWith("s") || surname.EndsWith("x") || surname.EndsWith("z") || surname.EndsWith("ch") || surname.EndsWith("sh");
+            return surname + (es ? "es" : "s");
+        }
+
         public static string Money(double v)
         {
             string s = v < 0 ? "-$" : "$"; double a = Math.Abs(v);

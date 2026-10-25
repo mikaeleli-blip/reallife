@@ -226,7 +226,7 @@ namespace RealLife.Game
                 var ms = T.Members(h);
                 var head = ms.FirstOrDefault(m => !m.IsChild) ?? ms.FirstOrDefault();
                 var r = rows.Next(22, 1);
-                if (head != null && Ui.Link(new Rect(r.x, r.y, r.width * 0.5f, r.height), "The " + h.Name + "s")) gc.FocusCitizen(head);
+                if (head != null && Ui.Link(new Rect(r.x, r.y, r.width * 0.5f, r.height), "The " + Town.Family(h.Name))) gc.FocusCitizen(head);
                 Ui.Small(new Rect(r.x + r.width * 0.5f, r.y, r.width * 0.5f, r.height), ms.Count + (ms.Count == 1 ? " person" : " people") + " · " + (h.Owns ? "own it" : "rent"));
                 Ui.Right(r, Town.Money(T.MonthlyIncome(h)) + "/mo", Ui.Dim);
             }
