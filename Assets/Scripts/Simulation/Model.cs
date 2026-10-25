@@ -197,10 +197,10 @@ namespace RealLife.Simulation
     [Serializable]
     public class TradeBook
     {
-        public double Exports, Services, Pensions, Investment, Imports, Utilities, Profits, Freight, Savings;
-        public double In { get { return Exports + Services + Pensions + Investment; } }
+        public double Exports, Services, Pensions, Investment, Imports, Utilities, Profits, Freight, Savings, Commuting;
+        public double In { get { return Exports + Services + Pensions + Investment + Commuting; } }
         public double Outflow { get { return Imports + Utilities + Profits + Freight + Savings; } }
-        public void Clear() { Exports = Services = Pensions = Investment = Imports = Utilities = Profits = Freight = Savings = 0; }
+        public void Clear() { Exports = Services = Pensions = Investment = Imports = Utilities = Profits = Freight = Savings = Commuting = 0; }
         public TradeBook Copy() { return (TradeBook)MemberwiseClone(); }
     }
 

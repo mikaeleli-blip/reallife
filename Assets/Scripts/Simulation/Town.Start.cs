@@ -5,16 +5,50 @@ using System.Linq;
 namespace RealLife.Simulation
 {
     /// <summary>
-    /// A new game: the land, the highway, and a small town of about 150 people already living their lives —
-    /// a grid of streets, family houses and two apartment blocks, a downtown with the town hall, a bank, a grocery store and a few
-    /// small businesses, an elementary school and a clinic, and an industrial strip with a food plant, a garment factory,
-    /// a construction company and two farms.
+    /// A new game: empty land, a river and woods, and the state highway coming in from the west. Everything else is yours to lay
+    /// out. (CreateDeveloped makes the old ready-built town of about 150 people, which the headless tests still use.)
     /// </summary>
     public partial class Town
     {
         public const int MapSize = 96;
+        public int StartX = -1, StartY = -1;   // where the highway ends: where an empty town starts
 
         public static Town CreateNew(int seed)
+        {
+            var t = new Town { Seed = seed, Cols = MapSize, Rows = MapSize };
+            t.RngState = unchecked((int)((uint)seed * 2654435761u | 1u));
+            for (int i = 0; i < 10; i++) t.Rand();
+            t.Tiles = new int[t.Cols * t.Rows];
+            t.Name = t.Pick(Names.Towns);
+            t.BankName = t.Pick(Names.Firms) + " Bank";
+            t.Index();
+            t.Terraform();
+            t.Highway(16);
+            t.Index();
+            t.Treasury = 5000000;
+            t.BankCapital = 9000000;
+            t.Hour = 7f;
+            t.AddLog("Welcome to " + t.Name + ". The land is empty: run streets off the end of the highway and zone land for homes. " +
+                     "Families will move in and drive to work out of town until there are jobs here; zone shops, industry and farms, " +
+                     "and build the town hall, schools and services as it grows.", LogKind.Info);
+            t.RecordHistory();
+            return t;
+        }
+
+        /// <summary>The state highway in from the west edge, ending where the town begins.</summary>
+        void Highway(int length)
+        {
+            Road(0, 46, length, 46);
+            var term = AddBuilding(BuildingType.FreightTerminal, 1, 47, 2, true);
+            term.Facing = 2; term.Owner = Owner.Outside; term.OwnerName = "State highway";
+            TerminalId = term.Id;
+            StartX = length; StartY = 46;
+            RebuildRoads();
+        }
+
+        /// <summary>The ready-built starting town of earlier versions: streets, homes, a downtown and industry, and the people
+        /// living there, with a year of history behind them.</summary>
+        public static Town CreateDeveloped(int seed)
         {
             var t = new Town { Seed = seed, Cols = MapSize, Rows = MapSize };
             t.RngState = unchecked((int)((uint)seed * 2654435761u | 1u));
@@ -139,10 +173,7 @@ namespace RealLife.Simulation
             foreach (int x in vx) Road(x, hy[0], x, hy[3]);
             foreach (int y in hy) Road(vx[0], y, vx[3], y);
             // the highway in from the west
-            Road(0, 46, 38, 46);
-            var term = AddBuilding(BuildingType.FreightTerminal, 1, 47, 2, true);
-            term.Facing = 2; term.Owner = Owner.Outside; term.OwnerName = "State highway";
-            TerminalId = term.Id;
+            Highway(38);
             // the industrial strip to the east, the farm road west, and a street of homes to the south
             Road(56, 40, 72, 40); Road(56, 52, 72, 52); Road(72, 40, 72, 64); Road(56, 64, 72, 64); Road(64, 52, 64, 64);
             Road(14, 58, 38, 58); Road(26, 58, 26, 70);

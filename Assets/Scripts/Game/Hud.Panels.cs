@@ -81,7 +81,7 @@ namespace RealLife.Game
             if (!confirmNew) { if (Ui.Button(rows.Next(30), "Start a new town")) confirmNew = true; }
             else
             {
-                Ui.Small(rows.Next(20), Ui.Col("This town will be lost. Sure?", Ui.Warn));
+                Ui.Small(rows.Next(20), Ui.Col("Start over on empty land? This town is kept as a backup.", Ui.Warn));
                 var r = rows.Next(30);
                 if (Ui.Button(new Rect(r.x, r.y, r.width / 2 - 4, r.height), "Yes, new town")) { confirmNew = false; gc.NewTown(); }
                 if (Ui.Button(new Rect(r.x + r.width / 2 + 4, r.y, r.width / 2 - 4, r.height), "Keep playing")) confirmNew = false;
@@ -128,7 +128,7 @@ namespace RealLife.Game
             rows.Header("Money across the town line");
             var tr = T.LastTrade;
             rows.Pair("Earned from outside", Town.Money(tr.In), Ui.Good);
-            Ui.Small(rows.Next(18), "  exports " + Town.Money(tr.Exports) + " · office work " + Town.Money(tr.Services) + " · pensions " + Town.Money(tr.Pensions));
+            Ui.Small(rows.Next(18), "  exports " + Town.Money(tr.Exports) + " · office work " + Town.Money(tr.Services) + " · commuters' pay " + Town.Money(tr.Commuting) + " · pensions " + Town.Money(tr.Pensions));
             rows.Pair("Spent outside", Town.Money(tr.Outflow), Ui.Bad);
             Ui.Small(rows.Next(18), "  imports " + Town.Money(tr.Imports) + " · interest " + Town.Money(tr.Profits) + " · bills " + Town.Money(tr.Utilities));
 

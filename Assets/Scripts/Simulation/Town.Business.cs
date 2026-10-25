@@ -223,6 +223,7 @@ namespace RealLife.Simulation
             foreach (var b in Buildings.ToList())
             {
                 if (b.Employees.Count == 0) continue;
+                if (b.Id == TerminalId) { PayCommuters(b); continue; }
                 bool pub = b.Def.Cat == Category.Public;
                 double total = 0;
                 var staff = b.Employees.Select(GetCitizen).Where(c => c != null).ToList();
@@ -277,7 +278,8 @@ namespace RealLife.Simulation
                 b.LastUse = b.CapTotal > 0 ? Math.Min(1, b.CapUsed / b.CapTotal) : 0;
                 ShiftBooks(b);
                 b.LastProfit = profit;
-                if (profit >= 0) b.LossMonths = 0; else b.LossMonths++;
+                // a month counts as a loss when it really lost money, not when it came out about even
+                if (profit >= -Math.Max(300, b.LastRevenue * 0.015)) b.LossMonths = 0; else b.LossMonths++;
                 Succession(b);
                 if (b.Closed) continue;
                 // owner's draw: what's above a cushion of two months' costs and loan payments
@@ -291,7 +293,9 @@ namespace RealLife.Simulation
                 if (b.Cash < 0 && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
                 // a farm loses money every winter; give it the year
                 int patience = b.Type == BuildingType.Farm ? 9 : 5;
-                if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b)) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
+                // a property firm between sales isn't failing while it has houses going up or on the market
+                bool selling = b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale);
+                if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);
             }

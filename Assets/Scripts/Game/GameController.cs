@@ -77,13 +77,23 @@ namespace RealLife.Game
             Agents = View.GetComponent<Agents>();
             Rig.Bounds = new Vector2(t.Cols * WorldView.Tile, t.Rows * WorldView.Tile);
             SelectedBuilding = SelectedCitizen = -1; Following = false;
-            var hall = t.Buildings.Find(b => b.Type == BuildingType.TownHall);
-            Rig.Snap(hall != null ? WorldView.FootprintCenter(hall) : new Vector3(t.Cols * 5, 0, t.Rows * 5));
+            float cx, cy; t.TownCentre(out cx, out cy);
+            Rig.Snap(new Vector3((cx + 0.5f) * WorldView.Tile, 0, (cy + 0.5f) * WorldView.Tile));
             SetTool(Tool.Inspect);
         }
 
         public void NewTown()
         {
+            // the old town is kept beside the save, named after it, in case you want it back
+            try
+            {
+                if (File.Exists(SavePath) && Town != null)
+                {
+                    string safe = string.Concat(Town.Name.Split(Path.GetInvalidFileNameChars()));
+                    File.Copy(SavePath, Path.Combine(Application.persistentDataPath, "reallife-old-" + safe + ".json"), true);
+                }
+            }
+            catch (Exception e) { Debug.LogWarning("Couldn't keep a copy of the old town: " + e.Message); }
             Bind(Town.CreateNew(Environment.TickCount & 0x7fffffff));
             Save();
             SetSpeed(1);

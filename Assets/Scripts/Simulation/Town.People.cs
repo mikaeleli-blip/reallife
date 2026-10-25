@@ -370,6 +370,7 @@ namespace RealLife.Simulation
             Happiness();
             Emigration();
             Immigration();
+            Settlers();
         }
 
         void Births()
@@ -534,7 +535,8 @@ namespace RealLife.Simulation
                     if (c.Health < 50) t -= 10;
                     t += health * 5 + safety * 6 + park * 5;
                     if (kids && ms.Any(m => m.IsChild && m.Stage != Stage.None && m.SchoolId < 0)) t -= 12;
-                    if (c.Edu >= Edu.Degree && c.WorkId >= 0 && Defs.Get(c.Role).Needs < Edu.HighSchool) t -= 8;   // overqualified
+                    if (Commutes(c)) t -= 5;   // the drive
+                    else if (c.Edu >= Edu.Degree && c.WorkId >= 0 && Defs.Get(c.Role).Needs < Edu.HighSchool) t -= 8;   // overqualified
                     if (h.Members.Count > (home != null && home.Type == BuildingType.Apartments ? 4 : 6)) t -= 6;
                     t += Math.Min(8, c.LastOutings * 1.5f);
                     c.Happiness = Math.Max(0, Math.Min(100, c.Happiness * 0.6f + t * 0.4f));
@@ -596,7 +598,7 @@ namespace RealLife.Simulation
                 if (came >= cap) break;
                 if (!Chance(0.7f)) continue;
                 // somebody already here could do it
-                if (People.Any(c => c.InLaborForce && c.WorkId < 0 && Defs.Qualifies(c.Edu, Defs.Get(o.Role).Needs) && CanReach(c, o.Building))) continue;
+                if (People.Any(c => ((c.InLaborForce && c.WorkId < 0) || Commutes(c)) && Defs.Qualifies(c.Edu, Defs.Get(o.Role).Needs) && CanReach(c, o.Building))) continue;
                 bool family = Chance(0.5f);
                 double take = o.Wage * (1 - Policy.IncomeTax) * (family ? 1.6 : 1);
                 var home = FindHome(family ? 3 : 1, take, 0.42);
@@ -616,6 +618,19 @@ namespace RealLife.Simulation
         }
 
         Household Arrive(Building home, Edu edu, bool family)
+        {
+            var h = Newcomers(edu, family);
+            MoveIn(h, home, false);
+            ArrivalsMonth += h.Members.Count;
+            var a = Members(h).First();
+            AddLog("The " + h.Name + " " + (family ? "family" : "household") + " moved to town" + (edu >= Edu.Trade ? " (" + Defs.EduName(edu).ToLower() + ")" : "") + ".", LogKind.Good, a.Id, true);
+            Note(a, "Moved to " + Name + ".");
+            return h;
+        }
+
+        /// <summary>A household from outside, not yet living anywhere: one adult with this schooling, and with a family a partner
+        /// and maybe children.</summary>
+        Household Newcomers(Edu edu, bool family)
         {
             string last = Pick(Names.Last);
             var h = NewHousehold(last);
@@ -643,10 +658,6 @@ namespace RealLife.Simulation
             h.Cash = 4000 + Rand() * 22000 + (edu >= Edu.Degree ? 12000 : 0);
             h.Pantry = 2; h.Cars = Chance(0.75f) ? 1 : 0; h.Fuel = h.Cars; h.CarWear = 0.4f + Rand() * 0.5f;
             h.Clothes = 0.6f; h.Electronics = 0.5f; h.Furniture = 0.35f;
-            MoveIn(h, home, false);
-            ArrivalsMonth += h.Members.Count;
-            AddLog("The " + last + " " + (family ? "family" : "household") + " moved to town" + (edu >= Edu.Trade ? " (" + Defs.EduName(edu).ToLower() + ")" : "") + ".", LogKind.Good, a.Id, true);
-            Note(a, "Moved to " + Name + ".");
             return h;
         }
     }

@@ -6,8 +6,8 @@ clothes and cars, go out for dinner, fall ill, marry, have kids, retire and die.
 people it needs (if anyone in town has the right qualifications), sets its prices and wages, buys stock from makers in town or
 imports it, and keeps its own books. If it can't make payroll it borrows; if it can't borrow it closes.
 
-You're the unseen hand. You lay out the streets, zone the land, build the schools, clinics, police and fire stations, parks and
-bus depots, and set the laws. Local families and the town's property firms decide what gets built on the land you zone, based
+You're the unseen hand. A new town starts as empty land with the state highway running in from the west: you lay out the
+streets, zone the land, build the town hall, schools, clinics, police and fire stations, parks and bus depots, and set the laws. Local families and the town's property firms decide what gets built on the land you zone, based
 on what they can see: empty homes, customers turned away, sales nobody in town can make, people looking for work. Everything
 is owned by someone who lives here.
 
@@ -27,7 +27,7 @@ so it can be run and tested headless.
 4. Press **Play**. The game builds itself from code, so the scene stays empty in the editor.
 
 The town saves every month and when you quit, to `Application.persistentDataPath/reallife-save-v1.json`.
-**Start a new town** is at the bottom of the Laws panel.
+**Start a new town** is at the bottom of the Laws panel; the old town is kept beside it as `reallife-old-<name>.json`.
 
 ## Controls
 
@@ -52,6 +52,16 @@ several.
 One day is about a real week; a month is four days and a year is 48. At 1x a day takes six minutes, so you can watch the
 morning commute; at 90x a year goes by in about three minutes. Money is in dollars at realistic monthly rates: a cashier
 earns about $2,350 a month, a teacher $4,600, a software developer $8,000, a doctor $14,500. A house costs around $230,000.
+
+## Starting a town
+
+You start with $5M, the highway and nothing else. Run streets off the end of the highway and zone land beside them for homes:
+families start moving in straight away, driving to jobs in the towns around (up to 30 + a quarter of your population can
+commute). Until there's a property firm, the bank puts up houses for them. As people arrive, families here open the shops,
+a builder, a property firm, offices and plants on the land you've zoned for them, and someone with savings moves in to start
+what the town needs if nobody here can. Commuters take a job in town as soon as one pays about as well, so local jobs grow
+the town further than commuting alone. Build the town hall where you want the middle of town to be: shops and offices gather
+round it. Each lot needs a road alongside, so the middle of a large block stays empty.
 
 ## How the economy works
 
@@ -89,15 +99,17 @@ opens only when the first has had more steady work than it can handle for months
 ones here are well staffed and comfortably in profit. After one fails nobody tries the same thing for a year (two,
 after two failures), so you won't see the same shop open and close over and over.
 
-**Growth.** Zone land and the market decides. Open jobs bring families from outside if there are homes for them; empty
-homes and turned-away shoppers make developers build; people looking for work draw factories and offices; crops imported
-for the food plant draw farms. Your zone demand meters (top left: homes, shops, industry, farms) show what's wanted.
+**Growth.** Zone land and the market decides. Families move in while the region has jobs for commuters and there are homes
+they can afford; open jobs bring workers from outside if there are homes for them; dear housing makes developers build more;
+turned-away shoppers draw shops; people looking for work, or commuting for low pay, draw factories and offices; crops
+imported for the food plant draw farms. Your zone demand meters (top left: homes, shops, industry, farms) show what's wanted.
 
 **The town's books.** Income tax, sales tax, property tax, business tax and college tuition come in; public employees'
 pay, upkeep of buildings and roads, unemployment benefits and construction go out. You can run a deficit and borrow, at 5.5%
 a year.
 
-**The town line.** Money comes into town from exports, office work billed outside, pensions and outside investment, and
+**The town line.** Money comes into town from exports, office work billed outside, commuters' pay, pensions and outside
+investment, and
 leaves through imports, utilities and insurance, outside hauliers and retirement savings. The
 highway terminal's inspector shows last month's balance.
 

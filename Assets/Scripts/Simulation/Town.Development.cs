@@ -57,6 +57,7 @@ namespace RealLife.Simulation
         {
             var d = Defs.Get(t);
             if (!d.PlayerBuilds) return "Developers build that on zoned land.";
+            if (t == BuildingType.TownHall && Buildings.Any(b => b.Type == BuildingType.TownHall)) return "The town already has a town hall.";
             if (!FootprintFree(x, y, d.W, d.H)) return "Not enough clear land.";
             if (FindFacing(x, y, d.W, d.H) < 0) return "Needs a road alongside.";
             if (Treasury - d.StartupCost < -5000000) return "The town can't borrow any more.";
@@ -132,7 +133,9 @@ namespace RealLife.Simulation
                 if (backlog < least) { least = backlog; best = c; }
             }
             b.ContractorId = best != null ? best.Id : -1;
-            if (best == null) b.ContractLeft = d.StartupCost * 1.15;
+            // the builder prices the labour at what it's paying for it; outside contractors charge more
+            if (best != null) b.ContractLeft = d.Materials + (d.StartupCost - d.Materials) * Math.Max(1, best.WageMult);
+            else b.ContractLeft = d.StartupCost * 1.15;
             MapVersion++;
         }
 
@@ -224,7 +227,8 @@ namespace RealLife.Simulation
             if (d.Sells.HasValue) b.Price = Defs.Retail[(int)d.Sells.Value];
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
-            double working = MonthlyCosts(b) * 2.5;
+            // enough to see it through to the first sales: longer for a property firm waiting on its first houses
+            double working = MonthlyCosts(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5);
             if (b.Owner == Owner.Household)
             {
                 var h = GetHousehold(b.OwnerId);
@@ -255,8 +259,7 @@ namespace RealLife.Simulation
         {
             var d = Defs.Get(t);
             bx = by = -1; float best = float.MaxValue;
-            float cx = 48, cy = 48; var th = Buildings.FirstOrDefault(b => b.Type == BuildingType.TownHall);
-            if (th != null) { cx = th.CenterX; cy = th.CenterY; }
+            float cx, cy; TownCentre(out cx, out cy);
             for (int y = 0; y + d.H <= Rows; y++)
                 for (int x = 0; x + d.W <= Cols; x++)
                 {
@@ -274,12 +277,29 @@ namespace RealLife.Simulation
             return bx >= 0;
         }
 
+        /// <summary>Where the town grows out from: the town hall; before there is one, the middle of what's been built and
+        /// zoned; on empty land, the end of the highway.</summary>
+        public void TownCentre(out float cx, out float cy)
+        {
+            var th = Buildings.FirstOrDefault(b => b.Type == BuildingType.TownHall);
+            if (th != null) { cx = th.CenterX; cy = th.CenterY; return; }
+            double sx = 0, sy = 0; int n = 0;
+            for (int y = 0; y < Rows; y++)
+                for (int x = 0; x < Cols; x++)
+                    if (ZoneAt(x, y) != Zone.None || (buildingAt[Idx(x, y)] != 0 && x > 3)) { sx += x; sy += y; n++; }
+            if (n > 0) { cx = (float)(sx / n); cy = (float)(sy / n); return; }
+            cx = StartX >= 0 ? StartX : Cols / 2f; cy = StartY >= 0 ? StartY : Rows / 2f;
+        }
+
         bool ConnectedFootprint(Building b)
         {
             int ax, ay;
             if (!AccessTile(b, out ax, out ay)) return false;
             return mainComp >= 0 && roadComp[ax + ay * Cols] == mainComp;
         }
+
+        /// <summary>Is there a lot by a road on the highway's network where one of these could go.</summary>
+        public bool HasLot(BuildingType t) { int x, y; return FindLot(t, out x, out y); }
 
         public int ZonedFree(Zone z)
         {
@@ -334,9 +354,9 @@ namespace RealLife.Simulation
                 case BuildingType.AutoRepair: return 250;   // many put a service off, or can't get there, once there's a garage
                 case BuildingType.ClothingStore: return 68 / 0.6;
                 case BuildingType.ElectronicsStore: return 880 / 1.2;   // a want counts each trip until they find one out of town
-                case BuildingType.FurnitureStore: return 690 / 0.6;
+                case BuildingType.FurnitureStore: return 690 / 1.2;   // as for electronics
                 case BuildingType.GasStation: return 150 / 0.6;
-                case BuildingType.CarDealer: return Balance.CarPrice;
+                case BuildingType.CarDealer: return Balance.CarPrice / 2.5;   // counted on every try, bought or not
                 default: return 0;
             }
         }
@@ -422,23 +442,20 @@ namespace RealLife.Simulation
             NoInvestor = BuildingType.FreightTerminal;
             for (int i = 0; i < WantAvg.Length; i++) WantAvg[i] = WantAvg[i] * 0.55f + LastWants[i] * 0.45f;
             int pop = Population;
-            int building = Buildings.Count(b => !b.Built);
-            int buildCap = 3 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 4;
+            int building = Buildings.Count(b => !b.Built && b.Owner != Owner.Town);   // public works don't hold up private building
+            int buildCap = 6 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 5;
             // ---------------------------------------------------------------- homes, built by the property firms
             int free = VacantUnits() + Buildings.Count(b => b.ForSale && b.Households.Count == 0);
             int coming = Buildings.Where(b => !b.Built && b.Def.Homes > 0).Sum(b => b.Def.Homes);
             int openings = Openings().Sum(o => o.Count);
-            int wantHomes = (int)(LastWants[(int)BuildingType.House] + openings * 0.6f + pop * 0.03f);
+            // and when homes are dear, building them pays: developers build ahead of the queue
+            float dear = Math.Max(0, (HousingIndex - 1.25f) / 0.25f);
+            int wantHomes = (int)(LastWants[(int)BuildingType.House] + openings * 0.6f + pop * (0.03f + 0.015f * dear));
             float resDemand = (wantHomes - free - coming) / (float)Math.Max(6, pop / 12);
             ZoneDemand[(int)Zone.Residential] = Math.Max(-1, Math.Min(1, resDemand));
             int gap = wantHomes - free - coming;
             bool anyFirm = Buildings.Any(b => b.Type == BuildingType.Realty && (b.Open || !b.Built));
-            if (gap > 0 && !anyFirm && building < buildCap)
-            {
-                // nobody builds homes here yet: a family starts a property firm
-                var f = Entrepreneur(BuildingType.Realty);
-                if (f != null && Expand(BuildingType.Realty, f) != null) building++;
-            }
+            bool firstFirm = !anyFirm && gap > 0 && pop >= 25 && HasLot(BuildingType.House);   // nobody builds homes here yet: a family starts a property firm
             while (gap > 0 && building < buildCap)
             {
                 Building b = null;
@@ -455,12 +472,14 @@ namespace RealLife.Simulation
                 if (b == null) break;
                 gap -= b.Def.Homes; building++;
             }
+            // nobody here building homes yet: houses for the families who want to move in
+            if (HousingFirm(BuildingType.House) == null) HousesForSettlers(ref building, buildCap);
             // another property firm when the ones here can't keep up and are doing well
             var firms = PropertyFirms();
-            bool stretched = firms.Count > 0 && gap > 4 && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
-            if (ReadyToOpen(BuildingType.Realty, stretched, 3, false) && building < buildCap)
+            bool stretched = firms.Count > 0 && gap > 4 && HasLot(BuildingType.House) && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
+            if (ReadyToOpen(BuildingType.Realty, anyFirm ? stretched : firstFirm, anyFirm ? 3 : 2, false) && building < buildCap)
             {
-                var f = Entrepreneur(BuildingType.Realty);
+                var f = Founder(BuildingType.Realty);
                 if (f != null && Expand(BuildingType.Realty, f) != null) { building++; EntryMonths[(int)BuildingType.Realty] = 0; }
             }
             // ---------------------------------------------------------------- shops and services
@@ -497,13 +516,14 @@ namespace RealLife.Simulation
                 if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
                 if (!ReadyToOpen(t, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
                 if (building >= buildCap) continue;
-                var founder = Entrepreneur(t);
+                var founder = Founder(t);
                 if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); continue; }
                 if (Expand(t, founder) != null) { building++; EntryMonths[(int)t] = 0; }
             }
             ZoneDemand[(int)Zone.Commercial] = Math.Min(1, comDemand);
             // ---------------------------------------------------------------- work: offices and industry follow the workforce
-            var looking = People.Where(c => c.InLaborForce && c.WorkId < 0 && c.JoblessDays >= 2).ToList();
+            // people looking for work, and those driving out of town for it who'd rather work here
+            var looking = People.Where(c => (c.InLaborForce && c.WorkId < 0 && c.JoblessDays >= 2) || (Commutes(c) && c.Wage < 3700)).ToList();
             int grads = looking.Count(c => c.Edu >= Edu.Degree) + People.Count(c => c.Edu >= Edu.Degree && c.WorkId >= 0 && Defs.Get(c.Role).Needs < Edu.HighSchool);
             int school = looking.Count(c => c.Edu == Edu.HighSchool), trade = looking.Count(c => c.Edu == Edu.Trade), basic = looking.Count(c => c.Edu == Edu.None);
             float indDemand = (looking.Count - pop * 0.04f) / Math.Max(6f, pop / 20f);
@@ -512,7 +532,7 @@ namespace RealLife.Simulation
             bool officeCase = !officePending && (grads >= 5 || (grads >= 3 && school >= 4)) && Buildings.Where(b => b.Type == BuildingType.Office && b.Open).All(b => b.LastProfit > 0);
             if (ReadyToOpen(BuildingType.Office, officeCase, 2, grads >= 10) && building < buildCap)
             {
-                var founder = Entrepreneur(BuildingType.Office);
+                var founder = Founder(BuildingType.Office);
                 if (founder == null) NoInvestor = BuildingType.Office;
                 else if (Expand(BuildingType.Office, founder) != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; }
             }
@@ -530,6 +550,7 @@ namespace RealLife.Simulation
                 bool strong = looking.Count >= 20 + pop / 20;
                 // and any kind whose plants here are already struggling, short-handed or only scraping by
                 kinds.RemoveAll(k => Cooling(k, strong) || !PlantPays(k) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 2 + pop / 200 ||
+                                     looking.Count < Defs.Get(k).TotalJobs || pop < 60 ||
                                      Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04)));
                 // something the town doesn't make yet before more of the same
                 if (kinds.Any(k => !Buildings.Any(b => b.Type == k && (b.Open || !b.Built))))
@@ -538,7 +559,7 @@ namespace RealLife.Simulation
                 if (kinds.Count > 0)
                 {
                     var t = kinds[RandInt(0, kinds.Count)];
-                    var founder = Entrepreneur(t);
+                    var founder = Founder(t);
                     if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); }
                     else if (Expand(t, founder) != null) { building++; FactoryMonths = 0; }
                 }
@@ -551,7 +572,7 @@ namespace RealLife.Simulation
                 bool plantCase = grocImports > 25000 && Buildings.Where(b => b.Type == BuildingType.FoodPlant && b.Open).All(b => b.LastUse > 0.8f) && PlantPays(BuildingType.FoodPlant);
                 if (ReadyToOpen(BuildingType.FoodPlant, plantCase, 3, grocImports > 60000))
                 {
-                    var founder = Entrepreneur(BuildingType.FoodPlant);
+                    var founder = Founder(BuildingType.FoodPlant);
                     if (founder == null) NoInvestor = BuildingType.FoodPlant;
                     else if (Expand(BuildingType.FoodPlant, founder) != null) { building++; EntryMonths[(int)BuildingType.FoodPlant] = 0; }
                 }
@@ -560,7 +581,7 @@ namespace RealLife.Simulation
                                 farms.All(b => b.LossMonths < 4) && (farms.Count == 0 || farms.Average(b => b.Cash) > 0) && PlantPays(BuildingType.Farm);
                 if (ReadyToOpen(BuildingType.Farm, farmCase, 2, cropImports > 30000) && building < buildCap)
                 {
-                    var founder = Entrepreneur(BuildingType.Farm);
+                    var founder = Founder(BuildingType.Farm);
                     if (founder == null) NoInvestor = BuildingType.Farm;
                     else if (Expand(BuildingType.Farm, founder) != null) { building++; EntryMonths[(int)BuildingType.Farm] = 0; }
                 }
@@ -581,16 +602,16 @@ namespace RealLife.Simulation
             }
             if (ReadyToOpen(BuildingType.Construction, builderCase, builders.Count == 0 ? 1 : 4, builders.Count == 0))
             {
-                var founder = Entrepreneur(BuildingType.Construction);
+                var founder = Founder(BuildingType.Construction);
                 if (founder == null) NoInvestor = BuildingType.Construction;
                 else if (Expand(BuildingType.Construction, founder) != null) EntryMonths[(int)BuildingType.Construction] = 0;
             }
             // hauliers: when outside trucking costs enough that a depot here would pay its way
             bool haulCase = pop >= Defs.Get(BuildingType.Trucking).MinPop && !Buildings.Any(b => b.Type == BuildingType.Trucking && (b.Open || !b.Built)) &&
-                            PaysItsWay(BuildingType.Trucking, LastFreightOutside * Balance.FreightLocal / Balance.FreightOutside);
-            if (ReadyToOpen(BuildingType.Trucking, haulCase, 3, false))
+                            PaysItsWay(BuildingType.Trucking, LastFreightOutside * Balance.FreightLocal / Balance.FreightOutside, 1.4);
+            if (ReadyToOpen(BuildingType.Trucking, haulCase, 4, false))
             {
-                var founder = Entrepreneur(BuildingType.Trucking);
+                var founder = Founder(BuildingType.Trucking);
                 if (founder == null) NoInvestor = BuildingType.Trucking;
                 else if (Expand(BuildingType.Trucking, founder) != null) EntryMonths[(int)BuildingType.Trucking] = 0;
             }
@@ -630,6 +651,46 @@ namespace RealLife.Simulation
         /// <summary>The founders' share of the cost: a smaller share of a big building the bank can lend against.</summary>
         static double FoundersShare(BuildingType t) { return BigFirm(t) ? Balance.Equity * 0.5 : Balance.Equity; }
 
+        /// <summary>Who starts it: a family here; failing that, while the town is young, or for the first builder or property
+        /// firm, a family who moves here to start it, if there's a home for them.</summary>
+        Household Founder(BuildingType t)
+        {
+            var h = Entrepreneur(t);
+            if (h != null) return h;
+            bool first = (t == BuildingType.Construction || t == BuildingType.Realty) && !Buildings.Any(b => b.Type == t && (b.Open || !b.Built));
+            if (!(first || Population < 250) || !Policy.Immigration || Terminal == null || FounderArrived == Day) return null;
+            var d = Defs.Get(t);
+            int lx, ly;
+            if (!Buildings.Any(b => b.Type == t && b.Closed && b.Built && Connected(b)) && !FindLot(t, out lx, out ly)) return null;
+            // they'll run it: schooled for its best-paid job
+            var edu = d.Jobs.OrderByDescending(j => Defs.Get(j.Role).Wage).Select(j => Defs.Get(j.Role).Needs).FirstOrDefault();
+            if (edu == Edu.Medical) edu = Edu.Degree;
+            var home = Buildings.Where(b => b.ForSale && b.Built && b.Households.Count == 0 && Connected(b)).OrderBy(b => b.Value).FirstOrDefault();
+            bool buys = home != null;
+            if (!buys) home = FindHome(3, 6000, 0.45);
+            if (home == null) { DevNote("no home for a founder of " + t); return null; }
+            double need = Math.Max(12000, d.StartupCost * FoundersShare(t));
+            h = Newcomers(edu, Chance(0.75f));
+            h.Cars = Math.Max(1, h.Cars); h.Fuel = Math.Max(h.Fuel, h.Cars);
+            h.Cash += need + 25000 + Rand() * 40000 + (buys ? home.Value * 0.14 : 0);
+            foreach (var m in Members(h)) if (!m.IsChild) m.Ambition = Math.Max(m.Ambition, 0.6f);
+            if (buys) BuyHome(h, home, true); else MoveIn(h, home, false);
+            ArrivalsMonth += h.Members.Count;
+            FounderArrived = Day;
+            var a = Members(h).First();
+            AddLog("The " + h.Name + " family moved to town to start " + (("aeiou".IndexOf(char.ToLower(d.Name[0])) >= 0) ? "an " : "a ") + d.Name.ToLower() + ".", LogKind.Good, a.Id, true);
+            Note(a, "Moved to " + Name + " to start a business.");
+            return h;
+        }
+        [NonSerialized] int FounderArrived = -1;
+
+        /// <summary>Is there anyone in town who could work there: looking for work, or driving out of town for it.</summary>
+        bool CanStaff(BuildingType t)
+        {
+            var d = Defs.Get(t);
+            return People.Any(c => ((c.InLaborForce && c.WorkId < 0) || Commutes(c)) && d.Jobs.Any(j => Defs.Qualifies(c.Edu, Defs.Get(j.Role).Needs)));
+        }
+
         Household Entrepreneur(BuildingType t)
         {
             var d = Defs.Get(t);
@@ -641,7 +702,7 @@ namespace RealLife.Simulation
                 int owned = Buildings.Count(b => b.Owner == Owner.Household && b.OwnerId == h.Id && IsBusiness(b));
                 bool runs = owned == 0 && Members(h).Any(m => !m.IsChild && !m.Retired && m.Age <= 60 && !m.Owner && m.Ambition >= 0.55f &&
                                                            d.Jobs.Any(j => Defs.Qualifies(m.Edu, Defs.Get(j.Role).Needs)));
-                bool invests = owned < 3 && h.Cash >= need * 2 + 30000 && (big || owned > 0);
+                bool invests = owned < 3 && h.Cash >= need * 2 + 30000 && (big || owned > 0) && CanStaff(t);
                 if ((runs || invests) && Chance(0.6f)) return h;
             }
             return null;

@@ -64,6 +64,7 @@ namespace RealLife.Simulation
         /// <summary>What a particular person is paid in a role: the going rate plus a little for experience.</summary>
         public double PayFor(Building b, Citizen c, Role r)
         {
+            if (r == Role.Commuter) return CommuteWage(c.Edu, c.Experience);
             return Math.Round(OfferWage(b, r) * (1 + Math.Min(0.35, c.Experience * 0.012)) / 10) * 10;
         }
 
@@ -253,9 +254,11 @@ namespace RealLife.Simulation
             if (open.Count == 0) return;
             foreach (var c in People.Where(p => p.WorkId >= 0 && !p.Owner).OrderBy(p => Rand()).ToList())
             {
-                if (!Chance(0.35f)) continue;
+                bool commuter = Commutes(c);
+                if (!Chance(commuter ? 0.7f : 0.35f)) continue;
                 var cur = WorkOf(c);
-                int best = -1; double bestW = c.Wage * 1.12 + 150;
+                // a commuter takes a job in town for a bit less, to be spared the drive
+                int best = -1; double bestW = commuter ? c.Wage * 0.92 : c.Wage * 1.12 + 150;
                 for (int i = 0; i < open.Count; i++)
                 {
                     var o = open[i];
@@ -268,7 +271,8 @@ namespace RealLife.Simulation
                 double was = c.Wage;
                 Hire(op.Building, c, op.Role, false);
                 op.Count--; open[best] = op;
-                if (Chance(0.25f)) AddLog(c.Name + " left " + Ref(cur) + " for a better-paid job as " + Defs.Get(op.Role).Name.ToLower() + " (" + Money(was) + " → " + Money(c.Wage) + " a month).", LogKind.Info, c.Id, true);
+                if (commuter) { if (Chance(0.2f)) AddLog(c.Name + " stopped commuting: took a job in town as " + Defs.Get(op.Role).Name.ToLower() + " at " + Ref(op.Building) + ".", LogKind.Good, c.Id, true); }
+                else if (Chance(0.25f)) AddLog(c.Name + " left " + Ref(cur) + " for a better-paid job as " + Defs.Get(op.Role).Name.ToLower() + " (" + Money(was) + " → " + Money(c.Wage) + " a month).", LogKind.Info, c.Id, true);
             }
         }
 
@@ -282,7 +286,8 @@ namespace RealLife.Simulation
                 var d = b.Def;
                 if (!b.Open || d.Jobs.Length == 0) continue;
                 if (d.Cat == Category.Public) { RepayStaff(b); continue; }
-                if (b.Unfilled >= Balance.DaysPerMonth) b.WageMult = Math.Min(Balance.WageHigh, b.WageMult + Balance.WageStep);
+                // short of hands: pay more, if the business is making money to pay it with
+                if (b.Unfilled >= Balance.DaysPerMonth && (b.LossMonths == 0 || b.Employees.Count < d.TotalJobs / 2)) b.WageMult = Math.Min(Balance.WageHigh, b.WageMult + Balance.WageStep);
                 else if (b.Unfilled == 0)
                 {
                     int pool = 0; foreach (var j in d.Jobs) pool += lookingByEdu[(int)Defs.Get(j.Role).Needs];

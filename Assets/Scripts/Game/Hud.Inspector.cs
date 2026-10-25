@@ -266,15 +266,18 @@ namespace RealLife.Game
 
         void Terminal(Rows rows)
         {
+            rows.Header("Commuters");
+            rows.Pair("Drive to jobs out of town", T.Commuters() + " of " + T.CommuteCap() + " the region has room for");
             rows.Header("Across the town line last month");
             var tr = T.LastTrade;
+            rows.Pair("Pay from jobs out of town", Town.Money(tr.Commuting), Ui.Good);
             rows.Pair("Goods sold out of town", Town.Money(tr.Exports), Ui.Good);
             rows.Pair("Office work billed outside", Town.Money(tr.Services), Ui.Good);
             rows.Pair("Pensions paid in", Town.Money(tr.Pensions), Ui.Good);
             rows.Pair("Outside investment", Town.Money(tr.Investment), Ui.Good);
             rows.Pair("Imports", "-" + Town.Money(tr.Imports), Ui.Bad);
             rows.Pair("Utilities & insurance", "-" + Town.Money(tr.Utilities), Ui.Bad);
-            rows.Pair("Profits to outside owners", "-" + Town.Money(tr.Profits), Ui.Bad);
+            rows.Pair("Interest paid out of town", "-" + Town.Money(tr.Profits), Ui.Bad);
             rows.Pair("Outside hauliers", "-" + Town.Money(tr.Freight), Ui.Bad);
             rows.Pair("Retirement savings", "-" + Town.Money(tr.Savings), Ui.Bad);
             double net = tr.In - tr.Outflow;
@@ -290,7 +293,8 @@ namespace RealLife.Game
             Ui.Small(rows.Next(20), (int)c.Age + (c.Female ? ", woman" : ", man") + (c.IsChild ? "" : " · " + Defs.EduName(c.Edu).ToLower()) + (c.Dropout ? " (dropped out)" : ""));
             var work = T.WorkOf(c);
             string status; Color sc = Ui.Text;
-            if (work != null) status = Defs.Get(c.Role).Name + (c.Owner ? " and owner" : "") + " at " + T.Ref(work) + " · " + Town.Money(c.Wage) + "/mo";
+            if (work != null && T.Commutes(c)) status = "Drives to a job out of town · " + Town.Money(c.Wage) + "/mo";
+            else if (work != null) status = Defs.Get(c.Role).Name + (c.Owner ? " and owner" : "") + " at " + T.Ref(work) + " · " + Town.Money(c.Wage) + "/mo";
             else if (c.Stage != Stage.None) { var s = T.GetBuilding(c.SchoolId); status = s != null ? Defs.StageName(c.Stage) + ", year " + (1 + (int)c.StageYears) : "No school place"; if (s == null) sc = Ui.Bad; }
             else if (c.Retired) status = "Retired";
             else if (c.IsChild) status = c.Age < 6 ? "Too young for school" : "Not in school";

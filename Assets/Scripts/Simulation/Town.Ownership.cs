@@ -164,10 +164,12 @@ namespace RealLife.Simulation
             bool forSale = t == BuildingType.House;
             double equity = cost * (forSale ? 0.05 : 0.15);
             var family = GetHousehold(firm.OwnerId);
-            double has = Math.Max(0, firm.Cash - Cushion(firm) * 0.5) + (family != null ? Math.Max(0, family.Cash - 20000) : 0);
+            // a house to sell needs only a little of the firm's own money; flats to keep need a proper reserve behind them
+            double reserve = forSale ? MonthlyCosts(firm) : Cushion(firm) * 0.5;
+            double has = Math.Max(0, firm.Cash - reserve) + (family != null ? Math.Max(0, family.Cash - 20000) : 0);
             if (has < equity) return false;
             if (Debt(firm) + cost > Collateral(firm) * 0.8 + cost * 0.9) return false;
-            if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 3;
+            if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 3 + Portfolio(firm).Count() / 12;
             double rentIn = 0; foreach (var b in Portfolio(firm)) if (b.Built) rentIn += b.Rent * b.Households.Count;
             double newRent = d.Homes * d.Rent * HousingIndex * 0.9;
             double pay = Annuity(cost - equity, Balance.PropertyRate, Balance.PropertyMonths);
@@ -321,7 +323,7 @@ namespace RealLife.Simulation
             foreach (var b in Buildings.ToList())
             {
                 if (!BankHeld(b) || !b.Built || b.Def.Homes == 0) continue;
-                if (b.Type == BuildingType.House) { if (b.Households.Count == 0) b.ForSale = true; continue; }
+                if (b.Type == BuildingType.House) continue;   // up for sale when taken; let if it doesn't sell (HomeBuying)
                 if (Chance(0.6f)) SellHome(b, b.Value * 0.8, 0.05);
             }
         }

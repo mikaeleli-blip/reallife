@@ -184,7 +184,7 @@ namespace RealLife.Simulation
             foreach (var b in market.ToList())
             {
                 b.VacantDays += Balance.DaysPerMonth;
-                if (b.VacantDays >= 16 && OwnerFirm(b) != null) { b.ForSale = false; b.VacantDays = 0; b.Rent = b.Def.Rent * HousingIndex; market.Remove(b); }
+                if (b.VacantDays >= 16 && (OwnerFirm(b) != null || BankHeld(b))) { b.ForSale = false; b.VacantDays = 0; b.Rent = b.Def.Rent * HousingIndex; market.Remove(b); }
             }
             if (market.Count == 0) return;
             foreach (var h in Households.OrderBy(x => Rand()).ToList())
@@ -222,7 +222,7 @@ namespace RealLife.Simulation
             }
         }
 
-        void BuyHome(Household h, Building b)
+        void BuyHome(Household h, Building b, bool quiet = false)
         {
             double price = b.Value, down = price * 0.1, fees = price * 0.03;
             SellerGets(b, price, false);
@@ -232,7 +232,7 @@ namespace RealLife.Simulation
             h.Furniture = Math.Max(0, h.Furniture - 0.15f);
             var c = Members(h).FirstOrDefault(m => !m.IsChild);
             if (c != null) Note(c, "Bought a house for " + Money(price) + ".");
-            AddLog("The " + h.Name + " family bought a house for " + Money(price) + " with a mortgage.", LogKind.Money, c != null ? c.Id : -1, c != null);
+            if (!quiet) AddLog("The " + h.Name + " family bought a house for " + Money(price) + " with a mortgage.", LogKind.Money, c != null ? c.Id : -1, c != null);
         }
 
         void Foreclose(Loan l)
@@ -308,7 +308,10 @@ namespace RealLife.Simulation
         bool BusinessLoan(Building b, double amount)
         {
             // a farm is lent against next season's harvest through the winter
-            if (b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
+            // and a builder or property firm against the work it has on: their money comes in lumps
+            bool pipeline = (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale)) ||
+                            (b.Type == BuildingType.Construction && Buildings.Any(o => !o.Built && o.ContractorId == b.Id));
+            if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
             if (Debt(b) + amount > Collateral(b) * 0.8) return false;
             NewLoan(LoanKind.Business, b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null, b, amount, Balance.BusinessRate, Balance.BusinessMonths);
             b.Cash += amount;

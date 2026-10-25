@@ -158,7 +158,9 @@ namespace RealLife.Simulation
                 // drive to the next town for the rest
                 if (!anyStore || nearestShort != null)
                 {
-                    if (CanDriveOutOfTown(h, home) && (g == Good.Groceries || g == Good.Fuel || Chance(0.5f)))
+                    // on the reserve you can always make it to a gas station on the highway
+                    bool canGo = CanDriveOutOfTown(h, home) || (g == Good.Fuel && h.Cars > 0 && !h.CarBroken && Connected(home));
+                    if (canGo && (g == Good.Groceries || g == Good.Fuel || Chance(0.5f)))
                     {
                         double unit = Defs.Retail[(int)g] * 1.12 * PriceDrift[(int)g];
                         float q = (float)Math.Min(qty - got, Math.Max(0, h.Cash - 100) / unit);
@@ -195,7 +197,8 @@ namespace RealLife.Simulation
             if (h.Cars > 0)
             {
                 bool commute = ms.Any(c => c.WorkId >= 0 && Distance(home, GetBuilding(c.WorkId)) > 6);
-                if (!h.CarBroken) h.Fuel -= h.Cars * (commute ? 1f : 0.45f);
+                bool away = ms.Any(Commutes);   // driving out of town and back
+                if (!h.CarBroken) h.Fuel -= h.Cars * (away ? 1.5f : commute ? 1f : 0.45f);
                 if (h.Fuel < 0) h.Fuel = 0;
                 if (h.Fuel < h.Cars * 1.2f) { float got = Shop(h, home, Good.Fuel, h.Cars * 3f - h.Fuel, ms); h.Fuel += got; }
                 h.CarWear = Math.Max(0, h.CarWear - 0.0045f);

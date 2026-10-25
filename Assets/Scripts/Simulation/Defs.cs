@@ -53,7 +53,7 @@ namespace RealLife.Simulation
         Cashier, StockClerk, StoreManager, Cook, Chef, Waiter, Barista, Bartender, SalesClerk, Attendant, CarSales,
         Mechanic, Hairdresser, Trainer, OfficeClerk, Accountant, Developer, Teller, LoanOfficer, BranchManager,
         Teacher, Professor, Janitor, Nurse, Doctor, Receptionist, PoliceOfficer, Firefighter, BusDriver, TownClerk, ParkKeeper,
-        PropertyManager, Handyman
+        PropertyManager, Handyman, Commuter
     }
 
     public sealed class RoleDef
@@ -285,6 +285,7 @@ namespace RealLife.Simulation
             R(Role.ParkKeeper, "Park keeper", Edu.None, 2600);
             R(Role.PropertyManager, "Property manager", Edu.HighSchool, 3900);
             R(Role.Handyman, "Handyman", Edu.None, 3000);
+            R(Role.Commuter, "Job out of town", Edu.None, 2300);   // pay depends on their schooling: see Town.CommuteWage
 
             BuildingDef d;
             // ---------------------------------------------------------------- Residential
@@ -321,7 +322,7 @@ namespace RealLife.Simulation
             d = D(BuildingType.Office, "Office building", 2, 2, Category.Commercial, Zone.Commercial, 900000, 360, "Accountants, clerks and software developers billing clients outside town. Needs educated people.");
             d.Jobs = J(Role.OfficeClerk, 6, Role.Accountant, 4, Role.Developer, 6); d.MinPop = 0; d.Value = 2000000; d.Floors = 6;
             d = D(BuildingType.Bank, "Bank", 2, 1, Category.Commercial, Zone.Commercial, 300000, 110, "Lends for homes, cars, college and businesses.");
-            d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 0; d.Value = 600000; d.Floors = 2;
+            d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 150; d.Value = 600000; d.Floors = 2;
 
             // ---------------------------------------------------------------- Industrial
             d = D(BuildingType.Farm, "Farm", 3, 3, Category.Industrial, Zone.Farmland, 180000, 80, "Grows crops for the food plant. Surplus is sold out of town. Farms go on farmland.");
@@ -340,8 +341,8 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.WarehouseWorker, 2, Role.TruckDriver, 5); d.Value = 480000; d.MinPop = 160;
 
             // ---------------------------------------------------------------- Public
-            d = D(BuildingType.TownHall, "Town hall", 2, 2, Category.Public, Zone.None, 600000, 220, "Runs the town's books.");
-            d.Jobs = J(Role.TownClerk, 3); d.Upkeep = 2500; d.Floors = 3;
+            d = D(BuildingType.TownHall, "Town hall", 2, 2, Category.Public, Zone.None, 600000, 220, "Runs the town's books. One per town; the town grows out from it.");
+            d.Jobs = J(Role.TownClerk, 3); d.Upkeep = 2500; d.Floors = 3; d.PlayerBuilds = true;
             d = D(BuildingType.Elementary, "Elementary school", 2, 2, Category.Public, Zone.None, 700000, 260, "Ages 6 to 12. A good start makes high school stick.");
             d.Jobs = J(Role.Teacher, 6, Role.Janitor, 1); d.Seats = 150; d.Radius = 22; d.Upkeep = 3000; d.PlayerBuilds = true; d.Floors = 2;
             d = D(BuildingType.HighSchool, "High school", 3, 2, Category.Public, Zone.None, 1100000, 380, "Ages 12 to 18. Graduates qualify for most jobs and for college.");
