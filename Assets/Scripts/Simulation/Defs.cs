@@ -289,20 +289,20 @@ namespace RealLife.Simulation
 
             BuildingDef d;
             // ---------------------------------------------------------------- Residential
-            d = D(BuildingType.House, "House", 1, 1, Category.Residential, Zone.Residential, 95000, 55, "A family home. Sold to whoever can get a mortgage, or rented out.");
+            d = D(BuildingType.House, "House", 1, 1, Category.Residential, Zone.Residential, 135000, 24, "A family home. Sold to whoever can get a mortgage, or rented out.");
             d.Homes = 1; d.Rent = 1650; d.Value = 230000; d.Floors = 2;
-            d = D(BuildingType.Apartments, "Apartment block", 2, 2, Category.Residential, Zone.Residential, 820000, 420, "Twelve flats owned by a landlord who sets the rent.");
+            d = D(BuildingType.Apartments, "Apartment block", 2, 2, Category.Residential, Zone.Residential, 1106000, 200, "Twelve flats owned by a landlord who sets the rent.");
             d.Homes = 12; d.Rent = 1150; d.Value = 1900000; d.Floors = 5;
 
             // ---------------------------------------------------------------- Commercial
-            d = D(BuildingType.GroceryStore, "Grocery store", 2, 2, Category.Commercial, Zone.Commercial, 260000, 120, "Buys groceries from food plants (or imports them) and sells them to families.");
-            d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 4, Role.StockClerk, 2); d.Sells = Good.Groceries; d.StockCap = 900; d.Output = 70; d.MinPop = 0; d.Value = 480000;
+            d = D(BuildingType.GroceryStore, "Grocery store", 2, 2, Category.Commercial, Zone.Commercial, 100000, 120, "Buys groceries from food plants (or imports them) and sells them to families.");
+            d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 4, Role.StockClerk, 2); d.Sells = Good.Groceries; d.StockCap = 900; d.Output = 70; d.MinPop = 0; d.Value = 300000;
             d = D(BuildingType.Restaurant, "Restaurant", 2, 1, Category.Commercial, Zone.Commercial, 150000, 70, "Cooks and waiters serve meals. Uses groceries.");
-            d.Jobs = J(Role.Chef, 1, Role.Cook, 2, Role.Waiter, 3); d.Serves = Service.Meals; d.ServicePrice = 25; d.Output = 50; d.Input = Good.Groceries; d.InputPer = 0.13f; d.StockCap = 80; d.MinPop = 0; d.Value = 300000;
+            d.Jobs = J(Role.Chef, 1, Role.Cook, 2, Role.Waiter, 3); d.Serves = Service.Meals; d.ServicePrice = 25; d.Output = 80; d.Input = Good.Groceries; d.InputPer = 0.13f; d.StockCap = 80; d.MinPop = 0; d.Value = 300000;
             d = D(BuildingType.Cafe, "Café", 1, 1, Category.Commercial, Zone.Commercial, 70000, 35, "Coffee and pastries.");
-            d.Jobs = J(Role.Barista, 3); d.Serves = Service.Coffee; d.ServicePrice = 6; d.Output = 150; d.Input = Good.Groceries; d.InputPer = 0.02f; d.StockCap = 30; d.MinPop = 120; d.Value = 160000; d.Floors = 2;
+            d.Jobs = J(Role.Barista, 3); d.Serves = Service.Coffee; d.ServicePrice = 6; d.Output = 220; d.Input = Good.Groceries; d.InputPer = 0.02f; d.StockCap = 30; d.MinPop = 120; d.Value = 160000; d.Floors = 2;
             d = D(BuildingType.Bar, "Bar", 1, 1, Category.Commercial, Zone.Commercial, 75000, 35, "Where people go after work.");
-            d.Jobs = J(Role.Bartender, 3); d.Serves = Service.Drinks; d.ServicePrice = 16; d.Output = 60; d.Input = Good.Groceries; d.InputPer = 0.06f; d.StockCap = 30; d.MinPop = 100; d.Value = 170000; d.Floors = 2;
+            d.Jobs = J(Role.Bartender, 3); d.Serves = Service.Drinks; d.ServicePrice = 16; d.Output = 90; d.Input = Good.Groceries; d.InputPer = 0.06f; d.StockCap = 30; d.MinPop = 100; d.Value = 170000; d.Floors = 2;
             d = D(BuildingType.ClothingStore, "Clothing store", 1, 1, Category.Commercial, Zone.Commercial, 80000, 40, "Clothes wear out; people come here to replace them.");
             d.Jobs = J(Role.SalesClerk, 3); d.Sells = Good.Clothes; d.StockCap = 400; d.Output = 60; d.MinPop = 90; d.Value = 180000; d.Floors = 2;
             d = D(BuildingType.ElectronicsStore, "Electronics store", 1, 1, Category.Commercial, Zone.Commercial, 90000, 40, "Phones, TVs and laptops.");
@@ -338,7 +338,7 @@ namespace RealLife.Simulation
             d = D(BuildingType.Construction, "Construction company", 2, 2, Category.Industrial, Zone.Industrial, 220000, 90, "Builds everything in town. Without one, contractors come from outside and charge more.");
             d.Jobs = J(Role.SiteManager, 1, Role.Electrician, 2, Role.Plumber, 2, Role.ConstructionWorker, 7); d.Value = 450000;
             d = D(BuildingType.Trucking, "Trucking depot", 2, 2, Category.Industrial, Zone.Industrial, 250000, 100, "Moves goods between businesses and to the highway. Without one, outside haulers charge more.");
-            d.Jobs = J(Role.WarehouseWorker, 2, Role.TruckDriver, 5); d.Value = 480000; d.MinPop = 160;
+            d.Jobs = J(Role.WarehouseWorker, 2, Role.TruckDriver, 5); d.Value = 480000; d.MinPop = 300;
 
             // ---------------------------------------------------------------- Public
             d = D(BuildingType.TownHall, "Town hall", 2, 2, Category.Public, Zone.None, 600000, 220, "Runs the town's books. One per town; the town grows out from it.");

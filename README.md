@@ -56,8 +56,9 @@ earns about $2,350 a month, a teacher $4,600, a software developer $8,000, a doc
 ## Starting a town
 
 You start with $5M, the highway and nothing else. Run streets off the end of the highway and zone land beside them for homes:
-families start moving in straight away, driving to jobs in the towns around (up to 30 + a quarter of your population can
-commute). Until there's a property firm, the bank puts up houses for them. As people arrive, families here open the shops,
+families start moving in straight away, driving to jobs in the towns around (up to 40 + a third of your population can
+commute). Houses go up in about a month; until a property firm can take them on, the bank builds them. Expect roughly 60-90
+people after the first year, 250-300 after three and over a thousand after ten, if you keep zoning. As people arrive, families here open the shops,
 a builder, a property firm, offices and plants on the land you've zoned for them, and someone with savings moves in to start
 what the town needs if nobody here can. Commuters take a job in town as soon as one pays about as well, so local jobs grow
 the town further than commuting alone. Build the town hall where you want the middle of town to be: shops and offices gather
@@ -81,7 +82,8 @@ of their parents' place; singles pair up and move in together; couples have chil
 furniture) when that's cheaper than importing it, and sell to households with sales tax on top. Restaurants, cafés, bars,
 gyms, salons and garages sell services. Farms grow crops for the food plant on Farmland you zone (well away from the
 factories, if you like); factories export what the town can't buy at world prices. Offices bill clients outside town and are the best-paid jobs, if the town has the graduates to staff them.
-Construction companies build everything and do repair work; trucking depots haul goods (without one, outside hauliers charge
+Construction companies build everything and do repair work (when the ones here are booked up for months, contractors from
+out of town take the overflow at a higher price, which is what brings another builder to town); trucking depots haul goods (without one, outside hauliers charge
 more). The bank lends for homes, cars, college and businesses. Every month each business pays wages, utilities, upkeep and
 taxes, its owner takes what's above a cushion, and it decides how many staff it needs and what to charge: prices rise when it
 turns customers away and fall when stock piles up; wages rise when it can't hire. Every business belongs to a family in town:

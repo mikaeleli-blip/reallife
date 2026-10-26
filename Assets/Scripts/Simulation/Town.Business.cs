@@ -26,18 +26,26 @@ namespace RealLife.Simulation
         /// <summary>Customers (or units) the staff in today can handle.</summary>
         public float Capacity(Building b) { return PresentStaff(b) * b.Def.Output; }
 
-        public double MonthlyCosts(Building b)
+        public double MonthlyCosts(Building b) { return PayAndBills(b) + SuppliesPerMonth(b); }
+
+        /// <summary>A month's wages (or, before anyone's hired, the crew it's planning on) and utilities.</summary>
+        double PayAndBills(Building b)
         {
             var d = b.Def; double w = 0;
             foreach (var j in d.Jobs) w += OfferWage(b, j.Role) * DesiredStaff(b, j);
             if (b.Employees.Count > 0) { w = 0; foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null) w += c.Wage; } }
-            // before anyone's hired, the crew it's planning on
+            return w + d.TotalJobs * Balance.UtilitiesJob;
+        }
+
+        /// <summary>What it buys in a month working flat out: stock for a shop, materials for a plant.</summary>
+        double SuppliesPerMonth(Building b)
+        {
+            var d = b.Def;
             int staff = b.Employees.Count; if (staff == 0) foreach (var j in d.Jobs) staff += DesiredStaff(b, j);
             staff = Math.Max(1, staff);
-            double supplies = 0;
-            if (d.Input.HasValue) supplies = d.Output * d.InputPer * staff * Balance.DaysPerMonth * ImportPrice(d.Input.Value) * 0.8;
-            if (d.Sells.HasValue) supplies = d.Output * staff * Balance.DaysPerMonth * Defs.Wholesale[(int)d.Sells.Value] * 0.45;
-            return w + supplies + d.TotalJobs * Balance.UtilitiesJob;
+            if (d.Input.HasValue) return d.Output * d.InputPer * staff * Balance.DaysPerMonth * ImportPrice(d.Input.Value) * 0.8;
+            if (d.Sells.HasValue) return d.Output * staff * Balance.DaysPerMonth * Defs.Wholesale[(int)d.Sells.Value] * 0.45;
+            return 0;
         }
 
         void BusinessPays(Building b, double v, ref double line) { b.Cash -= v; line += v; }
@@ -152,6 +160,15 @@ namespace RealLife.Simulation
             }
         }
 
+        /// <summary>What a business can spend on stock: a shop keeps back this month's pay and loan payments (a plant buys what
+        /// it needs to keep working, and borrows for payroll if it must).</summary>
+        double Spendable(Building b)
+        {
+            if (!b.Def.Sells.HasValue) return Math.Max(0, b.Cash);
+            double pay = 0; foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null) pay += c.Wage; }
+            return Math.Max(0, b.Cash - pay * 0.5 - LoanPayments(b));
+        }
+
         /// <summary>Buys stock from the cheapest makers in town that have it, importing the rest if that's cheaper or nobody local has it.</summary>
         float Buy(Building buyer, Good g, float qty)
         {
@@ -163,7 +180,7 @@ namespace RealLife.Simulation
                 if (got >= qty - 0.01f) break;
                 if (s.Price * (1 + Balance.FreightLocal) > imp) break;
                 float q = Math.Min(qty - got, s.Stock[(int)g]);
-                double afford = Math.Max(0, buyer.Cash) / (s.Price * (1 + Balance.FreightOutside));
+                double afford = Spendable(buyer) / (s.Price * (1 + Balance.FreightOutside));
                 q = (float)Math.Min(q, afford);
                 if (g == Good.Cars) q = (float)Math.Floor(q);
                 if (q <= 0.01f) break;
@@ -178,7 +195,7 @@ namespace RealLife.Simulation
             {
                 double price = ImportPrice(g);
                 float q = qty - got;
-                double afford = Math.Max(0, buyer.Cash) / (price * (1 + Balance.FreightOutside));
+                double afford = Spendable(buyer) / (price * (1 + Balance.FreightOutside));
                 q = (float)Math.Min(q, afford);
                 if (g == Good.Cars) q = (float)Math.Floor(q);
                 if (q > 0.01f)
@@ -409,6 +426,8 @@ namespace RealLife.Simulation
                 // turning customers away: more hands, if there's money to pay them and, for a service, enough custom turned away
                 // to cover another wage
                 bool worthIt = d.Serves == Service.None || b.LastLost * b.Price > LeastWage(b) * 0.8;
+                // a shop turning people away with empty shelves needs stock, not staff
+                if (d.Sells.HasValue && b.LastUse < 0.75f) worthIt = false;
                 if (lostShare > 0.08f && worthIt && (b.LossMonths == 0 || (lostShare > 0.2f && b.Cash > MonthlyCosts(b)))) s += 0.17f;
                 else if (b.LastUse < 0.45f || b.LossMonths >= 2) s -= 0.12f;
             }

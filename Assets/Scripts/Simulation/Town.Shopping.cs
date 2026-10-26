@@ -165,7 +165,7 @@ namespace RealLife.Simulation
                         double unit = Defs.Retail[(int)g] * 1.12 * PriceDrift[(int)g];
                         float q = (float)Math.Min(qty - got, Math.Max(0, h.Cash - 100) / unit);
                         if (g == Good.Electronics || g == Good.Furniture || g == Good.Cars) q = (float)Math.Floor(q);
-                        if (q > 0.01f) { double v = q * unit; HouseholdPays(h, v, LineFor(g)); Trade.Imports += v; OutOfTown += v; got += q; h.Fuel -= 0.2f; }
+                        if (q > 0.01f) { double v = q * unit; HouseholdPays(h, v, LineFor(g)); Trade.Imports += v; OutOfTown += v; AwayMonth[(int)type] += v; got += q; h.Fuel -= 0.2f; }
                     }
                 }
             }
@@ -249,7 +249,7 @@ namespace RealLife.Simulation
             HouseholdPays(h, down, HouseholdBook.Transport);
             if (loan > 0) { NewLoan(LoanKind.Car, h, null, loan, Balance.CarRate, Balance.CarMonths); HouseholdEarns(h, loan, HouseholdBook.Loans); HouseholdPays(h, loan, HouseholdBook.Transport); }
             Treasury += tax; Book.SalesTax += tax;
-            if (outOfTown) { Trade.Imports += price; OutOfTown += price; }
+            if (outOfTown) { Trade.Imports += price; OutOfTown += price; AwayMonth[(int)BuildingType.CarDealer] += price; }
             else
             {
                 dealer.Cash += price; dealer.Revenue += price; dealer.Customers++; dealer.Sold += 1; dealer.CapUsed += 1;
@@ -287,7 +287,7 @@ namespace RealLife.Simulation
             Wants[(int)BuildingType.AutoRepair] += routine ? 0.3f : 1;
             if (routine) return;
             // tow it to the next town
-            if (Chance(0.5f) && h.Cash > 700) { HouseholdPays(h, 560, HouseholdBook.Transport); Trade.Imports += 560; OutOfTown += 560; h.CarBroken = false; h.CarWear = Math.Min(1, h.CarWear + 0.18f); }
+            if (Chance(0.5f) && h.Cash > 700) { HouseholdPays(h, 560, HouseholdBook.Transport); Trade.Imports += 560; OutOfTown += 560; AwayMonth[(int)BuildingType.AutoRepair] += 560; h.CarBroken = false; h.CarWear = Math.Min(1, h.CarWear + 0.18f); }
         }
 
         // ================================================================== the month's spending money

@@ -43,6 +43,8 @@ namespace RealLife.Simulation
         public float[] Wants;                // by building type: demand nobody in town could meet this month
         public float[] LastWants;
         public float[] WantAvg;              // by building type: unmet demand, averaged over the last few months
+        public float[] SpendAway;            // by store type: what people here spend out of town for want of one, averaged
+        [NonSerialized] public double[] AwayMonth;
         public int[] EntryMonths;            // by building type: months in a row a new one would have paid its way
         public int[] LastFailDay;            // by building type: when one last went under
         public int[] PrevFailDay;            // ...and the time before that
@@ -115,6 +117,8 @@ namespace RealLife.Simulation
             if (Wants == null || Wants.Length != nt) Wants = new float[nt];
             if (LastWants == null || LastWants.Length != nt) LastWants = new float[nt];
             if (WantAvg == null || WantAvg.Length != nt) WantAvg = new float[nt];
+            if (SpendAway == null || SpendAway.Length != nt) SpendAway = new float[nt];
+            if (AwayMonth == null || AwayMonth.Length != nt) AwayMonth = new double[nt];
             if (EntryMonths == null || EntryMonths.Length != nt) EntryMonths = new int[nt];
             if (LastFailDay == null || LastFailDay.Length != nt) { LastFailDay = new int[nt]; for (int i = 0; i < nt; i++) LastFailDay[i] = -9999; }
             if (PrevFailDay == null || PrevFailDay.Length != nt) { PrevFailDay = new int[nt]; for (int i = 0; i < nt; i++) PrevFailDay[i] = -9999; }

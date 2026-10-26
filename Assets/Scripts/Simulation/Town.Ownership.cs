@@ -95,6 +95,8 @@ namespace RealLife.Simulation
         {
             double v = b.Value;
             if (b.Type == BuildingType.Realty) foreach (var o in Portfolio(b)) v += o.Value;
+            // and what's on the shelves or in the yard
+            if (b.Stock != null) for (int g = 0; g < b.Stock.Length; g++) v += b.Stock[g] * Defs.Wholesale[g];
             return v;
         }
 
@@ -169,7 +171,7 @@ namespace RealLife.Simulation
             double has = Math.Max(0, firm.Cash - reserve) + (family != null ? Math.Max(0, family.Cash - 20000) : 0);
             if (has < equity) return false;
             if (Debt(firm) + cost > Collateral(firm) * 0.8 + cost * 0.9) return false;
-            if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 3 + Portfolio(firm).Count() / 12;
+            if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 4 + Portfolio(firm).Count() / 8;
             double rentIn = 0; foreach (var b in Portfolio(firm)) if (b.Built) rentIn += b.Rent * b.Households.Count;
             double newRent = d.Homes * d.Rent * HousingIndex * 0.9;
             double pay = Annuity(cost - equity, Balance.PropertyRate, Balance.PropertyMonths);

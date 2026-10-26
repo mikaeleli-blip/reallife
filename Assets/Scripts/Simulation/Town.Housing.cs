@@ -169,9 +169,11 @@ namespace RealLife.Simulation
         {
             float vacancy = TotalUnits() > 0 ? VacantUnits() / (float)TotalUnits() : 0;
             int forSale = Buildings.Count(b => b.ForSale && b.Households.Count == 0);
-            if (vacancy < 0.03f && forSale < 2) HousingIndex *= 1.012f;
-            else if (vacancy < 0.06f) HousingIndex *= 1.004f;
-            else if (vacancy > 0.12f || forSale > 5) HousingIndex *= 0.99f;
+            if (vacancy < 0.03f && forSale < 2) HousingIndex *= 1.01f;
+            else if (vacancy < 0.06f) HousingIndex *= 1.002f;
+            else if (vacancy > 0.09f || forSale > 4) HousingIndex *= 0.99f;
+            // and prices are pulled back toward what a new house costs to build and sell: they don't ratchet up for ever
+            HousingIndex += (1 - HousingIndex) * 0.012f;
             HousingIndex = Math.Max(0.6f, Math.Min(2.5f, HousingIndex));
             foreach (var b in Buildings) if (b.Def.Homes > 0 && b.Built) b.Value = Math.Round(b.Def.Value * HousingIndex * (0.92 + 0.16 * (b.Id % 7) / 6.0));
         }
@@ -309,10 +311,13 @@ namespace RealLife.Simulation
         {
             // a farm is lent against next season's harvest through the winter
             // and a builder or property firm against the work it has on: their money comes in lumps
-            bool pipeline = (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale)) ||
+            // (or a new business in its first half year, still stocking up and finding its customers)
+            bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale)) ||
                             (b.Type == BuildingType.Construction && Buildings.Any(o => !o.Built && o.ContractorId == b.Id));
             if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
-            if (Debt(b) + amount > Collateral(b) * 0.8) return false;
+            // a new business gets the benefit of the doubt in its first year: lent up to what it's worth
+            bool young = Day - b.BuiltDay < Balance.DaysPerYear;
+            if (Debt(b) + amount > Collateral(b) * (young ? 1.0 : 0.8)) return false;
             NewLoan(LoanKind.Business, b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null, b, amount, Balance.BusinessRate, Balance.BusinessMonths);
             b.Cash += amount;
             return true;

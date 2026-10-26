@@ -12,7 +12,7 @@ namespace RealLife.Simulation
     public partial class Town
     {
         /// <summary>How many people here the jobs around can take: the region only has so much work for one small town.</summary>
-        public int CommuteCap() { return 30 + Population / 4; }
+        public int CommuteCap() { return 40 + Population / 3; }
 
         public int Commuters() { var t = Terminal; return t != null ? t.Employees.Count : 0; }
 
@@ -95,9 +95,9 @@ namespace RealLife.Simulation
             int looking = People.Count(c => c.InLaborForce && c.WorkId < 0);
             int room = CommuteCap() - Commuters() - looking;
             if (room < 2) return;
-            int n = Math.Min(Math.Min(room / 2, 4 + Population / 40), 8);
+            int n = Math.Min(Math.Min(room / 2, 5 + Population / 30), 10);
             // dear housing puts people off moving here
-            n = (int)Math.Round(n * Math.Max(0, Math.Min(1, (1.6 - HousingIndex) / 0.5)));
+            n = (int)Math.Round(n * Math.Max(0, Math.Min(1, (2.1 - HousingIndex) / 0.8)));
             var market = Buildings.Where(b => b.ForSale && b.Built && b.Households.Count == 0 && Connected(b)).OrderBy(b => b.Value).ToList();
             for (int i = 0; i < n; i++)
             {
@@ -148,22 +148,29 @@ namespace RealLife.Simulation
                     " building " + Buildings.Count(b => !b.Built && b.Def.Homes > 0) + " idx " + HousingIndex.ToString("0.00"));
         }
 
-        /// <summary>With nobody in town building homes yet, the bank puts up houses for the families who want to move here and
-        /// sells them on; unsold, it lets them.</summary>
+        /// <summary>Houses for the families who want to move here: built by a property firm in town if one can take them on,
+        /// otherwise by the bank, which sells them on (unsold, it lets them).</summary>
         void HousesForSettlers(ref int building, int buildCap)
         {
             if (SettlersShort <= 0) return;
-            int going = Buildings.Count(b => !b.Built && b.Type == BuildingType.House && BankHeld(b));
-            int cap = 5 + Population / 10;
+            int going = Buildings.Count(b => !b.Built && b.Type == BuildingType.House && b.ForSale);
+            int cap = 8 + Population / 8;
             for (int i = 0; i < SettlersShort && going < cap && building < buildCap; i++)
             {
-                int x, y;
-                if (!FindLot(BuildingType.House, out x, out y)) { LotShort[(int)Zone.Residential] = true; break; }
-                var b = AddBuilding(BuildingType.House, x, y, FindFacing(x, y, 1, 1), false);
-                BankTakes(b);
-                b.ForSale = true;
-                StartConstruction(b, null);
-                WorkStarted += b.Def.Work;
+                var firm = HousingFirm(BuildingType.House);
+                Building b;
+                if (firm != null) b = Develop(BuildingType.House, null, firm);
+                else
+                {
+                    int x, y;
+                    if (!FindLot(BuildingType.House, out x, out y)) { LotShort[(int)Zone.Residential] = true; break; }
+                    b = AddBuilding(BuildingType.House, x, y, FindFacing(x, y, 1, 1), false);
+                    BankTakes(b);
+                    b.ForSale = true;
+                    StartConstruction(b, null);
+                    WorkStarted += b.Def.Work;
+                }
+                if (b == null) break;
                 going++; building++;
             }
         }

@@ -11,7 +11,15 @@ static class Program
         bool verbose = args.Length > 2 && args[2] == "v";
         string watch = args.Length > 3 ? args[3] : null;
         string mode = args.Length > 4 ? args[4] : "";
-        var t = mode == "blank" ? Town.CreateNew(seed) : Town.CreateDeveloped(seed);
+        Town t;
+        if (mode.StartsWith("load:"))
+        {
+            // a save from the game: JsonUtility writes public fields
+            var opts = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+            t = System.Text.Json.JsonSerializer.Deserialize<Town>(System.IO.File.ReadAllText(mode.Substring(5)), opts);
+            t.Index(); t.Migrate();
+        }
+        else t = mode == "blank" ? Town.CreateNew(seed) : Town.CreateDeveloped(seed);
         var bot = mode == "blank" ? new Bot(t) : null;
         if (Environment.GetEnvironmentVariable("DEVNOTES") == "1") t.DevNotes = new System.Collections.Generic.List<string>();
         Console.WriteLine($"{t.Name}: pop {t.Population}, households {t.Households.Count}, buildings {t.Buildings.Count}, jobs {t.JobSlots()}, employed {t.Employed()}, unemployed {t.Unemployed()}");
@@ -53,7 +61,7 @@ static class Program
             if (bot != null && m % 12 == 11) Console.WriteLine("      commuters " + t.Commuters() + "/" + t.CommuteCap() + " pay in " + Town.Money(t.LastTrade.Commuting) + "  advice: " + string.Join(" | ", t.Advice()));
             if (t.DevNotes != null) { if (t.DevNotes.Count > 0) Console.WriteLine("      dev: " + string.Join(" | ", t.DevNotes)); t.DevNotes.Clear(); }
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);
-            if (watch != null) foreach (var b in t.Buildings.Where(b => b.Type.ToString() == watch)) Console.WriteLine($"      [{b.Type} {b.Id}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00}");
+            if (watch != null) foreach (var b in t.Buildings.Where(b => b.Type.ToString() == watch)) Console.WriteLine($"      [{b.Type} {b.Id}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00} debt {Town.Money(t.Debt(b))} coll {Town.Money(t.Collateral(b))} pay {Town.Money(t.LoanPayments(b))} loss {b.LossMonths}");
         }
         Console.WriteLine();
         Console.WriteLine("Businesses:");

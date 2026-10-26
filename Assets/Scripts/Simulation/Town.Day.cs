@@ -60,6 +60,7 @@ namespace RealLife.Simulation
             Array.Clear(ExportsByGood, 0, ExportsByGood.Length);
             LastFreightOutside = FreightOutsideMonth;
             for (int i = 0; i < Wants.Length; i++) { LastWants[i] = Wants[i]; Wants[i] = 0; }
+            for (int i = 0; i < SpendAway.Length; i++) { SpendAway[i] = SpendAway[i] * 0.6f + (float)AwayMonth[i] * 0.4f; AwayMonth[i] = 0; }
             LastBirths = BirthsMonth; LastDeaths = DeathsMonth; LastArrivals = ArrivalsMonth; LastLeft = LeftMonth;
             BirthsMonth = DeathsMonth = ArrivalsMonth = LeftMonth = 0;
             LastUntreated = UntreatedMonth; UntreatedMonth = 0;

@@ -123,15 +123,17 @@ namespace RealLife.Simulation
             var d = b.Def;
             b.Built = false; b.Progress = 0; b.Started = false;
             b.ContractLeft = d.StartupCost;
-            // the local builder with the least on its books
+            // the local builder with the least on its books; when they're all booked up for months, contractors from
+            // outside take it on (and charge more), which is what brings another builder to town
             Building best = null; float least = float.MaxValue;
             foreach (var c in Buildings)
             {
                 if (c.Type != BuildingType.Construction || !c.Open || !Connected(c)) continue;
                 float backlog = 0; foreach (var o in Buildings) if (!o.Built && o.ContractorId == c.Id) backlog += o.Def.Work - o.Progress;
-                backlog /= Math.Max(1, c.Employees.Count);
-                if (backlog < least) { least = backlog; best = c; }
+                float months = backlog / (Math.Max(4, c.Employees.Count) * Balance.DaysPerMonth);
+                if (months < least) { least = months; best = c; }
             }
+            if (best != null && least > 3 && b.Owner != Owner.Town) best = null;
             b.ContractorId = best != null ? best.Id : -1;
             // the builder prices the labour at what it's paying for it; outside contractors charge more
             if (best != null) b.ContractLeft = d.Materials + (d.StartupCost - d.Materials) * Math.Max(1, best.WageMult);
@@ -189,7 +191,7 @@ namespace RealLife.Simulation
                     labour[con.Id] = avail - work;
                     con.CapUsed += work;
                 }
-                else work = Math.Min(d.Work - b.Progress, 4f);
+                else work = Math.Min(d.Work - b.Progress, 6f);
                 float before = b.Progress;
                 b.Progress += work;
                 double pay = d.Work > 0 ? b.ContractLeft * (work / Math.Max(0.01f, d.Work - before)) : b.ContractLeft;
@@ -223,12 +225,15 @@ namespace RealLife.Simulation
         void OpenBusiness(Building b)
         {
             var d = b.Def;
-            b.Closed = false; b.ClosedDays = 0; b.Staffing = d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
+            // a builder starts with a small crew and takes on hands as work comes in
+            b.Closed = false; b.ClosedDays = 0; b.Staffing = b.Type == BuildingType.Construction ? 0.3f : d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
             if (d.Sells.HasValue) b.Price = Defs.Retail[(int)d.Sells.Value];
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
             // enough to see it through to the first sales: longer for a property firm waiting on its first houses
-            double working = MonthlyCosts(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5);
+            // and its first stock: a shop's shelves, or a month of a plant's materials
+            double stock = d.Sells.HasValue ? d.StockCap * Defs.Wholesale[(int)d.Sells.Value] * 0.4 : SuppliesPerMonth(b);
+            double working = PayAndBills(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5) + stock;
             if (b.Owner == Owner.Household)
             {
                 var h = GetHousehold(b.OwnerId);
@@ -443,7 +448,7 @@ namespace RealLife.Simulation
             for (int i = 0; i < WantAvg.Length; i++) WantAvg[i] = WantAvg[i] * 0.55f + LastWants[i] * 0.45f;
             int pop = Population;
             int building = Buildings.Count(b => !b.Built && b.Owner != Owner.Town);   // public works don't hold up private building
-            int buildCap = 6 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 5;
+            int buildCap = 8 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 6;
             // ---------------------------------------------------------------- homes, built by the property firms
             int free = VacantUnits() + Buildings.Count(b => b.ForSale && b.Households.Count == 0);
             int coming = Buildings.Where(b => !b.Built && b.Def.Homes > 0).Sum(b => b.Def.Homes);
@@ -473,7 +478,7 @@ namespace RealLife.Simulation
                 gap -= b.Def.Homes; building++;
             }
             // nobody here building homes yet: houses for the families who want to move in
-            if (HousingFirm(BuildingType.House) == null) HousesForSettlers(ref building, buildCap);
+            HousesForSettlers(ref building, buildCap);
             // another property firm when the ones here can't keep up and are doing well
             var firms = PropertyFirms();
             bool stretched = firms.Count > 0 && gap > 4 && HasLot(BuildingType.House) && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
@@ -497,9 +502,18 @@ namespace RealLife.Simulation
                 if (t == BuildingType.Bank) caseHolds = open.Count == 0;
                 else if (open.Count == 0)
                 {
-                    // nobody sells it here: is there enough custom going out of town to keep one going?
-                    double rev = WantAvg[(int)t] * SpendPerWant(t);
-                    caseHolds = PaysItsWay(t, rev);
+                    // nobody sells it here: is there enough custom going out of town to keep one going? For goods and repairs
+                    // that's what people actually spend elsewhere (most of which a shop here would win); for the rest, the
+                    // visits people wanted to make
+                    bool goods = Defs.Get(t).Sells.HasValue || t == BuildingType.AutoRepair;
+                    // (some of those who can't buy something here go without, and would buy if it were sold here; but
+                    // groceries and fuel they always fetch, and some would carry on shopping where they do)
+                    double away = SpendAway[(int)t] * (t == BuildingType.GroceryStore || t == BuildingType.GasStation ? 0.85 : 1.0);
+                    double rev = goods ? away : WantAvg[(int)t] * SpendPerWant(t);
+                    // thin retail margins need a clearer case, except for the everyday things people buy every week
+                    bool everyday = t == BuildingType.GroceryStore || t == BuildingType.GasStation;
+                    caseHolds = PaysItsWay(t, rev, everyday ? 1.0 : goods ? 1.25 : 1.08);
+                    if (caseHolds) DevNote(t + " est rev " + Money(rev) + " margin " + Margin(t).ToString("0.00") + " cost " + Money(RunningCost(t, rev)));
                     strong = PaysItsWay(t, rev, 1.8);
                 }
                 else
@@ -550,7 +564,7 @@ namespace RealLife.Simulation
                 bool strong = looking.Count >= 20 + pop / 20;
                 // and any kind whose plants here are already struggling, short-handed or only scraping by
                 kinds.RemoveAll(k => Cooling(k, strong) || !PlantPays(k) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 2 + pop / 200 ||
-                                     looking.Count < Defs.Get(k).TotalJobs || pop < 60 ||
+                                     looking.Count < Defs.Get(k).TotalJobs || pop < 150 ||
                                      Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04)));
                 // something the town doesn't make yet before more of the same
                 if (kinds.Any(k => !Buildings.Any(b => b.Type == k && (b.Open || !b.Built))))
@@ -594,13 +608,16 @@ namespace RealLife.Simulation
             WorkRate = WorkRate * 0.85f + WorkStarted * 0.15f; WorkStarted = 0;
             float backlog = Buildings.Where(b => !b.Built && b.Owner != Owner.Town).Sum(b => b.Def.Work - b.Progress);
             bool builderCase;
-            if (builders.Count == 0) builderCase = !builderPending && (backlog > 0 || pop >= 120);
+            // the first builder once there's steady work to keep a crew going
+            if (builders.Count == 0) builderCase = !builderPending && ((WorkRate > 40 && pop >= 40) || pop >= 150);
             else
             {
                 float crews = builders.Sum(b => b.Def.TotalJobs) * Balance.DaysPerMonth;
-                builderCase = !builderPending && WorkRate > crews * 1.2f && backlog > crews * 6 && builders.All(b => b.Staffing >= 0.95f && b.LastProfit > 0 && b.LossMonths == 0);
+                // more steady work than the builders here can do, for months, with work going to outside contractors
+                bool overflow = Buildings.Any(b => !b.Built && b.ContractorId < 0 && b.Owner != Owner.Town);
+                builderCase = !builderPending && WorkRate > crews && overflow && builders.All(b => b.Staffing >= 0.9f && b.LastProfit > 0);
             }
-            if (ReadyToOpen(BuildingType.Construction, builderCase, builders.Count == 0 ? 1 : 4, builders.Count == 0))
+            if (ReadyToOpen(BuildingType.Construction, builderCase, builders.Count == 0 ? 1 : 3, builders.Count == 0))
             {
                 var founder = Founder(BuildingType.Construction);
                 if (founder == null) NoInvestor = BuildingType.Construction;
