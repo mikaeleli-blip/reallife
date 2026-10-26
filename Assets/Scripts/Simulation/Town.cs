@@ -12,7 +12,7 @@ namespace RealLife.Simulation
     [Serializable]
     public partial class Town
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
         public const int StartYear = 2025;
 
         public int SaveVersion = CurrentVersion;
@@ -110,6 +110,7 @@ namespace RealLife.Simulation
             foreach (var h in Households) householdsById[h.Id] = h;
             buildingsById = new Dictionary<int, Building>();
             foreach (var b in Buildings) buildingsById[b.Id] = b;
+            IndexCars();
             buildingAt = new int[Cols * Rows];
             foreach (var b in Buildings) Stamp(b, b.Id);
             if (PriceDrift == null || PriceDrift.Length != Defs.GoodCount) { PriceDrift = new float[Defs.GoodCount]; for (int i = 0; i < PriceDrift.Length; i++) PriceDrift[i] = 1f; }

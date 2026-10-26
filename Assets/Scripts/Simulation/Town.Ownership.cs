@@ -109,6 +109,7 @@ namespace RealLife.Simulation
                 foreach (var o in Portfolio(b)) c += o.Value * (Policy.PropertyTax + Balance.Maintenance) / 12 * 2;
                 c += Defs.Get(BuildingType.Apartments).StartupCost * 0.12;   // put by toward the next block
             }
+            if (b.Type == BuildingType.CarDealer) c += Balance.CarPrice * 0.9 * 2;   // to order in the next cars
             return c;
         }
 
@@ -336,6 +337,7 @@ namespace RealLife.Simulation
         public void Migrate()
         {
             if (SaveVersion >= CurrentVersion) return;
+            if (SaveVersion >= 2) { MigrateCars(); SaveVersion = CurrentVersion; return; }
             foreach (var b in Buildings)
                 if (b.Type == BuildingType.Farm)
                     for (int y = b.Y; y < b.Y + b.Def.H; y++) for (int x = b.X; x < b.X + b.Def.W; x++) SetZoneBits(x, y, Zone.Farmland);
@@ -385,6 +387,7 @@ namespace RealLife.Simulation
                 FamilyOwns(b, owner);
                 b.Brand = Branded(b.Type) ? brand : null;
             }
+            MigrateCars();
             SaveVersion = CurrentVersion;
             MapVersion++;
         }

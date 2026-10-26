@@ -79,6 +79,9 @@ namespace RealLife.Game
             var agents = GetComponent<Agents>();
             if (agents == null) agents = gameObject.AddComponent<Agents>();
             agents.Bind(t, this);
+            var parking = GetComponent<Parking>();
+            if (parking == null) parking = gameObject.AddComponent<Parking>();
+            parking.Bind(t, agents);
         }
 
         public void SetZoneEmphasis(bool on) { zoneStrong = on; }

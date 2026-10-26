@@ -135,7 +135,7 @@ namespace RealLife.Simulation
             {
                 g = d.Sells.Value;
                 float s = b.Stock[(int)g];
-                if (g == Good.Cars) { if (s < 5) qty = 10 - s; }
+                if (g == Good.Cars) return false;   // dealers order cars themselves (DealersDaily)
                 else if (s < d.StockCap * 0.5f) qty = d.StockCap * 0.85f - s;
             }
             else if (d.Input.HasValue)
@@ -425,7 +425,7 @@ namespace RealLife.Simulation
             {
                 // turning customers away: more hands, if there's money to pay them and, for a service, enough custom turned away
                 // to cover another wage
-                bool worthIt = d.Serves == Service.None || b.LastLost * b.Price > LeastWage(b) * 0.8;
+                bool worthIt = d.Serves == Service.None || b.LastLost * b.Price * TicketSize(b.Type) > LeastWage(b) * 0.8;
                 // a shop turning people away with empty shelves needs stock, not staff
                 if (d.Sells.HasValue && b.LastUse < 0.75f) worthIt = false;
                 if (lostShare > 0.08f && worthIt && (b.LossMonths == 0 || (lostShare > 0.2f && b.Cash > MonthlyCosts(b)))) s += 0.17f;
@@ -441,6 +441,17 @@ namespace RealLife.Simulation
             float step = Balance.PriceStep;
             double baseP, floor;
             float lostShare = b.LastLost / (float)Math.Max(1, b.LastCustomers + b.LastLost);
+            if (b.Type == BuildingType.CarDealer)
+            {
+                // about list price: up when customers are turned away or it's selling well, down when nobody's buying. A full
+                // lot isn't a glut: it's what a dealer is for
+                baseP = Defs.Retail[(int)Good.Cars];
+                if (lostShare > 0.1f || b.LastCustomers >= 6) b.Price *= 1 + step * 0.5f;
+                else if (b.LastCustomers <= 1) b.Price *= 1 - step * 0.5f;
+                else if (b.LossMonths >= 2) b.Price *= 1 + step * 0.5f;
+                b.Price = Math.Round(Math.Max(baseP * 0.98, Math.Min(baseP * 1.12, b.Price)), 2);
+                return;
+            }
             if (d.Sells.HasValue)
             {
                 var g = d.Sells.Value;

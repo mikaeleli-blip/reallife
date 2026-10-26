@@ -68,6 +68,7 @@ namespace RealLife.Simulation
             var home = GetBuilding(h.HomeId);
             MoveOut(h);
             if (heir != null) heir.Cash += h.Cash;
+            HandOverCars(h, heir);
             foreach (var b in Buildings)
             {
                 if (b.Owner != Owner.Household || b.OwnerId != h.Id) continue;
@@ -656,7 +657,9 @@ namespace RealLife.Simulation
             }
             foreach (var m in Members(h)) m.Experience = Math.Max(0, m.Age - 22) * 0.7f;
             h.Cash = 4000 + Rand() * 22000 + (edu >= Edu.Degree ? 12000 : 0);
-            h.Pantry = 2; h.Cars = Chance(0.75f) ? 1 : 0; h.Fuel = h.Cars; h.CarWear = 0.4f + Rand() * 0.5f;
+            h.Pantry = 2;
+            if (Chance(0.75f)) GiveCar(h, edu);
+            h.Fuel = CarCount(h);
             h.Clothes = 0.6f; h.Electronics = 0.5f; h.Furniture = 0.35f;
             return h;
         }

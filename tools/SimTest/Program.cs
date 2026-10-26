@@ -58,6 +58,18 @@ static class Program
             if (bot != null) bot.Month(m);
             for (int d = 0; d < Balance.DaysPerMonth; d++) t.Advance(1f);
             Row(t);
+            if (m % 12 == 11 || Environment.GetEnvironmentVariable("CARS") == "1")
+            {
+                var owned = t.Cars.Where(c => c.HouseholdId >= 0).ToList();
+                var garages = t.Buildings.Where(x => x.Type == BuildingType.AutoRepair && x.Open).ToList();
+                Console.WriteLine($"      cars {owned.Count} ({owned.Count / (float)Math.Max(1, t.Households.Count):0.00}/hh, none {t.Households.Count(h => t.CarCount(h) == 0)}) age {(owned.Count > 0 ? owned.Average(c => t.CarAge(c)) : 0):0.0} cond {(owned.Count > 0 ? owned.Average(c => c.Condition) : 0):0.00} broken {owned.Count(c => c.Broken)} inShop {owned.Count(c => c.ShopId >= 0)} away {owned.Count(c => c.ShopId == -2)} | garages {garages.Count} booked {string.Join(",", garages.Select(g => t.Cars.Where(c => c.ShopId == g.Id).Sum(c => c.JobHours).ToString("0")))}h | lots {string.Join(",", t.Buildings.Where(x => x.Type == BuildingType.CarDealer && x.Open).Select(d => t.LotOf(d).Count()))} | sold {t.LastCarsSold} scrapped {t.LastScrapped} repairsAway {t.LastRepairsAway}");
+                if (Environment.GetEnvironmentVariable("BROKEN") == "1")
+                    foreach (var c in owned.Where(c => c.Broken && c.ShopId == -1).Take(12))
+                    {
+                        var h = t.GetHousehold(c.HouseholdId);
+                        Console.WriteLine($"        broken car {c.Id} {c.Class} age {t.CarAge(c):0.0} value {Town.Money(t.CarValue(c))} hours {c.JobHours} parts {c.JobParts:0.0} | hh cash {Town.Money(h.Cash)} income {Town.Money(t.MonthlyIncome(h))} cars {t.CarCount(h)} members {h.Members.Count}");
+                    }
+            }
             if (bot != null && m % 12 == 11) Console.WriteLine("      commuters " + t.Commuters() + "/" + t.CommuteCap() + " pay in " + Town.Money(t.LastTrade.Commuting) + "  advice: " + string.Join(" | ", t.Advice()));
             if (t.DevNotes != null) { if (t.DevNotes.Count > 0) Console.WriteLine("      dev: " + string.Join(" | ", t.DevNotes)); t.DevNotes.Clear(); }
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);

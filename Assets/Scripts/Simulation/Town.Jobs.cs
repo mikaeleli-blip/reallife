@@ -98,7 +98,7 @@ namespace RealLife.Simulation
             return best;
         }
 
-        public bool HasCar(Citizen c) { var h = HouseholdOf(c); return h != null && h.Cars > 0 && !h.CarBroken; }
+        public bool HasCar(Citizen c) { var h = HouseholdOf(c); return h != null && HasUsableCar(h); }
 
         public bool BusServes(Building a)
         {

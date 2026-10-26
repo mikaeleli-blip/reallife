@@ -63,9 +63,10 @@ namespace RealLife.Simulation
         public float Pantry;              // groceries in the house, person-weeks
         public float Clothes = 0.8f;      // 0..1: how worn the family's clothes are (1 new)
         public float Electronics = 0.7f, Furniture = 0.7f;
-        public int Cars;
-        public float CarWear = 0.8f;      // 0..1 condition of the car
         public float Fuel;                // tanks
+        // from saves before cars were kept one by one (Town.Cars): read once and turned into cars
+        public int Cars;
+        public float CarWear = 0.8f;
         public bool CarBroken;
         public int MissedRent;
         public double FunMoney;           // left this month for going out and things they want rather than need

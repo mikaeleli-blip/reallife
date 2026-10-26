@@ -358,8 +358,7 @@ namespace RealLife.Simulation
                     case LoanKind.Mortgage: Foreclose(l); break;
                     case LoanKind.Car:
                         Loans.Remove(l);
-                        if (h != null && h.Cars > 0) { h.Cars--; AddLog("The bank repossessed the " + h.Name + " family's car.", LogKind.Bad); }
-                        BankCapital += l.Principal * 0.4;
+                        BankCapital += h != null ? Math.Min(l.Principal, Repossess(h)) : l.Principal * 0.4;
                         break;
                     case LoanKind.Business:
                         var asset = GetBuilding(l.BuildingId);

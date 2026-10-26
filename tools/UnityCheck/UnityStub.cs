@@ -185,7 +185,8 @@ namespace UnityEngine
         public GameObject(string n) { name = n; transform = new Transform(); transform.gameObject = this; }
         public T AddComponent<T>() where T : Component, new() { var c = new T(); c.gameObject = this; comps.Add(c); return c; }
         public T GetComponent<T>() where T : Component { foreach (var c in comps) if (c is T t) return t; return null; }
-        public void SetActive(bool b) { }
+        public bool activeSelf;
+        public void SetActive(bool b) { activeSelf = b; }
     }
     public enum CameraClearFlags { Skybox, SolidColor }
     public class Camera : Behaviour

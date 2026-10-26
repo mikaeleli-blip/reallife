@@ -161,7 +161,7 @@ namespace RealLife.Simulation
         // Prices: what households pay in a shop (Retail), what a maker gets selling to a shop in town (Wholesale),
         // what the outside world pays for exports (World) and charges for imports (Import).
         public static readonly double[] Retail    = { 0,  78,  68, 880, 690, 58,   0,    0, 29000 };
-        public static readonly double[] Wholesale = { 23, 56,  40, 640, 450, 46,  40, 1000, 25500 };
+        public static readonly double[] Wholesale = { 23, 56,  40, 640, 450, 46,  40, 1000, 24900 };
         public static readonly double[] World     = { 19, 50,  35, 600, 420, 42,  40, 1000, 25000 };
         public static readonly double[] Import    = { 27, 64,  46, 700, 500, 46,  42, 1050, 25500 };
         public static readonly string[] GoodNames = { "Crops", "Groceries", "Clothes", "Electronics", "Furniture", "Fuel", "Parts", "Materials", "Cars" };
@@ -311,10 +311,10 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.SalesClerk, 2, Role.StockClerk, 1); d.Sells = Good.Furniture; d.StockCap = 50; d.Output = 10; d.MinPop = 450; d.Value = 260000;
             d = D(BuildingType.GasStation, "Gas station", 2, 1, Category.Commercial, Zone.Commercial, 140000, 50, "Fuel for cars, trucks and farm machines.");
             d.Jobs = J(Role.Attendant, 3); d.Sells = Good.Fuel; d.StockCap = 700; d.Output = 120; d.MinPop = 0; d.Value = 300000;
-            d = D(BuildingType.CarDealer, "Car dealership", 2, 2, Category.Commercial, Zone.Commercial, 230000, 90, "Sells new cars, usually on a car loan.");
+            d = D(BuildingType.CarDealer, "Car dealership", 2, 2, Category.Commercial, Zone.Commercial, 230000, 90, "Sells new cars it orders in and used ones it takes in trade, usually on a car loan.");
             d.Jobs = J(Role.CarSales, 2, Role.Mechanic, 1); d.Sells = Good.Cars; d.StockCap = 12; d.Output = 2; d.MinPop = 450; d.Value = 520000;
-            d = D(BuildingType.AutoRepair, "Auto repair", 1, 1, Category.Commercial, Zone.Commercial, 85000, 40, "Fixes cars that break down. Uses parts.");
-            d.Jobs = J(Role.Mechanic, 3); d.Serves = Service.CarRepair; d.ServicePrice = 380; d.Output = 5; d.Input = Good.Parts; d.InputPer = 2.2f; d.StockCap = 40; d.MinPop = 200; d.Value = 190000;
+            d = D(BuildingType.AutoRepair, "Auto repair", 1, 1, Category.Commercial, Zone.Commercial, 85000, 40, "Services cars and fixes them when they break down, by the hour plus parts. Cars wait their turn.");
+            d.Jobs = J(Role.Mechanic, 3); d.Serves = Service.CarRepair; d.ServicePrice = 95; d.Output = 35; d.Input = Good.Parts; d.InputPer = 0.6f; d.StockCap = 300; d.MinPop = 200; d.Value = 190000;
             d = D(BuildingType.HairSalon, "Hair salon", 1, 1, Category.Commercial, Zone.Commercial, 55000, 30, "Haircuts.");
             d.Jobs = J(Role.Hairdresser, 3); d.Serves = Service.Haircut; d.ServicePrice = 48; d.Output = 28; d.MinPop = 200; d.Value = 140000; d.Floors = 2;
             d = D(BuildingType.Gym, "Gym", 2, 1, Category.Commercial, Zone.Commercial, 130000, 55, "Keeps people healthy and happier.");

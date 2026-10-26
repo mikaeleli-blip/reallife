@@ -61,6 +61,7 @@ namespace RealLife.Simulation
             t.LayOutTown();
             t.Index();
             t.Populate();
+            t.MigrateCars();   // the families' cars and the dealer's stock, from the counts Populate gives them
             t.Treasury = 3000000;
             t.BankCapital = 9000000;
             // a year of history before you arrive, so the town's economy has settled

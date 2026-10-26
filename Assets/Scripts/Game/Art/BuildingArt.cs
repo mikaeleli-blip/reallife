@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RealLife.Simulation;
 using UnityEngine;
 using static RealLife.Game.Art.Facades;
@@ -54,6 +55,44 @@ namespace RealLife.Game.Art
         }
 
         static void Tree(MeshKit k, float x, float z, float scale, int season, uint s) { PropArt.Tree(k, new Vector3(x, 0.06f, z), scale, season, s); }
+
+        /// <summary>Where cars park on a lot, in the building's own frame (x, z, yaw): a house's driveway, a dealer's bays, a
+        /// garage's forecourt. The house style and side are drawn from the same seed as Build uses.</summary>
+        public static List<Vector3> ParkingSpots(BuildingType t, float w, float d, uint seed)
+        {
+            var l = new List<Vector3>();
+            uint s = seed | 1u;
+            for (int i = 0; i < 3; i++) Next(ref s);
+            switch (t)
+            {
+                case BuildingType.House:
+                {
+                    int style = (int)(Next(ref s) % 4);
+                    bool flip = R(ref s) < 0.5f;
+                    if (style == 1)
+                    {
+                        // the ranch: across the front of its garage (a second car is inside)
+                        float x0 = -(6.0f + 3.3f) / 2, gx0 = flip ? x0 : x0 + 6.0f;
+                        l.Add(new Vector3(gx0 + 1.65f + (flip ? 0.35f : -0.35f), -d / 2 + 1.3f, flip ? -90 : 90));
+                    }
+                    else
+                    {
+                        // the others: two in a line up the driveway beside the house
+                        float x = flip ? -w / 2 + 1.1f : w / 2 - 1.1f;
+                        l.Add(new Vector3(x, -d / 2 + 2.45f, 180)); l.Add(new Vector3(x, -d / 2 + 7.15f, 180));
+                    }
+                    break;
+                }
+                case BuildingType.CarDealer:
+                    for (float x = -w / 2 + 2.6f; x < w / 2 - 2; x += 3.2f) l.Add(new Vector3(x, -d / 2 + 3.4f, 180));
+                    for (float x = -w / 2 + 2.6f; x < w / 2 - 2; x += 3.2f) l.Add(new Vector3(x, -d / 2 + 8.0f, 0));
+                    break;
+                case BuildingType.AutoRepair:
+                    l.Add(new Vector3(-2.65f, -d / 2 + 1.05f, 90)); l.Add(new Vector3(1.55f, -d / 2 + 1.05f, 90));
+                    break;
+            }
+            return l;
+        }
 
         /// <summary>The model of a building. Closed businesses go dark.</summary>
         public static Model Build(BuildingType t, float w, float d, uint seed, int floors, bool closed, int season)
@@ -210,10 +249,10 @@ namespace RealLife.Game.Art
             var brick = S("wall_brick_red");
             float cx = flip ? x1 + 0.35f : x0 - 0.35f;
             k.Box(new Vector3(cx - 0.45f, 0, z0 + bd / 2 - 0.6f), new Vector3(cx + 0.45f, h + 3.1f, z0 + bd / 2 + 0.6f), brick, C(H("#5a5a5a")));
-            // driveway to the street on the other side, sometimes a car on it
-            float dx = flip ? -w / 2 + 0.4f : w / 2 - 3.2f;
-            k.Flat(dx, -d / 2 + 0.05f, dx + 2.8f, z1, 0.08f, S("concrete"), 4f);
-            if (R(ref s) < 0.6f) PropArt.Parked(k, new Vector3(dx + 1.4f, 0.08f, z0 + 1.4f), R(ref s) < 0.5f ? 0 : 180, s);
+            // driveway to the street on the other side
+            float dx = flip ? -w / 2 + 0.2f : w / 2 - 2.4f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 2.2f, d / 2 - 0.45f, 0.08f, S("concrete"), 4f);
+            if (R(ref s) < 0.6f) R(ref s);   // (the family's cars are parked by the view: ParkingSpots)
             k.Flat(x0 + bw / 2 - 0.6f, -d / 2 + 0.05f, x0 + bw / 2 + 0.6f, z0 - 0.9f, 0.08f, S("pavers"), 3f);
         }
 
@@ -246,7 +285,7 @@ namespace RealLife.Game.Art
             Bushes(k, f, house0 + 0.6f, house0 + hw * 0.45f, season);
             // driveway to the garage
             k.Flat(gx0 + 0.2f, -d / 2 + 0.05f, gx1 - 0.2f, z0, 0.08f, S("concrete"), 4f);
-            if (R(ref s) < 0.5f) PropArt.Parked(k, new Vector3((gx0 + gx1) / 2, 0.08f, z0 - 1.6f), 0, s);
+            R(ref s);
             k.Flat(x0 + doorA - 0.55f, -d / 2 + 0.05f, x0 + doorA + 0.55f, z0 - 1.0f, 0.08f, S("pavers"), 3f);
         }
 
@@ -254,7 +293,7 @@ namespace RealLife.Game.Art
         static void CapeCod(MeshKit k, float w, float d, ref uint s, int season, Color siding, Color shingle, Material shutter, bool flip)
         {
             float bw = 7.6f, bd = 6.2f, h = 2.9f, rise = 3.8f;
-            float x0 = -bw / 2, x1 = bw / 2, z0 = -d / 2 + 2.8f, z1 = z0 + bd;
+            float x0 = -bw / 2 + (flip ? 0.9f : -0.9f), x1 = x0 + bw, z0 = -d / 2 + 2.8f, z1 = z0 + bd, mid = (x0 + x1) / 2;
             var wall = T(R(ref s) < 0.5f ? "wall_siding" : "wall_stucco", siding);
             var roof = RoofMat("roof_shingle", shingle, season);
             HouseWalls(k, x0, x1, z0, z1, h, wall);
@@ -269,7 +308,7 @@ namespace RealLife.Game.Art
             HouseWindow(k, faces[North], bw * 0.3f, 0.9f, 1.0f, 1.35f, ref s, null);
             HouseWindow(k, faces[North], bw * 0.7f, 0.9f, 1.0f, 1.35f, ref s, null);
             // dormers on the front slope: built along their own x (pointing at the street), then turned
-            foreach (float cx in new[] { -bw * 0.22f, bw * 0.22f })
+            foreach (float cx in new[] { mid - bw * 0.22f, mid + bw * 0.22f })
             {
                 float L = 1.9f, dw = 1.6f;
                 float zBack = z0 + bd / 2 - 0.3f;
@@ -283,16 +322,16 @@ namespace RealLife.Game.Art
             }
             Bushes(k, f, 0.6f, bw / 2 - 1.2f, season);
             Bushes(k, f, bw / 2 + 1.2f, bw - 0.6f, season);
-            float dx = flip ? -w / 2 + 0.3f : w / 2 - 1.9f;
-            k.Flat(dx, -d / 2 + 0.05f, dx + 1.6f, z1, 0.08f, S("gravel"), 3f);
-            k.Flat(-0.55f, -d / 2 + 0.05f, 0.55f, z0 - 1.0f, 0.08f, S("pavers"), 3f);
+            float dx = flip ? -w / 2 + 0.2f : w / 2 - 2.3f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 2.1f, d / 2 - 0.45f, 0.08f, S("gravel"), 3f);
+            k.Flat(mid - 0.55f, -d / 2 + 0.05f, mid + 0.55f, z0 - 1.0f, 0.08f, S("pavers"), 3f);
         }
 
         /// <summary>Modern farmhouse: board-and-batten, a dark metal roof, a porch across the front.</summary>
         static void Farmhouse(MeshKit k, float w, float d, ref uint s, int season, bool flip)
         {
             float bw = 7.8f, bd = 6.0f, h = 5.4f;
-            float x0 = -bw / 2, x1 = bw / 2, z0 = -d / 2 + 3.2f, z1 = z0 + bd;
+            float x0 = -bw / 2 + (flip ? 1.0f : -1.0f), x1 = x0 + bw, z0 = -d / 2 + 3.2f, z1 = z0 + bd;
             bool darkHouse = R(ref s) < 0.35f;
             var wall = T("wall_board", darkHouse ? new Color(0.32f, 0.34f, 0.36f) : new Color(0.98f, 0.98f, 0.97f));
             var roof = RoofMat("roof_metal", darkHouse ? new Color(0.75f, 0.75f, 0.75f) : new Color(0.25f, 0.26f, 0.28f), season);
@@ -318,9 +357,9 @@ namespace RealLife.Game.Art
             }
             k.Quad(new Vector3(x0 + 0.2f, 2.85f, z0 - 2.2f), new Vector3(x0 + 0.2f, 3.2f, z0), new Vector3(x1 - 0.2f, 3.2f, z0), new Vector3(x1 - 0.2f, 2.85f, z0 - 2.2f), roof, 2f);
             k.Box(new Vector3(x0 + 0.2f, 2.7f, z0 - 2.2f), new Vector3(x1 - 0.2f, 2.85f, z0 - 2.05f), post, post);
-            float dx = flip ? -w / 2 + 0.3f : w / 2 - 3.0f;
-            k.Flat(dx, -d / 2 + 0.05f, dx + 2.7f, z1, 0.08f, S("gravel"), 3f);
-            if (R(ref s) < 0.6f) PropArt.Parked(k, new Vector3(dx + 1.35f, 0.08f, z1 - 2.5f), 0, s);
+            float dx = flip ? -w / 2 + 0.2f : w / 2 - 2.3f;
+            k.Flat(dx, -d / 2 + 0.05f, dx + 2.1f, d / 2 - 0.45f, 0.08f, S("gravel"), 3f);
+            R(ref s);
         }
 
         // ================================================================== apartments
@@ -573,12 +612,13 @@ namespace RealLife.Game.Art
             FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), C(H("#e9ecef")), trim, 0.8f);
             Ledge(k, faces[South], -0.1f, faces[South].Width + 0.1f, h - 0.2f, h + 0.9f, 0.25f, trim);
             Sign(k, faces[South], faces[South].Width / 2, 7.5f, h + 0.02f, 0.68f, SignRow.AutoSales, closed);
-            if (!closed)
-                for (float x = -w / 2 + 2.6f; x < w / 2 - 2; x += 3.2f)
-                {
-                    PropArt.Parked(k, new Vector3(x, 0.06f, -d / 2 + 4.6f), 160, s + (uint)(x * 13));
-                    if (R(ref s) < 0.7f) PropArt.Parked(k, new Vector3(x, 0.06f, -d / 2 + 9.2f), 200, s + (uint)(x * 7));
-                }
+            // bays on the lot: the cars for sale are parked in them by the view (ParkingSpots)
+            var line = C(H("#f1f2f6"), 0.2f);
+            for (float x = -w / 2 + 2.6f - 1.6f; x < w / 2 - 0.4f; x += 3.2f)
+            {
+                k.Box(new Vector3(x - 0.06f, 0.06f, -d / 2 + 1.2f), new Vector3(x + 0.06f, 0.075f, -d / 2 + 5.6f), line, line);
+                k.Box(new Vector3(x - 0.06f, 0.06f, -d / 2 + 5.8f), new Vector3(x + 0.06f, 0.075f, -d / 2 + 10.2f), line, line);
+            }
             for (float x = -w / 2 + 1; x < w / 2; x += 6) Flag(k, x, -d / 2 + 0.8f, 6f, H("#e74c3c"));
         }
 
@@ -604,7 +644,7 @@ namespace RealLife.Game.Art
             Sign(k, faces[South], faces[South].Width / 2, Mathf.Min(7f, faces[South].Width - 1f), 4.82f, 0.58f, SignRow.AutoRepair, closed);
             var tire = C(H("#1b1b1b"), 0.25f);
             for (int i = 0; i < 4; i++) k.Cylinder(new Vector3(x1 - 0.5f, 0.06f + i * 0.28f, -d / 2 + 1.0f), 0.38f, 0.38f, 0.26f, 10, tire, tire);
-            if (!closed) PropArt.Parked(k, new Vector3(-1.5f, 0.06f, -d / 2 + 1.0f), 90, s);
+            // cars waiting their turn are parked out front by the view (ParkingSpots)
         }
 
         // ================================================================== offices and the bank

@@ -122,13 +122,13 @@ namespace RealLife.Game
             if (b.LossMonths >= 2) Ui.Small(rows.Next(20), Ui.Col("Losing money " + b.LossMonths + " months running.", Ui.Bad));
 
             if (d.Sells.HasValue || d.Serves != Service.None || d.Makes.HasValue || b.Type == BuildingType.Office || b.Type == BuildingType.Construction) rows.Header("Trade");
-            if (d.Sells.HasValue)
+            if (d.Sells.HasValue && b.Type != BuildingType.CarDealer)
             {
                 var g = d.Sells.Value;
                 rows.Pair("Price of " + Defs.Name(g).ToLower(), Town.Money(b.Price) + PriceVs(b.Price, Defs.Retail[(int)g]));
                 StockBar(rows, Defs.Name(g) + " in stock", b.Stock[(int)g], d.StockCap);
             }
-            if (d.Serves != Service.None) rows.Pair("Price per " + ServiceUnit(d.Serves), Town.Money(b.Price) + PriceVs(b.Price, d.ServicePrice));
+            if (d.Serves != Service.None) rows.Pair(b.Type == BuildingType.AutoRepair ? "Labour, per hour" : "Price per " + ServiceUnit(d.Serves), Town.Money(b.Price) + PriceVs(b.Price, d.ServicePrice));
             if (d.Makes.HasValue)
             {
                 var g = d.Makes.Value;
@@ -139,6 +139,8 @@ namespace RealLife.Game
             if (d.Input.HasValue) rows.Pair("Has " + Defs.Name(d.Input.Value).ToLower(), b.Stock[(int)d.Input.Value].ToString("0.#") + " " + Defs.GoodUnits[(int)d.Input.Value]);
             if (b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
             if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
+            if (b.Type == BuildingType.CarDealer) Dealer(b, rows);
+            if (b.Type == BuildingType.AutoRepair) Garage(b, rows);
             double owed = T.Debt(b);
             if (owed > 1) rows.Pair("Loans", Town.Money(owed) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
             if (b.Type == BuildingType.Construction)
@@ -153,6 +155,64 @@ namespace RealLife.Game
                 rows.Pair("Busy", Mathf.RoundToInt(b.LastUse * 100) + "%");
             }
             Staff(b, rows);
+        }
+
+        // ================================================================== cars
+        /// <summary>One car: what it is, how old and worn, and where it is.</summary>
+        void CarRow(Car car, Rows rows)
+        {
+            string what = T.CarYear(car) + " " + Town.ClassName(car.Class);
+            string state;
+            Color col = Ui.Text;
+            var at = car.ShopId >= 0 ? T.GetBuilding(car.ShopId) : null;
+            if (car.ShopId == -2) { state = car.Broken ? "being fixed out of town" : "at a garage out of town"; col = Ui.Warn; }
+            else if (at != null) { state = (car.Broken ? "in for repair at " : "in for a service at ") + T.Title(at); col = Ui.Warn; }
+            else if (car.Broken) { state = "broken down"; col = Ui.Bad; }
+            else state = Mathf.RoundToInt(car.Condition * 100) + "% · " + (car.Km * 1000).ToString("#,0") + " km";
+            rows.Pair(char.ToUpperInvariant(what[0]) + what.Substring(1), state, col);
+            if (at != null)
+            {
+                var r = rows.Next(20, 1);
+                if (Ui.Link(new Rect(r.x + r.width * 0.45f, r.y, r.width * 0.55f, r.height), "Go to the garage")) gc.FocusBuilding(at);
+            }
+        }
+
+        /// <summary>A dealer's lot: new and used cars, and what they're asking.</summary>
+        void Dealer(Building b, Rows rows)
+        {
+            var lot = T.LotOf(b).ToList();
+            double markup = Town.DealerMarkup(b);
+            rows.Pair("Prices", markup > 1.02 ? "+" + Mathf.RoundToInt((float)(markup - 1) * 100) + "% on list" : markup < 0.98 ? "-" + Mathf.RoundToInt((float)(1 - markup) * 100) + "% off list" : "at list");
+            rows.Pair("Cars sold last month", b.LastCustomers.ToString());
+            rows.Header("On the lot (" + lot.Count + " of " + b.Def.StockCap + ")");
+            if (lot.Count == 0) Ui.Small(rows.Next(20), Ui.Col("Nothing for sale.", Ui.Warn));
+            foreach (var c in lot.OrderBy(c => T.CarAge(c)))
+            {
+                bool isNew = T.CarAge(c) < 0.5f && c.Km < 1;
+                string what = (isNew ? "New " : T.CarYear(c) + " ") + Town.ClassName(c.Class);
+                string price = c.Job == CarJob.Prep ? "being got ready" : Town.Money(T.AskingPrice(b, c, markup)) + (isNew ? "" : " · " + (c.Km * 1000).ToString("#,0") + " km");
+                rows.Pair(what, price, c.Job == CarJob.Prep ? Ui.Dim : Ui.Text);
+            }
+        }
+
+        /// <summary>A garage's queue: the cars in, what's wrong with them, and how long the wait is.</summary>
+        void Garage(Building b, Rows rows)
+        {
+            var queue = T.QueueAt(b).ToList();
+            float hours = queue.Sum(c => c.JobHours);
+            float perDay = Mathf.Max(1, b.Employees.Count) * b.Def.Output;
+            rows.Header("Cars in (" + queue.Count + ")");
+            if (queue.Count == 0) { Ui.Small(rows.Next(20), "None waiting."); return; }
+            rows.Pair("Work booked", Mathf.RoundToInt(hours) + " hours · " + (hours / perDay < 1 ? "done this week" : Mathf.CeilToInt(hours / perDay) + " weeks"));
+            foreach (var c in queue.Take(12))
+            {
+                var h = T.GetHousehold(c.HouseholdId);
+                string whose = h != null ? "The " + Town.Family(h.Name) + "' " + Town.ClassName(c.Class) : "A " + Town.ClassName(c.Class);
+                string job = c.Job == CarJob.Service ? "service" : c.JobHours >= 12 ? "major repair" : c.JobHours >= 6 ? "repair" : "small repair";
+                bool waitingParts = c.JobParts > 0 && b.Stock[(int)Good.Parts] < c.JobParts;
+                rows.Pair(whose, job + (waitingParts ? ", waiting for parts" : "") + " · " + Town.Money(c.JobBill), waitingParts ? Ui.Warn : Ui.Text);
+            }
+            if (queue.Count > 12) Ui.Small(rows.Next(20), "and " + (queue.Count - 12) + " more");
         }
 
         static string ServiceUnit(Service s)
@@ -343,7 +403,9 @@ namespace RealLife.Game
             rows.Pair("Savings", Town.Money(h.Cash), h.Cash < 0 ? Ui.Bad : Ui.Text);
             double owed = T.DebtOwed(h);
             if (owed > 0) rows.Pair("Owes", Town.Money(owed) + " (" + Town.Money(T.DebtPayments(h)) + "/mo)", h.MissedRent > 0 ? Ui.Bad : Ui.Text);
-            if (h.Cars > 0) rows.Pair("Cars", h.Cars + (h.CarBroken ? " (broken down)" : ""));
+            var cars = T.CarsOf(h);
+            if (cars.Count == 0) rows.Pair("Car", "none");
+            foreach (var car in cars) CarRow(car, rows);
             rows.Header("Last month's money");
             double tin = 0, tout = 0;
             for (int i = 0; i < HouseholdBook.Count; i++)

@@ -8,7 +8,8 @@ namespace RealLife.Game
     /// <summary>
     /// The people and vehicles you see moving. Each day every citizen gets a plan from what the simulation says they did:
     /// to work or school in the morning, home in the afternoon by way of a shop, out for the evening. They walk, or drive if
-    /// the family has a car and it's far. Trucks carry the day's shipments to and from the highway.
+    /// there's a car for them and it's far: the family's working cars go to the longest drives first, and each is the town's
+    /// own car in its own paint. Trucks carry the day's shipments to and from the highway.
     /// </summary>
     public sealed class Agents : MonoBehaviour
     {
@@ -27,6 +28,7 @@ namespace RealLife.Game
             public bool Failed, Done;
             public GameObject Go;
             public int Kind;              // 0 walking, 1 car, 2 truck
+            public int CarId = -1, Home = -1;
         }
 
         Town town;
@@ -37,6 +39,10 @@ namespace RealLife.Game
         float lastHour;
         readonly Stack<GameObject>[] pools = { new Stack<GameObject>(), new Stack<GameObject>(), new Stack<GameObject>() };
         Model[] people, kids, cars, trucks;
+        // today: the car each driver has, where each car is as the plan is made, and each car's trips
+        readonly Dictionary<int, int> driverCar = new Dictionary<int, int>();
+        readonly Dictionary<int, int> carAt = new Dictionary<int, int>();
+        readonly Dictionary<int, List<Trip>> carTrips = new Dictionary<int, List<Trip>>();
         Transform root;
 
         public void Bind(Town t, WorldView v)
@@ -62,6 +68,25 @@ namespace RealLife.Game
             foreach (var tr in active) Release(tr);
             active.Clear(); trips.Clear(); next = 0;
             planned = town.Day;
+            driverCar.Clear(); carAt.Clear(); carTrips.Clear();
+            var drivers = new List<Citizen>();
+            foreach (var h in town.Households)
+            {
+                var home = town.HomeOf(h);
+                var owned = town.CarsOf(h);
+                if (home == null || owned.Count == 0) continue;
+                drivers.Clear();
+                foreach (var m in town.Members(h)) if (!m.IsChild) drivers.Add(m);
+                drivers.Sort((a, b) => DriveRank(a, home).CompareTo(DriveRank(b, home)));
+                int i = 0;
+                foreach (var car in owned)
+                {
+                    if (!Town.Drivable(car)) continue;
+                    if (i >= drivers.Count) break;
+                    driverCar[drivers[i++].Id] = car.Id;
+                    carAt[car.Id] = home.Id;
+                }
+            }
             foreach (var c in town.People)
             {
                 var h = town.HouseholdOf(c);
@@ -69,7 +94,8 @@ namespace RealLife.Game
                 if (home == null || !home.Built) continue;
                 uint s = (uint)(c.Id * 2654435761u) ^ (uint)(town.Day * 40503);
                 float r1 = (s & 255) / 255f, r2 = ((s >> 8) & 255) / 255f, r3 = ((s >> 16) & 255) / 255f;
-                bool hasCar = h.Cars > 0 && !h.CarBroken && !c.IsChild;
+                int car;
+                if (!driverCar.TryGetValue(c.Id, out car)) car = -1;
                 var work = c.AtWork ? town.GetBuilding(c.WorkId) : null;
                 var school = c.SchoolId >= 0 && c.Sick == 0 ? town.GetBuilding(c.SchoolId) : null;
                 var errand = town.GetBuilding(c.ErrandId);
@@ -77,22 +103,22 @@ namespace RealLife.Game
                 if (work != null && work != home)
                 {
                     float go = 6.4f + r1 * 1.6f;
-                    Add(c, home, work, go, hasCar, s);
+                    Add(c, home, home, work, go, car, s);
                     float back = 15.5f + r2 * 2.5f;
-                    if (errand != null && errand != work) { Add(c, work, errand, back, hasCar, s + 1); Add(c, errand, home, back + 0.9f + r3 * 0.6f, hasCar, s + 2); }
-                    else Add(c, work, home, back, hasCar, s + 1);
-                    if (fun != null) { Add(c, home, fun, 18.6f + r3 * 2f, hasCar, s + 3); Add(c, fun, home, 21.0f + r3 * 1.2f, hasCar, s + 4); }
+                    if (errand != null && errand != work) { Add(c, home, work, errand, back, car, s + 1); Add(c, home, errand, home, back + 0.9f + r3 * 0.6f, car, s + 2); }
+                    else Add(c, home, work, home, back, car, s + 1);
+                    if (fun != null) { Add(c, home, home, fun, 18.6f + r3 * 2f, car, s + 3); Add(c, home, fun, home, 21.0f + r3 * 1.2f, car, s + 4); }
                 }
                 else if (school != null)
                 {
-                    Add(c, home, school, 7.0f + r1 * 0.8f, false, s);
-                    Add(c, school, home, 14.6f + r2 * 1.2f, false, s + 1);
-                    if (fun != null && c.Age >= 14) { Add(c, home, fun, 17f + r3 * 2f, false, s + 3); Add(c, fun, home, 19.5f + r3 * 1.5f, false, s + 4); }
+                    Add(c, home, home, school, 7.0f + r1 * 0.8f, -1, s);
+                    Add(c, home, school, home, 14.6f + r2 * 1.2f, -1, s + 1);
+                    if (fun != null && c.Age >= 14) { Add(c, home, home, fun, 17f + r3 * 2f, -1, s + 3); Add(c, home, fun, home, 19.5f + r3 * 1.5f, -1, s + 4); }
                 }
                 else if (!c.IsChild || c.Age >= 12)
                 {
-                    if (errand != null) { float t = 9.5f + r1 * 5f; Add(c, home, errand, t, hasCar, s); Add(c, errand, home, t + 0.8f + r2, hasCar, s + 1); }
-                    if (fun != null) { float t = errand != null ? 16 + r3 * 4 : 11 + r3 * 8; Add(c, home, fun, t, hasCar, s + 3); Add(c, fun, home, t + 1.5f + r2, hasCar, s + 4); }
+                    if (errand != null) { float t = 9.5f + r1 * 5f; Add(c, home, home, errand, t, car, s); Add(c, home, errand, home, t + 0.8f + r2, car, s + 1); }
+                    if (fun != null) { float t = errand != null ? 16 + r3 * 4 : 11 + r3 * 8; Add(c, home, home, fun, t, car, s + 3); Add(c, home, fun, home, t + 1.5f + r2, car, s + 4); }
                 }
             }
             if (town.Shipments != null)
@@ -104,12 +130,45 @@ namespace RealLife.Game
             trips.Sort((a, b) => a.Start.CompareTo(b.Start));
         }
 
-        void Add(Citizen c, Building from, Building to, float hour, bool hasCar, uint seed)
+        /// <summary>Who gets the family's cars first: those who drive out of town, then those with a job across town.</summary>
+        int DriveRank(Citizen c, Building home)
+        {
+            if (town.Commutes(c)) return 0;
+            var w = c.WorkId >= 0 ? town.GetBuilding(c.WorkId) : null;
+            if (w != null && Mathf.Abs(w.CenterX - home.CenterX) + Mathf.Abs(w.CenterY - home.CenterY) > 6) return 1;
+            return c.WorkId >= 0 ? 2 : 3;
+        }
+
+        void Add(Citizen c, Building home, Building from, Building to, float hour, int carId, uint seed)
         {
             if (from == null || to == null || from == to) return;
             float dist = Mathf.Abs(from.CenterX - to.CenterX) + Mathf.Abs(from.CenterY - to.CenterY);
-            bool car = hasCar && dist > 5;
-            trips.Add(new Trip { Citizen = c.Id, From = from.Id, To = to.Id, Start = hour, Car = car, Kind = car ? 1 : 0, Seed = seed });
+            // they drive if their car is where they are: always away from home (it goes where they go), and from home unless
+            // it's just round the corner
+            int at;
+            bool car = carId >= 0 && carAt.TryGetValue(carId, out at) && at == from.Id && (from != home || dist > 5);
+            var t = new Trip { Citizen = c.Id, From = from.Id, To = to.Id, Start = hour, Car = car, Kind = car ? 1 : 0, Seed = seed,
+                               CarId = car ? carId : -1, Home = home.Id };
+            trips.Add(t);
+            if (!car) return;
+            carAt[carId] = to.Id;
+            List<Trip> l;
+            if (!carTrips.TryGetValue(carId, out l)) carTrips[carId] = l = new List<Trip>();
+            l.Add(t);
+        }
+
+        /// <summary>Whether a family car is on the driveway right now, rather than on the road or parked where its driver is.</summary>
+        public bool CarAtHome(int carId)
+        {
+            List<Trip> l;
+            if (town == null || planned != town.Day || !carTrips.TryGetValue(carId, out l)) return true;
+            float hour = town.Hour;
+            Trip last = null;
+            foreach (var t in l) if (t.Start <= hour && (last == null || t.Start >= last.Start)) last = t;
+            if (last == null) return true;
+            if (last.To != last.Home) return false;
+            float took = last.Length > 0 ? last.Length / CarSpeed : 0.2f;
+            return hour >= last.Start + took;
         }
 
         // ================================================================== every frame
@@ -171,8 +230,9 @@ namespace RealLife.Game
             if (t.Kind == 2) m = trucks[t.Seed % (uint)trucks.Length];
             else if (t.Kind == 1)
             {
+                var car = town.GetCar(t.CarId);
                 var owner = town.GetCitizen(t.Citizen);
-                m = cars[(uint)((owner != null ? owner.HouseholdId : 0) * 7) % (uint)cars.Length];
+                m = car != null ? CarLook.Of(car) : cars[(uint)((owner != null ? owner.HouseholdId : 0) * 7) % (uint)cars.Length];
             }
             else
             {

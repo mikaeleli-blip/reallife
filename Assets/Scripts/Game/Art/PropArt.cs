@@ -88,32 +88,47 @@ namespace RealLife.Game.Art
             return k.ToModel("person");
         }
 
-        public static void Car(MeshKit k, Color32 body)
+        /// <summary>A car facing +z: a small hatchback (style 0), a saloon (1) or a tall SUV (2).</summary>
+        public static void Car(MeshKit k, Color32 body, int style = 1)
         {
+            // length, body height, cabin front and back, roof, track, wheel size
+            float L = style == 0 ? 1.85f : style == 2 ? 2.3f : 2.1f;
+            float bodyTop = style == 2 ? 1.15f : 0.95f, roof = style == 2 ? 1.85f : style == 0 ? 1.5f : 1.45f;
+            float cabF = style == 0 ? 0.85f : style == 2 ? 1.25f : 1.0f, cabB = style == 0 ? -L + 0.25f : style == 2 ? -L + 0.3f : -1.1f;
+            float half = style == 2 ? 0.95f : 0.9f, wheel = style == 2 ? 0.74f : 0.62f, ride = style == 2 ? 0.38f : 0.3f;
             var paint = M(body, 0.7f, 0.25f);
             var trim = M(MeshKit.Hex("#2a2d31"), 0.3f);
-            k.Box(new Vector3(-0.9f, 0.3f, -2.1f), new Vector3(0.9f, 0.95f, 2.1f), paint, paint);
-            k.Box(new Vector3(-0.8f, 0.95f, -1.1f), new Vector3(0.8f, 1.45f, 1.0f), paint, paint);
-            k.Box(new Vector3(-0.92f, 0.3f, -2.12f), new Vector3(0.92f, 0.45f, 2.12f), trim, trim);
-            // windscreen and windows
+            k.Box(new Vector3(-half, ride, -L), new Vector3(half, bodyTop, L), paint, paint);
+            k.Box(new Vector3(-half + 0.1f, bodyTop, cabB), new Vector3(half - 0.1f, roof, cabF), paint, paint);
+            k.Box(new Vector3(-half - 0.02f, ride, -L - 0.02f), new Vector3(half + 0.02f, ride + 0.15f, L + 0.02f), trim, trim);
+            // windscreen, rear window and side windows
             var pane = Pane;
-            k.Quad(new Vector3(0.75f, 1.0f, 1.01f), new Vector3(0.7f, 1.4f, 1.01f), new Vector3(-0.7f, 1.4f, 1.01f), new Vector3(-0.75f, 1.0f, 1.01f), pane);
-            k.Quad(new Vector3(-0.75f, 1.0f, -1.11f), new Vector3(-0.7f, 1.4f, -1.11f), new Vector3(0.7f, 1.4f, -1.11f), new Vector3(0.75f, 1.0f, -1.11f), pane);
-            k.Quad(new Vector3(0.81f, 1.0f, -0.9f), new Vector3(0.81f, 1.38f, -0.9f), new Vector3(0.81f, 1.38f, 0.85f), new Vector3(0.81f, 1.0f, 0.85f), pane);
-            k.Quad(new Vector3(-0.81f, 1.0f, 0.85f), new Vector3(-0.81f, 1.38f, 0.85f), new Vector3(-0.81f, 1.38f, -0.9f), new Vector3(-0.81f, 1.0f, -0.9f), pane);
+            float wx = half - 0.15f, y0 = bodyTop + 0.05f, y1 = roof - 0.05f, sx = half - 0.09f;
+            k.Quad(new Vector3(wx, y0, cabF + 0.01f), new Vector3(wx - 0.05f, y1, cabF + 0.01f), new Vector3(-wx + 0.05f, y1, cabF + 0.01f), new Vector3(-wx, y0, cabF + 0.01f), pane);
+            k.Quad(new Vector3(-wx, y0, cabB - 0.01f), new Vector3(-wx + 0.05f, y1, cabB - 0.01f), new Vector3(wx - 0.05f, y1, cabB - 0.01f), new Vector3(wx, y0, cabB - 0.01f), pane);
+            k.Quad(new Vector3(sx, y0, cabB + 0.2f), new Vector3(sx, y1 - 0.02f, cabB + 0.2f), new Vector3(sx, y1 - 0.02f, cabF - 0.15f), new Vector3(sx, y0, cabF - 0.15f), pane);
+            k.Quad(new Vector3(-sx, y0, cabF - 0.15f), new Vector3(-sx, y1 - 0.02f, cabF - 0.15f), new Vector3(-sx, y1 - 0.02f, cabB + 0.2f), new Vector3(-sx, y0, cabB + 0.2f), pane);
+            if (style == 2)
+            {
+                // roof rails
+                k.Box(new Vector3(-half + 0.15f, roof, cabB + 0.2f), new Vector3(-half + 0.22f, roof + 0.07f, cabF - 0.2f), trim, trim);
+                k.Box(new Vector3(half - 0.22f, roof, cabB + 0.2f), new Vector3(half - 0.15f, roof + 0.07f, cabF - 0.2f), trim, trim);
+            }
             var tire = Tire;
-            foreach (var z in new[] { -1.35f, 1.35f })
-                foreach (var x in new[] { -0.95f, 0.75f })
-                    k.Box(new Vector3(x, 0, z - 0.35f), new Vector3(x + 0.2f, 0.62f, z + 0.35f), tire, tire);
+            float wz = L - 0.75f;
+            foreach (var z in new[] { -wz, wz })
+                foreach (var x in new[] { -half - 0.05f, half - 0.15f })
+                    k.Box(new Vector3(x, 0, z - wheel * 0.55f), new Vector3(x + 0.2f, wheel, z + wheel * 0.55f), tire, tire);
             // lights
             var head = Headlight; var tail = Taillight;
-            k.Box(new Vector3(-0.8f, 0.6f, 2.1f), new Vector3(-0.45f, 0.78f, 2.14f), head, head);
-            k.Box(new Vector3(0.45f, 0.6f, 2.1f), new Vector3(0.8f, 0.78f, 2.14f), head, head);
-            k.Box(new Vector3(-0.8f, 0.6f, -2.14f), new Vector3(-0.5f, 0.75f, -2.1f), tail, tail);
-            k.Box(new Vector3(0.5f, 0.6f, -2.14f), new Vector3(0.8f, 0.75f, -2.1f), tail, tail);
+            float ly = ride + 0.3f;
+            k.Box(new Vector3(-half + 0.1f, ly, L), new Vector3(-half + 0.45f, ly + 0.18f, L + 0.04f), head, head);
+            k.Box(new Vector3(half - 0.45f, ly, L), new Vector3(half - 0.1f, ly + 0.18f, L + 0.04f), head, head);
+            k.Box(new Vector3(-half + 0.1f, ly, -L - 0.04f), new Vector3(-half + 0.4f, ly + 0.15f, -L), tail, tail);
+            k.Box(new Vector3(half - 0.4f, ly, -L - 0.04f), new Vector3(half - 0.1f, ly + 0.15f, -L), tail, tail);
         }
 
-        public static Model CarModel(Color32 body) { var k = new MeshKit(); Car(k, body); return k.ToModel("car"); }
+        public static Model CarModel(Color32 body, int style = 1) { var k = new MeshKit(); Car(k, body, style); return k.ToModel("car"); }
 
         public static void Truck(MeshKit k, Color32 cab, Color32 box)
         {

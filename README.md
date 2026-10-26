@@ -75,7 +75,7 @@ certificate, a teacher a degree and a doctor a medical degree. A town without sc
 **Households** share one bank account. Each month they're paid (less income tax), pay rent or mortgage, utilities,
 insurance, loan payments and tuition, put some aside, and what's left is spending money: dinners out, coffee, drinks, the gym,
 haircuts, clothes as they wear out, a new TV or sofa now and then, some online shopping. Groceries every week; fuel and
-repairs if they have a car. Families with savings and a steady job buy houses on a mortgage; young adults with a job move out
+car upkeep (below) if they have one. Families with savings and a steady job buy houses on a mortgage; young adults with a job move out
 of their parents' place; singles pair up and move in together; couples have children.
 
 **Businesses.** Shops buy stock from makers in town (a food plant for groceries, factories for clothes, electronics,
@@ -89,6 +89,17 @@ taxes, its owner takes what's above a cushion, and it decides how many staff it 
 turns customers away and fall when stock piles up; wages rise when it can't hire. Every business belongs to a family in town:
 the founders put in some savings and the bank lends the rest. When the owners leave or die without an heir, the staff or
 another family buys it, or it shuts and the bank sells the building on.
+
+**Cars.** Every car is its own: a small car, a family car or a premium SUV, with its year, mileage, condition and value.
+Cars wear with age and the distance they're driven (commuters' most), need a service now and then, and the more worn, the
+more often they break down. A broken car goes to a garage in town and waits its turn: garages have so many mechanic-hours a
+day, and the parts (always imported — no building here makes them) have to be in stock. A long queue, or no garage, sends
+the work out of town at a higher price, and a family without a working car can't drive to a job out of town. When the repair
+would cost more than the car is worth, the family replaces it: trade-in, savings, then a car loan. Dealers sell new cars
+they order in and used ones they took in trade (their mechanic gets them ready first); poorer families buy used, richer ones
+new, and without a dealer here people buy in the next town over. Worn-out cars are scrapped. You see each family's own car
+on the road and on the driveway, the stock on a dealer's lot and the cars waiting outside a garage; the inspector shows a
+family's cars, a dealer's lot and a garage's queue, and the Economy panel counts cars bought, scrapped and repaired out of town.
 
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell and flats to let, buy repossessed homes from the

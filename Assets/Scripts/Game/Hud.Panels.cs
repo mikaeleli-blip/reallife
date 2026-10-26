@@ -132,6 +132,22 @@ namespace RealLife.Game
             rows.Pair("Spent outside", Town.Money(tr.Outflow), Ui.Bad);
             Ui.Small(rows.Next(18), "  imports " + Town.Money(tr.Imports) + " · interest " + Town.Money(tr.Profits) + " · bills " + Town.Money(tr.Utilities));
 
+            rows.Header("Cars");
+            int owned = 0, inShop = 0, waiting = 0; float ages = 0;
+            foreach (var c in T.Cars)
+            {
+                if (c.HouseholdId < 0) continue;
+                owned++; ages += T.CarAge(c);
+                if (c.ShopId != -1) inShop++;
+                else if (c.Broken) waiting++;
+            }
+            rows.Pair("Cars", owned + (T.Households.Count > 0 ? "  (" + (owned / (float)T.Households.Count).ToString("0.0") + " a household)" : ""));
+            rows.Pair("Average age", owned > 0 ? (ages / owned).ToString("0.0") + " years" : "-");
+            rows.Pair("In the garage", inShop + (waiting > 0 ? Ui.Col("  +" + waiting + " broken, not booked in", Ui.Warn) : ""));
+            rows.Pair("Bought last month", T.LastCarsSold + (T.LastCarsAway > 0 ? Ui.Col("  (" + T.LastCarsAway + " out of town)", Ui.Dim) : ""));
+            rows.Pair("Scrapped last month", T.LastScrapped.ToString());
+            rows.Pair("Repairs out of town", T.LastRepairsAway.ToString(), T.LastRepairsAway > 4 ? Ui.Warn : Ui.Text);
+
             rows.Header("Jobs");
             var byRole = new Dictionary<Role, int[]>();
             foreach (var c in T.People) if (c.WorkId >= 0) { if (!byRole.ContainsKey(c.Role)) byRole[c.Role] = new int[2]; byRole[c.Role][0]++; }

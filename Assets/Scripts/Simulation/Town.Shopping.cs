@@ -37,11 +37,11 @@ namespace RealLife.Simulation
         {
             if (!Connected(shop)) return false;
             if (Distance(home, shop) <= Balance.WalkTiles) return true;
-            if (h.Cars > 0 && !h.CarBroken && h.Fuel > 0) return true;
+            if (HasUsableCar(h) && h.Fuel > 0) return true;
             return BusServes(home) && BusServes(shop);
         }
 
-        bool CanDriveOutOfTown(Household h, Building home) { return h.Cars > 0 && !h.CarBroken && h.Fuel > 0.3f && Connected(home); }
+        bool CanDriveOutOfTown(Household h, Building home) { return HasUsableCar(h) && h.Fuel > 0.3f && Connected(home); }
 
         static BuildingType StoreFor(Good g)
         {
@@ -106,7 +106,7 @@ namespace RealLife.Simulation
                 h.Furniture = Math.Max(0, h.Furniture - 0.005f);
                 Durable(h, home, ms, Good.Electronics, ref h.Electronics, 0.45f, thrift);
                 Durable(h, home, ms, Good.Furniture, ref h.Furniture, 0.4f, thrift);
-                Cars(h, home, ms, thrift);
+                CarsDaily(h, home, ms, thrift);
                 GoingOut(h, home, ms, thrift);
                 Healthcare(h, home, ms);
             }
@@ -159,7 +159,7 @@ namespace RealLife.Simulation
                 if (!anyStore || nearestShort != null)
                 {
                     // on the reserve you can always make it to a gas station on the highway
-                    bool canGo = CanDriveOutOfTown(h, home) || (g == Good.Fuel && h.Cars > 0 && !h.CarBroken && Connected(home));
+                    bool canGo = CanDriveOutOfTown(h, home) || (g == Good.Fuel && HasUsableCar(h) && Connected(home));
                     if (canGo && (g == Good.Groceries || g == Good.Fuel || Chance(0.5f)))
                     {
                         double unit = Defs.Retail[(int)g] * 1.12 * PriceDrift[(int)g];
@@ -191,105 +191,6 @@ namespace RealLife.Simulation
             if (who != null) who.ErrandId = b.Id;
         }
 
-        // ================================================================== cars
-        void Cars(Household h, Building home, List<Citizen> ms, float thrift)
-        {
-            if (h.Cars > 0)
-            {
-                bool commute = ms.Any(c => c.WorkId >= 0 && Distance(home, GetBuilding(c.WorkId)) > 6);
-                bool away = ms.Any(Commutes);   // driving out of town and back
-                if (!h.CarBroken) h.Fuel -= h.Cars * (away ? 1.5f : commute ? 1f : 0.45f);
-                if (h.Fuel < 0) h.Fuel = 0;
-                if (h.Fuel < h.Cars * 1.2f) { float got = Shop(h, home, Good.Fuel, h.Cars * 3f - h.Fuel, ms); h.Fuel += got; }
-                h.CarWear = Math.Max(0, h.CarWear - 0.0045f);
-                if (!h.CarBroken && Chance((1 - h.CarWear) * 0.022f))
-                {
-                    h.CarBroken = true;
-                    var c = ms.FirstOrDefault(m => !m.IsChild);
-                    if (c != null) Note(c, "The car broke down.");
-                }
-                if (h.CarBroken) Repair(h, home, ms, false);
-                else if (Chance(0.035f * h.Cars)) Repair(h, home, ms, true);
-                // an old wreck gets replaced
-                if (h.CarWear < 0.12f && Chance(0.2f)) BuyCar(h, home, ms, thrift, true);
-            }
-            else if (Chance(0.06f))
-            {
-                // a car when there's a long way to work, or kids, and it's affordable
-                bool farJob = ms.Any(c => c.WorkId >= 0 && Distance(home, GetBuilding(c.WorkId)) > 14);
-                bool kids = ms.Any(c => c.IsChild);
-                bool looking = ms.Any(c => c.InLaborForce && c.WorkId < 0 && c.JoblessDays > 4);
-                if ((farJob || kids || looking || Chance(0.3f)) && ms.Any(c => c.WorkId >= 0)) BuyCar(h, home, ms, thrift, false);
-            }
-        }
-
-        void BuyCar(Household h, Building home, List<Citizen> ms, float thrift, bool replace)
-        {
-            double income = MonthlyIncome(h);
-            var dealer = Buildings.Where(b => b.Type == BuildingType.CarDealer && b.Open && b.Stock[(int)Good.Cars] >= 1 && CanGo(h, home, b) && Capacity(b) > b.Sold)
-                                  .OrderBy(b => b.Price).FirstOrDefault();
-            bool outOfTown = dealer == null;
-            if (outOfTown)
-            {
-                Wants[(int)BuildingType.CarDealer] += 1;
-                if (!CanDriveOutOfTown(h, home) && !BusServes(home)) return;
-            }
-            double price = outOfTown ? Balance.CarPrice * 1.05 * PriceDrift[(int)Good.Cars] : dealer.Price;
-            double tax = price * Policy.SalesTax, total = price + tax;
-            double down = total * 0.15;
-            double loan = 0;
-            if (CanSpare(h, total, thrift)) down = total;
-            else
-            {
-                if (h.Cash < down + Essentials(h)) return;
-                loan = total - down;
-                double pay = Annuity(loan, Balance.CarRate, Balance.CarMonths);
-                if (!Approve(h, pay, 0.14)) return;
-            }
-            HouseholdPays(h, down, HouseholdBook.Transport);
-            if (loan > 0) { NewLoan(LoanKind.Car, h, null, loan, Balance.CarRate, Balance.CarMonths); HouseholdEarns(h, loan, HouseholdBook.Loans); HouseholdPays(h, loan, HouseholdBook.Transport); }
-            Treasury += tax; Book.SalesTax += tax;
-            if (outOfTown) { Trade.Imports += price; OutOfTown += price; AwayMonth[(int)BuildingType.CarDealer] += price; }
-            else
-            {
-                dealer.Cash += price; dealer.Revenue += price; dealer.Customers++; dealer.Sold += 1; dealer.CapUsed += 1;
-                dealer.Stock[(int)Good.Cars] -= 1;
-                Errand(ms, dealer);
-            }
-            if (!replace) h.Cars++;
-            h.CarWear = 1; h.CarBroken = false; h.Fuel = Math.Max(h.Fuel, 1);
-            var buyer = ms.FirstOrDefault(m => !m.IsChild);
-            if (buyer != null) Note(buyer, "Bought a new car" + (loan > 0 ? " on a car loan" : "") + ".");
-            if (Chance(0.2f) && buyer != null) AddLog("The " + h.Name + " family bought a new car" + (outOfTown ? " in the next town over." : " at " + Ref(dealer) + "."), LogKind.Info, buyer.Id, true);
-        }
-
-        /// <summary>A breakdown fixed, or (routine) a service: oil, tyres, brakes.</summary>
-        void Repair(Household h, Building home, List<Citizen> ms, bool routine)
-        {
-            var shop = Buildings.Where(b => b.Type == BuildingType.AutoRepair && b.Open && Connected(b) && (Distance(home, b) <= Balance.WalkTiles + 10 || BusServes(home)))
-                                .OrderBy(b => b.Price * (1 + Distance(home, b) / 90f)).FirstOrDefault();
-            if (shop != null)
-            {
-                float parts = shop.Def.InputPer * (routine ? 0.4f : 1f);
-                if (shop.ServedToday >= Capacity(shop) || shop.Stock[(int)Good.Parts] < parts) { shop.Lost++; return; }
-                double price = shop.Price * (routine ? 0.45 : 1);
-                double tax = price * Policy.SalesTax;
-                if (h.Cash < price + tax + (routine ? 1500 : 0)) return;
-                HouseholdPays(h, price + tax, HouseholdBook.Transport);
-                shop.Cash += price; shop.Revenue += price; shop.Customers++; shop.ServedToday++; shop.CapUsed++;
-                shop.Stock[(int)Good.Parts] -= parts;
-                Treasury += tax; Book.SalesTax += tax;
-                if (routine) h.CarWear = Math.Min(1, h.CarWear + 0.05f);
-                else { h.CarBroken = false; h.CarWear = Math.Min(1, h.CarWear + 0.18f); }
-                Errand(ms, shop);
-                return;
-            }
-            Wants[(int)BuildingType.AutoRepair] += routine ? 0.3f : 1;
-            if (routine) return;
-            // tow it to the next town
-            if (Chance(0.5f) && h.Cash > 700) { HouseholdPays(h, 560, HouseholdBook.Transport); Trade.Imports += 560; OutOfTown += 560; AwayMonth[(int)BuildingType.AutoRepair] += 560; h.CarBroken = false; h.CarWear = Math.Min(1, h.CarWear + 0.18f); }
-        }
-
         // ================================================================== the month's spending money
         /// <summary>After the bills: what's left of the month's income, less what they put by, is money to enjoy. Families with
         /// a lot saved spend a little of it too. Some of it goes online or on trips out of town.</summary>
@@ -304,7 +205,7 @@ namespace RealLife.Simulation
                 if (pension > 0 && h.Cash > pension) { HouseholdPays(h, pension, HouseholdBook.Savings); Trade.Savings += pension; }
                 double income = 0; for (int i = 0; i < HouseholdBook.Count; i++) income += h.In[i];
                 income -= h.In[HouseholdBook.Loans] + h.Out[HouseholdBook.Taxes] + h.Out[HouseholdBook.Savings];
-                double fuel = h.Cars * Balance.DaysPerMonth * Defs.Retail[(int)Good.Fuel] * 0.8;
+                double fuel = CarCount(h) * Balance.DaysPerMonth * Defs.Retail[(int)Good.Fuel] * 0.8;
                 double bills = h.Out[HouseholdBook.Housing] + h.Out[HouseholdBook.Debt] + h.Out[HouseholdBook.Utilities] + h.Out[HouseholdBook.School];
                 double essentials = bills + FoodNeed(h) * Defs.Retail[(int)Good.Groceries] * Balance.DaysPerMonth + fuel;
                 float thrift = Thrift(h);

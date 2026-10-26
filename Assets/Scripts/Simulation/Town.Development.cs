@@ -508,7 +508,8 @@ namespace RealLife.Simulation
                     bool goods = Defs.Get(t).Sells.HasValue || t == BuildingType.AutoRepair;
                     // (some of those who can't buy something here go without, and would buy if it were sold here; but
                     // groceries and fuel they always fetch, and some would carry on shopping where they do)
-                    double away = SpendAway[(int)t] * (t == BuildingType.GroceryStore || t == BuildingType.GasStation ? 0.85 : 1.0);
+                    // and a dealer here won't have the very car everyone wants: many would still buy where they did
+                    double away = SpendAway[(int)t] * (t == BuildingType.GroceryStore || t == BuildingType.GasStation ? 0.85 : t == BuildingType.CarDealer ? 0.7 : 1.0);
                     double rev = goods ? away : WantAvg[(int)t] * SpendPerWant(t);
                     // thin retail margins need a clearer case, except for the everyday things people buy every week
                     bool everyday = t == BuildingType.GroceryStore || t == BuildingType.GasStation;
@@ -523,7 +524,7 @@ namespace RealLife.Simulation
                     bool full = open.All(b => b.Staffing >= 0.95f && b.LastUse > 0.85f);
                     bool earning = open.All(b => b.LastProfit > 0 && b.LossMonths == 0);
                     bool room = open.Count < 1 + pop / PopPer(t);
-                    double price = open.Average(b => b.Price) * (t == BuildingType.GroceryStore ? 4 : 1);
+                    double price = open.Average(b => b.Price) * (t == BuildingType.GroceryStore ? 4 : TicketSize(t));
                     double rev = lost * price;
                     caseHolds = full && earning && room && lost > Math.Max(8, served * 0.15f) && PaysItsWay(t, rev);
                 }
@@ -688,7 +689,8 @@ namespace RealLife.Simulation
             if (home == null) { DevNote("no home for a founder of " + t); return null; }
             double need = Math.Max(12000, d.StartupCost * FoundersShare(t));
             h = Newcomers(edu, Chance(0.75f));
-            h.Cars = Math.Max(1, h.Cars); h.Fuel = Math.Max(h.Fuel, h.Cars);
+            if (CarCount(h) == 0) GiveCar(h, edu);
+            h.Fuel = Math.Max(h.Fuel, 1);
             h.Cash += need + 25000 + Rand() * 40000 + (buys ? home.Value * 0.14 : 0);
             foreach (var m in Members(h)) if (!m.IsChild) m.Ambition = Math.Max(m.Ambition, 0.6f);
             if (buys) BuyHome(h, home, true); else MoveIn(h, home, false);

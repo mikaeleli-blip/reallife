@@ -24,6 +24,8 @@ namespace RealLife.Simulation
             Restock();
             ConstructionDaily();
             HouseholdsDaily();
+            GaragesDaily();
+            DealersDaily();
             Exports();
             if (DayEnded != null) DayEnded(Day);
         }
@@ -65,6 +67,8 @@ namespace RealLife.Simulation
             BirthsMonth = DeathsMonth = ArrivalsMonth = LeftMonth = 0;
             LastUntreated = UntreatedMonth; UntreatedMonth = 0;
             LastOutOfTown = OutOfTown; OutOfTown = 0;
+            LastScrapped = ScrappedMonth; LastCarsSold = CarsSoldMonth; LastRepairsAway = RepairsAwayMonth; LastCarsAway = CarsAwayMonth;
+            ScrappedMonth = CarsSoldMonth = RepairsAwayMonth = CarsAwayMonth = 0;
             if (Day > 0) RecordHistory();
         }
         public int LastUntreated;
