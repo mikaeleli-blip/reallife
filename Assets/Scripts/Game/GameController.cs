@@ -289,7 +289,7 @@ namespace RealLife.Game
             Color32 c = Tool == Tool.Dezone ? new Color32(200, 200, 200, 140) : (Color32)WorldView.ZoneColor(ZoneKind);
             c.a = 150;
             View.ShowGhost(ok, c);
-            string what = Tool == Tool.Dezone ? "Clear zoning" : ZoneKind + " zone";
+            string what = Tool == Tool.Dezone ? "Clear zoning" : ZoneName(ZoneKind) + " zone";
             ToolTip = what + ": " + ok.Count + " tiles. Free.\n" + (Tool == Tool.Dezone ? "" : ZoneHint(ZoneKind));
             if (up && dragging)
             {
@@ -299,11 +299,25 @@ namespace RealLife.Game
             }
         }
 
+        public static string ZoneName(Zone z)
+        {
+            switch (z)
+            {
+                case Zone.Residential: return "Houses";
+                case Zone.Apartments: return "Apartments";
+                case Zone.Commercial: return "Shops";
+                case Zone.Industrial: return "Industry";
+                case Zone.Farmland: return "Farms";
+                default: return "";
+            }
+        }
+
         public static string ZoneHint(Zone z)
         {
             switch (z)
             {
-                case Zone.Residential: return "Developers build houses and apartment blocks here when people need homes. Lots must touch a road.";
+                case Zone.Residential: return "Property firms build houses here for families who can get a mortgage. Lots must touch a road.";
+                case Zone.Apartments: return "Property firms build blocks of twelve flats here, to let to singles, young people leaving home and workers who come for a job. Each block needs 2 x 2 tiles by a road.";
                 case Zone.Commercial: return "Shops, restaurants, offices and banks open here when there are customers for them.";
                 case Zone.Industrial: return "Factories, builders and hauliers set up here when there are workers to hire.";
                 case Zone.Farmland: return "Farms start here when the food plant is short of crops or people need work. Keep it away from the factories; each farm needs 3 x 3 tiles by a road.";

@@ -10,7 +10,7 @@ namespace RealLife.Simulation
     /// <summary>Things people pay for that can't be stored: a meal out, a haircut, a repair.</summary>
     public enum Service { None, Meals, Coffee, Drinks, Haircut, Fitness, CarRepair }
 
-    public enum Zone : byte { None, Residential, Commercial, Industrial, Farmland }
+    public enum Zone : byte { None, Residential, Commercial, Industrial, Farmland, Apartments }   // Residential: houses
 
     public enum Category { Residential, Commercial, Industrial, Public, Special }
 
@@ -291,7 +291,7 @@ namespace RealLife.Simulation
             // ---------------------------------------------------------------- Residential
             d = D(BuildingType.House, "House", 1, 1, Category.Residential, Zone.Residential, 135000, 24, "A family home. Sold to whoever can get a mortgage, or rented out.");
             d.Homes = 1; d.Rent = 1650; d.Value = 230000; d.Floors = 2;
-            d = D(BuildingType.Apartments, "Apartment block", 2, 2, Category.Residential, Zone.Residential, 1106000, 200, "Twelve flats owned by a landlord who sets the rent.");
+            d = D(BuildingType.Apartments, "Apartment block", 2, 2, Category.Residential, Zone.Apartments, 1106000, 200, "Twelve flats owned by a landlord who sets the rent.");
             d.Homes = 12; d.Rent = 1150; d.Value = 1900000; d.Floors = 5;
 
             // ---------------------------------------------------------------- Commercial

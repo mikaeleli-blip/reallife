@@ -126,6 +126,7 @@ namespace RealLife.Simulation
         void ClientPays(Building b, double amount)
         {
             if (amount <= 0) return;
+            b.Cost += amount;
             if (b.Owner == Owner.Town) { Treasury -= amount; Book.Construction += amount; return; }
             var firm = OwnerFirm(b);
             var family = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : firm != null ? GetHousehold(firm.OwnerId) : null;
@@ -171,7 +172,9 @@ namespace RealLife.Simulation
             double reserve = forSale ? MonthlyCosts(firm) : Cushion(firm) * 0.5;
             double has = Math.Max(0, firm.Cash - reserve) + (family != null ? Math.Max(0, family.Cash - 20000) : 0);
             if (has < equity) return false;
-            if (Debt(firm) + cost > Collateral(firm) * 0.8 + cost * 0.9) return false;
+            // what it owes against what it has: the homes, the office, and the money in the bank (a new firm's working capital
+            // is borrowed, and sitting there)
+            if (Debt(firm) - Math.Max(0, firm.Cash) + cost > Collateral(firm) * 0.8 + cost * 0.9) return false;
             if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 4 + Portfolio(firm).Count() / 8;
             double rentIn = 0; foreach (var b in Portfolio(firm)) if (b.Built) rentIn += b.Rent * b.Households.Count;
             double newRent = d.Homes * d.Rent * HousingIndex * 0.9;
@@ -179,14 +182,15 @@ namespace RealLife.Simulation
             return LoanPayments(firm) + pay <= (rentIn + newRent) * 0.7;
         }
 
-        /// <summary>The property firm best placed to build next: the one with the most money to spare that can take it on.</summary>
+        /// <summary>The property firm that builds next, of those that can take it on: the one with the least already going up, and
+        /// among those, more often the one with money to spare. (So a new firm gets work too, not just the biggest.)</summary>
         Building HousingFirm(BuildingType t)
         {
             Building best = null; double bs = double.MinValue;
             foreach (var f in PropertyFirms())
             {
                 if (!Connected(f) || !CanTakeOn(f, t)) continue;
-                double s = f.Cash - Cushion(f) - Portfolio(f).Count(b => !b.Built) * 200000 + Rand() * 50000;
+                double s = -Portfolio(f).Count(b => !b.Built) * 2 + Math.Max(-1, Math.Min(1, (f.Cash - Cushion(f)) / 200000)) + Rand() * 1.5;
                 if (s > bs) { bs = s; best = f; }
             }
             return best;
@@ -248,7 +252,7 @@ namespace RealLife.Simulation
                 buyer.Cash -= fromFirm;
                 if (fam != null && share > fromFirm) HouseholdPays(fam, share - fromFirm, HouseholdBook.Goods);
                 PropertyLoan(b, fam, buyer, price - share, false);
-                FirmOwns(b, buyer); b.ForSale = false; b.VacantDays = 0;
+                FirmOwns(b, buyer); b.ForSale = false; b.VacantDays = 0; b.Cost = price;
                 if (b.Type == BuildingType.House || b.Households.Count == 0) b.Rent = b.Def.Rent * HousingIndex;
                 AddLog(Title(buyer) + " bought " + (b.Def.Homes > 1 ? "an " + b.Def.Name.ToLower() : "a house") + " to let.", LogKind.Money, b.Id);
                 return;
@@ -312,7 +316,8 @@ namespace RealLife.Simulation
             var firm = OwnerFirm(b);
             if (firm != null)
             {
-                firm.Cash += price;
+                // a sale is the firm's takings, less what the home cost it
+                firm.Cash += price; firm.Revenue += price; firm.Supplies += b.Cost > 0 ? b.Cost : b.Def.StartupCost;
                 foreach (var l in Loans.ToList())
                     if (l.BuildingId == b.Id && l.FirmId == firm.Id) { firm.Cash -= l.Principal; BankCapital += l.Principal; Loans.Remove(l); }
                 return;
@@ -332,12 +337,26 @@ namespace RealLife.Simulation
         }
 
         // ================================================================== old saves
+        /// <summary>Saves from before flats had their own zone: the land under apartment blocks becomes apartment zoning.</summary>
+        void MigrateFlats()
+        {
+            foreach (var b in Buildings)
+                if (b.Type == BuildingType.Apartments)
+                    for (int y = b.Y; y < b.Y + b.Def.H; y++) for (int x = b.X; x < b.X + b.Def.W; x++) SetZoneBits(x, y, Zone.Apartments);
+            MapVersion++;
+        }
+
         /// <summary>Brings a game saved before everything was locally owned up to date: firms out of town sell to families and
         /// property firms here, and farms get farmland.</summary>
         public void Migrate()
         {
             if (SaveVersion >= CurrentVersion) return;
-            if (SaveVersion >= 2) { MigrateCars(); SaveVersion = CurrentVersion; return; }
+            if (SaveVersion >= 2)
+            {
+                if (SaveVersion < 3) MigrateCars();
+                MigrateFlats();
+                SaveVersion = CurrentVersion; return;
+            }
             foreach (var b in Buildings)
                 if (b.Type == BuildingType.Farm)
                     for (int y = b.Y; y < b.Y + b.Def.H; y++) for (int x = b.X; x < b.X + b.Def.W; x++) SetZoneBits(x, y, Zone.Farmland);
@@ -388,6 +407,7 @@ namespace RealLife.Simulation
                 b.Brand = Branded(b.Type) ? brand : null;
             }
             MigrateCars();
+            MigrateFlats();
             SaveVersion = CurrentVersion;
             MapVersion++;
         }

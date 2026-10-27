@@ -12,7 +12,7 @@ namespace RealLife.Simulation
     [Serializable]
     public partial class Town
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
         public const int StartYear = 2025;
 
         public int SaveVersion = CurrentVersion;

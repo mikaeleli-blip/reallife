@@ -183,7 +183,7 @@ namespace RealLife.Simulation
 
             ZoneRect(39, 41, 43, 45, Zone.Residential); ZoneRect(45, 41, 49, 45, Zone.Residential); ZoneRect(51, 41, 55, 45, Zone.Residential);
             ZoneRect(39, 47, 43, 51, Zone.Residential); ZoneRect(45, 47, 49, 51, Zone.Commercial); ZoneRect(51, 47, 55, 51, Zone.Commercial);
-            ZoneRect(39, 53, 43, 57, Zone.Residential); ZoneRect(45, 53, 49, 57, Zone.Commercial); ZoneRect(51, 53, 55, 57, Zone.Residential);
+            ZoneRect(39, 53, 43, 57, Zone.Residential); ZoneRect(45, 53, 49, 57, Zone.Commercial); ZoneRect(51, 53, 55, 57, Zone.Apartments);
             ZoneRect(39, 59, 55, 63, Zone.Residential);
             ZoneRect(57, 41, 71, 51, Zone.Industrial); ZoneRect(57, 53, 63, 63, Zone.Industrial); ZoneRect(65, 53, 71, 63, Zone.Industrial);
             // farmland along the farm road, well away from the factories

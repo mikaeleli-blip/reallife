@@ -409,7 +409,7 @@ namespace RealLife.Simulation
                 if (!Chance(c.Age > 26 ? 0.35f : 0.18f)) continue;
                 double take = c.Wage * (1 - Policy.IncomeTax);
                 var home = FindHome(1, take, 0.4);
-                if (home == null) continue;
+                if (home == null) { Wants[(int)BuildingType.Apartments] += 0.5f; continue; }
                 var nh = NewHousehold(c.Last);
                 double gift = Math.Min(Math.Max(0, h.Cash * 0.08), 6000) + c.Wage * c.Thrift * 2;
                 gift = Math.Min(gift, Math.Max(0, h.Cash * 0.5));
@@ -603,7 +603,7 @@ namespace RealLife.Simulation
                 bool family = Chance(0.5f);
                 double take = o.Wage * (1 - Policy.IncomeTax) * (family ? 1.6 : 1);
                 var home = FindHome(family ? 3 : 1, take, 0.42);
-                if (home == null) { Wants[(int)BuildingType.House] += 1; continue; }
+                if (home == null) { Wants[(int)BuildingType.Apartments] += 1; continue; }   // most who come for a job rent at first
                 var edu = Defs.Get(o.Role).Needs;
                 var h = Arrive(home, edu, family);
                 var worker = Members(h).FirstOrDefault(m => Defs.Qualifies(m.Edu, edu) && !m.IsChild);

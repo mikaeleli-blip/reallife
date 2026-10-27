@@ -108,6 +108,7 @@ namespace RealLife.Simulation
         public string OwnerName;          // the owner's name: a family, a company or the bank
         public string Brand;              // a business's trading name, if it has one ("Horizon Properties")
         public double EquityLeft;         // while it's going up: what the founders still mean to put in from their savings
+        public double Cost;               // what its owner paid for it: the builders' bill, or the price; set against a sale
         public int WantManagers, WantHands;   // a property firm's staff for the homes it has
         public double Cash;               // the business's account
         public double Value;

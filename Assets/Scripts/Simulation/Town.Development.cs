@@ -314,7 +314,7 @@ namespace RealLife.Simulation
         }
 
         /// <summary>Demand for each zone, -1..1, for the meters in the HUD.</summary>
-        public float[] ZoneDemand = new float[5];
+        public float[] ZoneDemand = new float[6];
 
         /// <summary>Puts up a new building on the best free lot of its zone, for a founding family or a property firm.</summary>
         Building Develop(BuildingType t, Household founder, Building firm)
@@ -341,7 +341,7 @@ namespace RealLife.Simulation
             WorkStarted += d.Work;
             return b;
         }
-        [NonSerialized] public bool[] LotShort = new bool[5];
+        [NonSerialized] public bool[] LotShort = new bool[6];
         [NonSerialized] public BuildingType NoInvestor = BuildingType.FreightTerminal;
 
         // ================================================================== is it worth opening?
@@ -450,38 +450,52 @@ namespace RealLife.Simulation
             int building = Buildings.Count(b => !b.Built && b.Owner != Owner.Town);   // public works don't hold up private building
             int buildCap = 8 + Buildings.Count(b => b.Type == BuildingType.Construction && b.Open) * 6;
             // ---------------------------------------------------------------- homes, built by the property firms
-            int free = VacantUnits() + Buildings.Count(b => b.ForSale && b.Households.Count == 0);
-            int coming = Buildings.Where(b => !b.Built && b.Def.Homes > 0).Sum(b => b.Def.Homes);
+            // Two markets, each on its own zone: flats to let, for singles, young people leaving home and workers who come for a
+            // job; and houses to sell, for families who can get a mortgage.
             int openings = Openings().Sum(o => o.Count);
             // and when homes are dear, building them pays: developers build ahead of the queue
             float dear = Math.Max(0, (HousingIndex - 1.25f) / 0.25f);
-            int wantHomes = (int)(LastWants[(int)BuildingType.House] + openings * 0.6f + pop * (0.03f + 0.015f * dear));
-            float resDemand = (wantHomes - free - coming) / (float)Math.Max(6, pop / 12);
-            ZoneDemand[(int)Zone.Residential] = Math.Max(-1, Math.Min(1, resDemand));
-            int gap = wantHomes - free - coming;
+            int rentFree = VacantUnits(), saleFree = Buildings.Count(b => b.ForSale && b.Households.Count == 0);
+            int flatsComing = Buildings.Where(b => !b.Built && b.Type == BuildingType.Apartments).Sum(b => b.Def.Homes);
+            int housesComing = Buildings.Count(b => !b.Built && b.Type == BuildingType.House);
+            int wantRent = (int)(LastWants[(int)BuildingType.Apartments] + openings * 0.6f + pop * (0.02f + 0.01f * dear));
+            int wantBuy = (int)(LastWants[(int)BuildingType.House] + pop * (0.01f + 0.005f * dear));
+            int rentGap = wantRent - rentFree - flatsComing, buyGap = wantBuy - saleFree - housesComing;
+            bool flatLand = HasLot(BuildingType.Apartments), houseLand = HasLot(BuildingType.House);
+            float scale = Math.Max(6, pop / 12);
+            ZoneDemand[(int)Zone.Apartments] = Math.Max(-1, Math.Min(1, rentGap / scale));
+            // with no land zoned for flats, renters end up in houses
+            ZoneDemand[(int)Zone.Residential] = Math.Max(-1, Math.Min(1, (buyGap + (flatLand ? 0 : Math.Max(0, rentGap))) / scale));
+            if (!flatLand && rentGap > 0) LotShort[(int)Zone.Apartments] = true;
             bool anyFirm = Buildings.Any(b => b.Type == BuildingType.Realty && (b.Open || !b.Built));
-            bool firstFirm = !anyFirm && gap > 0 && pop >= 25 && HasLot(BuildingType.House);   // nobody builds homes here yet: a family starts a property firm
-            while (gap > 0 && building < buildCap)
+            // nobody builds homes here yet: a family starts a property firm
+            bool firstFirm = !anyFirm && (buyGap > 0 || rentGap > 0) && pop >= 25 && (houseLand || flatLand);
+            // a block of flats once enough renters are waiting; houses for those who'd buy, and for renters too when there's no
+            // land for flats or no firm can take a block on
+            bool flatsStuck = !flatLand;
+            while (building < buildCap)
             {
-                Building b = null;
-                if (gap >= 7 && Chance(0.6f))
+                if (rentGap >= 5 && !flatsStuck)
                 {
                     var firm = HousingFirm(BuildingType.Apartments);
-                    if (firm != null) b = Develop(BuildingType.Apartments, null, firm);
+                    var f = firm != null ? Develop(BuildingType.Apartments, null, firm) : null;
+                    if (f != null) { rentGap -= f.Def.Homes; building++; continue; }
+                    flatsStuck = true;
+                    if (firm == null) DevNote("flats wanted (" + rentGap + ") but no firm can take a block on");
                 }
-                if (b == null)
-                {
-                    var firm = HousingFirm(BuildingType.House);
-                    if (firm != null) b = Develop(BuildingType.House, null, firm);
-                }
-                if (b == null) break;
-                gap -= b.Def.Homes; building++;
+                if (buyGap + (flatsStuck ? Math.Max(0, rentGap) : 0) <= 0) break;
+                var hf = HousingFirm(BuildingType.House);
+                var h = hf != null ? Develop(BuildingType.House, null, hf) : null;
+                if (h == null) break;
+                building++;
+                if (buyGap > 0) buyGap--; else rentGap--;
             }
             // nobody here building homes yet: houses for the families who want to move in
             HousesForSettlers(ref building, buildCap);
-            // another property firm when the ones here can't keep up and are doing well
+            // another property firm when the ones here are doing well but can't take on what's wanted
             var firms = PropertyFirms();
-            bool stretched = firms.Count > 0 && gap > 4 && HasLot(BuildingType.House) && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
+            bool cantKeepUp = (flatLand && rentGap >= 5 && HousingFirm(BuildingType.Apartments) == null) || (houseLand && buyGap > 4 && HousingFirm(BuildingType.House) == null);
+            bool stretched = firms.Count > 0 && cantKeepUp && firms.All(f => f.LastProfit > 0 && Portfolio(f).Sum(o => o.Def.Homes) > 60);
             if (ReadyToOpen(BuildingType.Realty, anyFirm ? stretched : firstFirm, anyFirm ? 3 : 2, false) && building < buildCap)
             {
                 var f = Founder(BuildingType.Realty);

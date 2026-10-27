@@ -17,6 +17,8 @@ namespace RealLife.Game
         Town T { get { return gc.Town; } }
         public Panel Open { get; private set; }
         bool buildMenu;
+        Zone homesKind = Zone.Residential;   // what the Homes button zones: houses or apartments
+        float homesX, barY;
         readonly List<Rect> rects = new List<Rect>();
         readonly List<Rect> lastRects = new List<Rect>();
         public bool Typing { get { return false; } }
@@ -68,6 +70,7 @@ namespace RealLife.Game
             Demand();
             Toolbar();
             if (buildMenu) BuildMenu();
+            if (HomesTool) HomesPicker();
             switch (Open)
             {
                 case Panel.Town: TownPanel(); break;
@@ -147,14 +150,14 @@ namespace RealLife.Game
         /// <summary>The R/C/I meters: how much each kind of zone is wanted.</summary>
         void Demand()
         {
-            var r = Claim(Ui.R(10, 58, 172, 70));
+            var r = Claim(Ui.R(10, 58, 212, 70));
             Ui.PanelBox(r);
-            Ui.Small(Ui.R(18, 60, 160, 18), "Demand");
-            string[] n = { "Homes", "Shops", "Work", "Farms" };
-            Zone[] z = { Zone.Residential, Zone.Commercial, Zone.Industrial, Zone.Farmland };
-            for (int i = 0; i < 4; i++)
+            Ui.Small(Ui.R(18, 60, 200, 18), "Demand");
+            string[] n = { "Houses", "Flats", "Shops", "Work", "Farms" };
+            Zone[] z = { Zone.Residential, Zone.Apartments, Zone.Commercial, Zone.Industrial, Zone.Farmland };
+            for (int i = 0; i < n.Length; i++)
             {
-                float v = T.ZoneDemand[(int)z[i]];
+                float v = (int)z[i] < T.ZoneDemand.Length ? T.ZoneDemand[(int)z[i]] : 0;
                 float bx = 18 + i * 40;
                 var track = Ui.R(bx, 80, 30, 30);
                 Ui.Fill(track, Ui.Panel2);
@@ -164,7 +167,8 @@ namespace RealLife.Game
                 if (v >= 0) Ui.Fill(Ui.R(bx, mid - h, 30, h), col); else Ui.Fill(Ui.R(bx, mid, 30, h), Ui.Bad);
                 Ui.Fill(Ui.R(bx, mid, 30, 1), Ui.Dim);
                 Ui.Center(Ui.R(bx - 5, 109, 40, 16), "<size=" + Mathf.RoundToInt(11 * Ui.S) + ">" + n[i] + "</size>", Ui.Dim);
-                Tip(track, z[i] == Zone.Residential ? "Demand for homes: people who'd move here, or move out of their parents', if there were somewhere to live."
+                Tip(track, z[i] == Zone.Residential ? "Demand for houses: families who'd buy one here if there were one for sale."
+                         : z[i] == Zone.Apartments ? "Demand for flats: singles, young people leaving home and workers coming for a job, who'd rent if there were somewhere."
                          : z[i] == Zone.Commercial ? "Demand for shops and services: sales nobody in town could make."
                          : z[i] == Zone.Farmland ? "Demand for farmland: crops the food plant has to bring in from outside."
                          : "Demand for workplaces: people looking for work that firms could hire.");
@@ -184,7 +188,8 @@ namespace RealLife.Game
             float x = x0;
             ToolButton(ref x, y, bw, bh, "Select", gc.Tool == Tool.Inspect, () => gc.SetTool(Tool.Inspect), "Click buildings and people to see how they're doing. (Esc)");
             ToolButton(ref x, y, bw, bh, "Road", gc.Tool == Tool.Road, () => gc.SetTool(Tool.Road), "Lay streets: drag from one point to another. " + Town.Money(Town.RoadCost) + " a tile. (T)");
-            ToolButton(ref x, y, bw, bh, "Homes", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Residential, () => gc.SetTool(Tool.Zone, Zone.Residential), GameController.ZoneHint(Zone.Residential));
+            homesX = x; barY = y;
+            ToolButton(ref x, y, bw, bh, "Homes", HomesTool, () => gc.SetTool(Tool.Zone, homesKind), "Zone land for homes: houses to sell, or apartment blocks to let. Pick which above the button.");
             ToolButton(ref x, y, bw, bh, "Shops", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Commercial, () => gc.SetTool(Tool.Zone, Zone.Commercial), GameController.ZoneHint(Zone.Commercial));
             ToolButton(ref x, y, bw, bh, "Industry", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Industrial, () => gc.SetTool(Tool.Zone, Zone.Industrial), GameController.ZoneHint(Zone.Industrial));
             ToolButton(ref x, y, bw, bh, "Farms", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Farmland, () => gc.SetTool(Tool.Zone, Zone.Farmland), GameController.ZoneHint(Zone.Farmland));
@@ -196,6 +201,26 @@ namespace RealLife.Game
             ToolButton(ref x, y, bw, bh, "Economy", Open == Panel.Economy, () => Toggle(Panel.Economy), "Jobs, wages, prices, trade, businesses and history.");
             ToolButton(ref x, y, bw, bh, "People", Open == Panel.People, () => Toggle(Panel.People), "Who lives here: ages, education, housing, the unemployed.");
             ToolButton(ref x, y, bw, bh, "News", Open == Panel.News, () => Toggle(Panel.News), "What's been happening in town.");
+        }
+
+        bool HomesTool { get { return gc.Tool == Tool.Zone && (gc.ZoneKind == Zone.Residential || gc.ZoneKind == Zone.Apartments); } }
+
+        /// <summary>Above the Homes button while it's in use: houses or apartments.</summary>
+        void HomesPicker()
+        {
+            float w = 112, h = 40, pad = 6;
+            float px = homesX - pad, py = barY - 8 - h - pad * 2 - 6;
+            Ui.PanelBox(Claim(Ui.R(px, py, w * 2 + 4 + pad * 2, h + pad * 2)));
+            Zone[] kinds = { Zone.Residential, Zone.Apartments };
+            for (int i = 0; i < 2; i++)
+            {
+                var z = kinds[i];
+                float bx = px + pad + i * (w + 4), by = py + pad;
+                var br = Ui.R(bx, by, w, h);
+                if (Ui.Button(br, "     " + GameController.ZoneName(z), gc.ZoneKind == z)) { homesKind = z; gc.SetTool(Tool.Zone, z); }
+                Ui.Fill(Ui.R(bx + 10, by + h / 2 - 6, 12, 12), WorldView.ZoneColor(z));
+                Tip(br, GameController.ZoneHint(z));
+            }
         }
 
         void ToolButton(ref float x, float y, float w, float h, string label, bool on, System.Action act, string tip)

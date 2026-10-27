@@ -218,7 +218,7 @@ namespace RealLife.Simulation
                 if (h.Cash < b.Value * 1.05 + 30000) continue;
                 SellerGets(b, b.Value, false);
                 HouseholdPays(h, b.Value * 1.03, HouseholdBook.Housing); Trade.Imports += b.Value * 0.03;
-                FamilyOwns(b, h); b.ForSale = false; b.Rent = b.Def.Rent * HousingIndex; b.VacantDays = 0;
+                FamilyOwns(b, h); b.ForSale = false; b.Rent = b.Def.Rent * HousingIndex; b.VacantDays = 0; b.Cost = b.Value;
                 market.Remove(b);
                 AddLog("The " + h.Name + " family bought a house to rent out.", LogKind.Money);
             }
@@ -228,6 +228,7 @@ namespace RealLife.Simulation
         {
             double price = b.Value, down = price * 0.1, fees = price * 0.03;
             SellerGets(b, price, false);
+            b.Cost = price;
             HouseholdPays(h, down + fees, HouseholdBook.Housing); Trade.Imports += fees;
             NewLoan(LoanKind.Mortgage, h, b, price - down, Balance.MortgageRate, Balance.MortgageMonths);
             MoveIn(h, b, true);

@@ -84,13 +84,14 @@ namespace RealLife.Simulation
         }
 
         // ================================================================== settlers
-        [NonSerialized] public int SettlersShort;   // families who wanted to move here last month but found no home
+        [NonSerialized] public int SettlersShort;   // families who wanted to buy a house here last month but found none
+        [NonSerialized] public int SettlersRentShort;   // and those who'd have rented a flat
 
         /// <summary>While the jobs around have room, families move here for a home of their own and drive to work: a house for
         /// sale if they can get a mortgage, a place to rent if not. Those who find nothing are the demand for new homes.</summary>
         void Settlers()
         {
-            SettlersShort = 0;
+            SettlersShort = 0; SettlersRentShort = 0;
             if (!Policy.Immigration || Terminal == null || mainComp < 0) return;
             int looking = People.Count(c => c.InLaborForce && c.WorkId < 0);
             int room = CommuteCap() - Commuters() - looking;
@@ -122,7 +123,7 @@ namespace RealLife.Simulation
                     double price = house.Value * HousingIndex;
                     bool could = family ? Annuity(price * 0.9, Balance.MortgageRate, Balance.MortgageMonths) + price * Policy.PropertyTax / 12 <= income * 0.36
                                         : Defs.Get(BuildingType.Apartments).Rent * HousingIndex <= income * (1 - Policy.IncomeTax) * 0.42;
-                    if (could) SettlersShort++;
+                    if (could) { if (family) SettlersShort++; else SettlersRentShort++; }
                     continue;
                 }
                 var h = Newcomers(edu, family);
@@ -145,7 +146,8 @@ namespace RealLife.Simulation
                 Note(a, "Moved to " + Name + (buy != null ? " and bought a house." : "."));
             }
             Wants[(int)BuildingType.House] += SettlersShort;
-            DevNote("settlers: room " + room + " tried " + n + " short " + SettlersShort + " market " + market.Count + " vacant " + VacantUnits() +
+            Wants[(int)BuildingType.Apartments] += SettlersRentShort;
+            DevNote("settlers: room " + room + " tried " + n + " short " + SettlersShort + "/" + SettlersRentShort + " market " + market.Count + " vacant " + VacantUnits() +
                     " building " + Buildings.Count(b => !b.Built && b.Def.Homes > 0) + " idx " + HousingIndex.ToString("0.00"));
         }
 

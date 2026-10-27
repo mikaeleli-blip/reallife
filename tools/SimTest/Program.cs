@@ -63,6 +63,7 @@ static class Program
                 var owned = t.Cars.Where(c => c.HouseholdId >= 0).ToList();
                 var garages = t.Buildings.Where(x => x.Type == BuildingType.AutoRepair && x.Open).ToList();
                 Console.WriteLine($"      cars {owned.Count} ({owned.Count / (float)Math.Max(1, t.Households.Count):0.00}/hh, none {t.Households.Count(h => t.CarCount(h) == 0)}) age {(owned.Count > 0 ? owned.Average(c => t.CarAge(c)) : 0):0.0} cond {(owned.Count > 0 ? owned.Average(c => c.Condition) : 0):0.00} broken {owned.Count(c => c.Broken)} inShop {owned.Count(c => c.ShopId >= 0)} away {owned.Count(c => c.ShopId == -2)} | garages {garages.Count} booked {string.Join(",", garages.Select(g => t.Cars.Where(c => c.ShopId == g.Id).Sum(c => c.JobHours).ToString("0")))}h | lots {string.Join(",", t.Buildings.Where(x => x.Type == BuildingType.CarDealer && x.Open).Select(d => t.LotOf(d).Count()))} | sold {t.LastCarsSold} scrapped {t.LastScrapped} repairsAway {t.LastRepairsAway}");
+                Console.WriteLine("      " + Homes(t));
                 if (Environment.GetEnvironmentVariable("BROKEN") == "1")
                     foreach (var c in owned.Where(c => c.Broken && c.ShopId == -1).Take(12))
                     {
@@ -85,6 +86,7 @@ static class Program
         Console.WriteLine($"Town book: in {Town.Money(b2.TotalIn)} (inc {Town.Money(b2.IncomeTax)} sales {Town.Money(b2.SalesTax)} prop {Town.Money(b2.PropertyTax)} biz {Town.Money(b2.BusinessTax)} fees {Town.Money(b2.Fees)}) out {Town.Money(b2.TotalOut)} (wages {Town.Money(b2.PublicWages)} upkeep {Town.Money(b2.Upkeep)} benefits {Town.Money(b2.Benefits)} build {Town.Money(b2.Construction)} interest {Town.Money(b2.Interest)})");
         Console.WriteLine("Edu: " + string.Join(", ", Enum.GetValues(typeof(Edu)).Cast<Edu>().Select(e => e + " " + t.People.Count(c => !c.IsChild && c.Edu == e))));
         Console.WriteLine("Advice: " + string.Join(" | ", t.Advice()));
+        Console.WriteLine(Homes(t));
         Console.WriteLine("Wants: " + string.Join(", ", Defs.All.Where(x => t.LastWants[(int)x] > 0).Select(x => x + " " + t.LastWants[(int)x].ToString("0"))));
         int nans = t.Households.Count(h => double.IsNaN(h.Cash) || double.IsInfinity(h.Cash) || double.IsNaN(h.FunMoney)) + t.Buildings.Count(b => double.IsNaN(b.Cash) || double.IsNaN(b.Price) || double.IsNaN(b.Value) || b.Stock.Any(x => float.IsNaN(x))) +
                    t.People.Count(c => float.IsNaN(c.Age) || float.IsNaN(c.Happiness) || float.IsNaN(c.Health) || double.IsNaN(c.Wage)) + t.Loans.Count(l => double.IsNaN(l.Principal)) + (double.IsNaN(t.Treasury) ? 1 : 0);
@@ -131,13 +133,13 @@ static class Program
             new[] { 39, 35, 55, 39 }, new[] { 39, 65, 55, 69 }, new[] { 27, 41, 31, 57 }
         };
 
-        void OpenBlock()
+        void OpenBlock(RealLife.Simulation.Zone z = RealLife.Simulation.Zone.Residential)
         {
             if (nextBlock >= Blocks.Length) return;
             var b = Blocks[nextBlock++];
             Road(b[0] - 1, b[1] - 1, b[2] + 1, b[1] - 1); Road(b[2] + 1, b[1] - 1, b[2] + 1, b[3] + 1);
             Road(b[2] + 1, b[3] + 1, b[0] - 1, b[3] + 1); Road(b[0] - 1, b[3] + 1, b[0] - 1, b[1] - 1);
-            Zone(b[0], b[1], b[2], b[3], RealLife.Simulation.Zone.Residential);
+            Zone(b[0], b[1], b[2], b[3], z);
         }
 
         public void Month(int m)
@@ -178,8 +180,19 @@ static class Program
             if (pop >= 450 && !Has(BuildingType.College)) Place(BuildingType.College, 39, 65);
             if (pop >= 400 && !Has(BuildingType.BusDepot)) Place(BuildingType.BusDepot, 51, 59);
             if (m > 0 && !t.HasLot(BuildingType.House)) { OpenBlock(); Console.WriteLine("      bot: opened block " + nextBlock); }
+            if (m > 0 && Environment.GetEnvironmentVariable("NOFLATS") != "1" && t.ZoneDemand[(int)RealLife.Simulation.Zone.Apartments] > 0.2f && !t.HasLot(BuildingType.Apartments))
+            { OpenBlock(RealLife.Simulation.Zone.Apartments); Console.WriteLine("      bot: opened a block for flats " + nextBlock); }
             if (m > 24 && m % 12 == 0 && t.ZonedFree(RealLife.Simulation.Zone.Commercial) < 6) { Road(56, 34, 56, 40); Zone(51, 35, 55, 39, RealLife.Simulation.Zone.Commercial); }
         }
+    }
+
+    static string Homes(Town t)
+    {
+        var houses = t.Buildings.Where(b => b.Type == BuildingType.House).ToList();
+        var flats = t.Buildings.Where(b => b.Type == BuildingType.Apartments).ToList();
+        int owned = houses.Count(b => b.Built && b.Households.Count > 0 && t.GetHousehold(b.Households[0]) != null && t.GetHousehold(b.Households[0]).Owns);
+        string firms = string.Join(" ", t.PropertyFirms().Select(f => $"[{t.Portfolio(f).Count(o => o.Type == BuildingType.House)}h {t.Portfolio(f).Count(o => o.Type == BuildingType.Apartments)}a rev {Town.Money(f.LastRevenue)} profit {Town.Money(f.LastProfit)} cash {Town.Money(f.Cash)}]"));
+        return $"homes: houses {houses.Count(b => b.Built)} (+{houses.Count(b => !b.Built)} going up; owned {owned}, for sale {houses.Count(b => b.Built && b.ForSale)}, let {houses.Count(b => b.Built && !b.ForSale && b.Households.Count > 0) - owned}) flats {flats.Count(b => b.Built)} blocks (+{flats.Count(b => !b.Built)}) {flats.Sum(b => b.Households.Count)}/{flats.Count(b => b.Built) * 12} let | vacant {t.VacantUnits()} wants house {t.LastWants[(int)BuildingType.House]:0} flat {t.LastWants[(int)BuildingType.Apartments]:0} | demand R {t.ZoneDemand[1]:0.00}{(t.ZoneDemand.Length > 5 ? " A " + t.ZoneDemand[5].ToString("0.00") : "")} | firms {firms}";
     }
 
     static void Header() => Console.WriteLine("date          pop  hh  emp unemp  un%  jobs open vac  hap  treasury   avgwage  medcash  prices  rent   houseIdx biz  trade-in trade-out  b/d/a/l");

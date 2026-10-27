@@ -142,7 +142,7 @@ namespace RealLife.Simulation
             bool zoned = false;
             for (int y = 0; y < Rows && !zoned; y++) for (int x = 0; x < Cols && !zoned; x++) if (ZoneAt(x, y) != Zone.None) zoned = true;
             if (!zoned) l.Add("Run streets off the end of the highway and zone land beside them for homes. Families will move in and drive to work out of town.");
-            else if (SettlersShort > 0 && !HasLot(BuildingType.House)) l.Add("Families want to move here but there's no residential lot left by a road. Zone more, along streets.");
+            else if (SettlersShort > 0 && !HasLot(BuildingType.House)) l.Add("Families want to buy houses here but there's no land zoned for houses left by a road. Zone more, along streets.");
             int lf = LaborForce(), commuters = Commuters();
             if (commuters >= 8 && commuters > lf * 0.25f) l.Add(commuters + " people drive to jobs out of town. Zone shops and industry so they can work here, and the town keeps their spending.");
             if (Population >= 60 && !Buildings.Any(b => b.Type == BuildingType.TownHall)) l.Add("There's no town hall yet. Build one where you want the middle of town to be: shops and offices gather round it.");
@@ -158,7 +158,8 @@ namespace RealLife.Simulation
             if (un > 0.1f) l.Add("Unemployment is " + Pct(un) + ". Zone industrial or commercial land so firms can open.");
             int open = Openings().Where(o => o.Building.Unfilled >= 4).Sum(o => o.Count);
             if (open > 4) l.Add(open + " jobs have gone unfilled for a month or more.");
-            if (VacantUnits() == 0 && !HasLot(BuildingType.House) && SettlersShort == 0) l.Add("Homes are full and there's no residential land by a road left to build on.");
+            if (VacantUnits() == 0 && !HasLot(BuildingType.House) && !HasLot(BuildingType.Apartments) && SettlersShort == 0) l.Add("Homes are full and there's no residential land by a road left to build on.");
+            if (LotShort != null && LotShort.Length > (int)Zone.Apartments && LotShort[(int)Zone.Apartments]) l.Add("People want flats to rent but there's no land zoned for apartments by a road. Zone some: Homes, then Apartments.");
             if (LotShort != null && LotShort[(int)Zone.Commercial]) l.Add("A business wanted to open but found no commercial lot by a road.");
             if (LotShort != null && LotShort[(int)Zone.Industrial]) l.Add("A firm wanted to build but found no industrial land by a road.");
             if (LotShort != null && LotShort.Length > (int)Zone.Farmland && LotShort[(int)Zone.Farmland]) l.Add("Someone wanted to start a farm but there's no farmland by a road. Zone some with the Farms tool.");

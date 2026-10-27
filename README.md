@@ -44,6 +44,8 @@ The town saves every month and when you quit, to `Application.persistentDataPath
 | **Esc** | Back to Select, then clear the selection |
 | **F5** | Save now |
 
+The **Homes** tool zones land for **Houses** or **Apartments**: pick which in the strip that opens above the button.
+
 Click any building or any person walking or driving to inspect them. Hold **Shift** while placing a public building to place
 several.
 
@@ -102,9 +104,12 @@ on the road and on the driveway, the stock on a dealer's lot and the cars waitin
 family's cars, a dealer's lot and a garage's queue, and the Economy panel counts cars bought, scrapped and repaired out of town.
 
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
-with property managers and handymen on staff. They build houses to sell and flats to let, buy repossessed homes from the
-bank, collect the rent, pay the property tax and keep the places up. When there are none and people need homes, a family
-starts one.
+with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy
+repossessed homes from the bank, collect the rent, pay the property tax and keep the places up. A house sale counts as their
+takings, less what it cost to build. Flats are for renters: singles, young people leaving home and workers who come for a
+job; houses are for families who can get a mortgage. With no land for flats, renters end up in houses, which go up slowly
+and only a few at a time, so a town grows faster with some apartments. When there are no firms and people need homes, a
+family starts one; a second opens when the first is doing well but can't take on what's wanted.
 
 **Who opens what.** A new business only opens when the numbers add up for a few months running: enough custom going out of
 town to pay a crew and the loan, or shops here that are full, making money and still turning people away. A second builder
@@ -115,7 +120,7 @@ after two failures), so you won't see the same shop open and close over and over
 **Growth.** Zone land and the market decides. Families move in while the region has jobs for commuters and there are homes
 they can afford; open jobs bring workers from outside if there are homes for them; dear housing makes developers build more;
 turned-away shoppers draw shops; people looking for work, or commuting for low pay, draw factories and offices; crops
-imported for the food plant draw farms. Your zone demand meters (top left: homes, shops, industry, farms) show what's wanted.
+imported for the food plant draw farms. Your zone demand meters (top left: houses, flats, shops, work, farms) show what's wanted.
 
 **The town's books.** Income tax, sales tax, property tax, business tax and college tuition come in; public employees'
 pay, upkeep of buildings and roads, unemployment benefits and construction go out. You can run a deficit and borrow, at 5.5%
