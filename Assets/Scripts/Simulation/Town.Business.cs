@@ -237,7 +237,7 @@ namespace RealLife.Simulation
         /// isn't plainly failing (it lost money five months running).</summary>
         bool OwnersPutIn(Building b, double need)
         {
-            if (b.Owner != Owner.Household || b.LossMonths >= 5) return false;
+            if (b.Owner != Owner.Household || (b.LossMonths >= 5 && !RentCarries(b))) return false;
             var h = GetHousehold(b.OwnerId);
             if (h == null) return false;
             double spare = h.Cash - Essentials(h) * 3 - 10000;
@@ -328,8 +328,7 @@ namespace RealLife.Simulation
                 int patience = b.Type == BuildingType.Farm ? 9 : 5;
                 // a property firm between sales isn't failing while it has houses going up or on the market
                 // (or with a block just finished, still filling with tenants, or rent coming in that carries its loans)
-                bool selling = b.Type == BuildingType.Realty && (Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2) ||
-                                                                 (RentIn(b) > 0 && RentIn(b) >= LoanPayments(b)));
+                bool selling = b.Type == BuildingType.Realty && (Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2) || RentCarries(b));
                 if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);

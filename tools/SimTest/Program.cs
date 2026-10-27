@@ -18,6 +18,9 @@ static class Program
             var opts = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
             t = System.Text.Json.JsonSerializer.Deserialize<Town>(System.IO.File.ReadAllText(mode.Substring(5)), opts);
             t.Index(); t.Migrate();
+            // RESEED=n: carry on from the save down a different path of chance
+            var reseed = Environment.GetEnvironmentVariable("RESEED");
+            if (!string.IsNullOrEmpty(reseed)) t.RngState = unchecked((int)(1013904223u * (uint)int.Parse(reseed) + 12345u));
         }
         else t = mode == "blank" ? Town.CreateNew(seed) : Town.CreateDeveloped(seed);
         var bot = mode == "blank" ? new Bot(t) : null;

@@ -314,7 +314,7 @@ namespace RealLife.Simulation
             // and a builder or property firm against the work it has on: their money comes in lumps
             // (or a new business in its first half year, still stocking up and finding its customers)
             // (and a property firm with homes going up, on the market, or just finished and filling with tenants)
-            bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2)) ||
+            bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2)) || RentCarries(b) ||
                             (b.Type == BuildingType.Construction && Buildings.Any(o => !o.Built && o.ContractorId == b.Id));
             if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
             // a new business gets the benefit of the doubt in its first year: lent up to what it's worth
@@ -340,7 +340,12 @@ namespace RealLife.Simulation
                 var h = GetHousehold(l.HouseholdId);
                 var biz = LoanPayer(l);
                 bool paid = false;
-                if (biz != null) { if (biz.Cash >= due) { biz.Cash -= due; biz.OtherCosts += interest; paid = true; } }
+                if (biz != null)
+                {
+                    // short this month (a new block still filling with tenants, say): the owners, or the bank, tide it over
+                    if (biz.Cash < due && !biz.Closed) { double gap = due - Math.Max(0, biz.Cash) + 1; if (!OwnersPutIn(biz, gap)) BusinessLoan(biz, gap); }
+                    if (biz.Cash >= due) { biz.Cash -= due; biz.OtherCosts += interest; paid = true; }
+                }
                 else if (h != null && l.Kind != LoanKind.Business) { if (h.Cash >= due) { HouseholdPays(h, due, HouseholdBook.Debt); paid = true; } }
                 else { Loans.Remove(l); continue; }
                 if (paid)

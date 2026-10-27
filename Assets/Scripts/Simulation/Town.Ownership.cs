@@ -185,6 +185,10 @@ namespace RealLife.Simulation
         /// <summary>A property firm's rent roll: what its tenants pay a month.</summary>
         public double RentIn(Building firm) { double r = 0; foreach (var o in Portfolio(firm)) if (o.Built) r += o.Rent * o.Households.Count; return r; }
 
+        /// <summary>A property firm whose tenants' rent covers its loan payments is sound, whatever its last few months looked like
+        /// (a firm starting out loses money until it has homes to let).</summary>
+        public bool RentCarries(Building b) { if (b.Type != BuildingType.Realty) return false; double r = RentIn(b); return r > 0 && r >= LoanPayments(b); }
+
         /// <summary>The property firm that builds next, of those that can take it on: the one with the least already going up, and
         /// among those, more often the one with money to spare. (So a new firm gets work too, not just the biggest.)</summary>
         Building HousingFirm(BuildingType t)
@@ -239,7 +243,9 @@ namespace RealLife.Simulation
             {
                 double share = price * equityShare;
                 var fam = GetHousehold(f.OwnerId);
-                double has = Math.Max(0, f.Cash - Cushion(f) * 0.5) + (fam != null ? Math.Max(0, fam.Cash - 20000) : 0);
+                // the firm keeps enough for a month's wages and bills and its loans, the new one included; the owners make up the rest
+                double keep = MonthlyCosts(f) + LoanPayments(f) + Annuity(price - share, Balance.PropertyRate, Balance.PropertyMonths);
+                double has = Math.Max(0, f.Cash - keep) + (fam != null ? Math.Max(0, fam.Cash - 20000) : 0);
                 // what it already owes against what it already has, and the building itself secures its own loan
                 if (has < share || Debt(f) - Math.Max(0, f.Cash) + (price - share) > Collateral(f) * 0.8 + price * (1 - equityShare)) continue;
                 double rentIn = 0; foreach (var o in Portfolio(f)) if (o.Built) rentIn += o.Rent * o.Households.Count;
@@ -254,11 +260,13 @@ namespace RealLife.Simulation
                 SellerGets(b, price, false);
                 double share = price * equityShare;
                 var fam = GetHousehold(buyer.OwnerId);
-                double fromFirm = Math.Min(share, Math.Max(0, buyer.Cash - Cushion(buyer) * 0.5));
+                double keep = MonthlyCosts(buyer) + LoanPayments(buyer) + Annuity(price - share, Balance.PropertyRate, Balance.PropertyMonths);
+                double fromFirm = Math.Min(share, Math.Max(0, buyer.Cash - keep));
                 buyer.Cash -= fromFirm;
                 if (fam != null && share > fromFirm) HouseholdPays(fam, share - fromFirm, HouseholdBook.Goods);
                 PropertyLoan(b, fam, buyer, price - share, false);
                 FirmOwns(b, buyer); b.ForSale = false; b.VacantDays = 0; b.Cost = price;
+                buyer.LossMonths = 0;   // it has homes to let now: judged from here on
                 if (b.Type == BuildingType.House || b.Households.Count == 0) b.Rent = b.Def.Rent * HousingIndex;
                 AddLog(Title(buyer) + " bought " + (b.Def.Homes > 1 ? "an " + b.Def.Name.ToLower() : "a house") + " to let.", LogKind.Money, b.Id);
                 return;

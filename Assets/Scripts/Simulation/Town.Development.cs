@@ -215,6 +215,7 @@ namespace RealLife.Simulation
             if (d.Homes > 0)
             {
                 var firm = OwnerFirm(b);
+                if (firm != null && b.Type == BuildingType.Apartments) firm.LossMonths = 0;   // its flats start bringing rent in
                 if (b.Type == BuildingType.House && b.ForSale) AddLog((firm != null ? Title(firm) + " put a new house" : "A new house went") + " on the market for " + Money(b.Value) + ".", LogKind.Info, b.Id);
                 else AddLog((firm != null ? Title(firm) + "'s" : "A") + " new " + d.Name.ToLower() + " is finished: " + d.Homes + " homes to let.", LogKind.Info, b.Id);
                 return;
