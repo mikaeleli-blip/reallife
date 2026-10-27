@@ -97,7 +97,7 @@ namespace RealLife.Simulation
 
         void Produce()
         {
-            float season = new[] { 0.35f, 1.0f, 1.3f, 1.25f }[Season];
+            float season = new[] { 0.35f, 1.0f, 1.3f, 1.25f }[CropSeason];
             foreach (var b in Buildings)
             {
                 var d = b.Def;

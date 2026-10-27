@@ -165,7 +165,12 @@ namespace RealLife.Simulation
         public string Date { get { return MonthName + " " + Year + ", week " + Week; } }
         public static string DateOf(int day) { return Months[(day / Balance.DaysPerMonth) % 12] + " " + (StartYear + day / Balance.DaysPerYear); }
         /// <summary>0 winter .. 3 autumn, for the view.</summary>
-        public int Season { get { int m = MonthOfYear; return m == 11 || m < 2 ? 0 : m < 5 ? 1 : m < 8 ? 2 : 3; } }
+        /// <summary>What the town looks like: winter is December and January, spring February to April, summer May to August,
+        /// autumn September to November.</summary>
+        public int Season { get { int m = MonthOfYear; return m == 11 || m == 0 ? 0 : m < 4 ? 1 : m < 8 ? 2 : 3; } }
+
+        /// <summary>The growing year, for the farms: nothing much grows from December to February.</summary>
+        public int CropSeason { get { int m = MonthOfYear; return m == 11 || m < 2 ? 0 : m < 5 ? 1 : m < 8 ? 2 : 3; } }
 
         // ================================================================== formatting
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
