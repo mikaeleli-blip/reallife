@@ -20,7 +20,7 @@ namespace RealLife.Simulation
         {
             if (b == null) return false;
             if (b.Type == BuildingType.GroceryStore || b.Type == BuildingType.GasStation || b.Type == BuildingType.CarDealer ||
-                b.Type == BuildingType.AutoRepair || b.Type == BuildingType.ParkingLot) return true;
+                b.Type == BuildingType.AutoRepair || b.Type == BuildingType.ParkingLot || b.Def.Chain != null) return true;
             if (parkingNear == null || parkingDay != Day || parkingMap != MapVersion) { parkingNear = new Dictionary<int, bool>(); parkingDay = Day; parkingMap = MapVersion; }
             bool r;
             if (parkingNear.TryGetValue(b.Id, out r)) return r;

@@ -228,7 +228,7 @@ namespace RealLife.Simulation
             var d = b.Def;
             // a builder starts with a small crew and takes on hands as work comes in
             b.Closed = false; b.ClosedDays = 0; b.Staffing = b.Type == BuildingType.Construction ? 0.3f : d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
-            if (d.Sells.HasValue) b.Price = Defs.Retail[(int)d.Sells.Value];
+            if (d.Sells.HasValue) b.Price = d.Chain != null ? ChainPrice(b.Type) : Defs.Retail[(int)d.Sells.Value];
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
             // enough to see it through to the first sales: longer for a property firm waiting on its first houses
@@ -266,6 +266,11 @@ namespace RealLife.Simulation
             var d = Defs.Get(t);
             bx = by = -1; float best = float.MaxValue;
             float cx, cy; TownCentre(out cx, out cy);
+            // a chain's next store goes where it would be the nearest of its stores for a good many families: another part
+            // of town, not next door to its first
+            var sister = d.Chain != null ? Buildings.Where(b => b.Type == t && (b.Open || !b.Built)).ToList() : null;
+            if (sister != null && sister.Count == 0) sister = null;
+            var homes = sister != null ? Households.Select(HomeOf).Where(h => h != null).ToList() : null;
             for (int y = 0; y + d.H <= Rows; y++)
                 for (int x = 0; x + d.W <= Cols; x++)
                 {
@@ -278,9 +283,40 @@ namespace RealLife.Simulation
                     var tmp = new Building { Type = t, X = x, Y = y, Facing = f };
                     if (!ConnectedFootprint(tmp)) continue;
                     float score = Math.Abs(x + d.W / 2f - cx) + Math.Abs(y + d.H / 2f - cy) + Rand() * 4;
+                    if (sister != null)
+                    {
+                        int near = Catchment(homes, sister, x + d.W / 2f, y + d.H / 2f);
+                        if (near < homes.Count * ChainCatchment) continue;
+                        score -= near * 0.3f;
+                    }
                     if (score < best) { best = score; bx = x; by = y; }
                 }
             return bx >= 0;
+        }
+
+        const float ChainCatchment = 0.2f;   // the share of the town's families a chain's next store must be nearest for
+
+        /// <summary>Would a chain store here be the nearest of the chain's stores for enough of the town's families.</summary>
+        bool GoodChainSpot(BuildingType t, float x, float y)
+        {
+            var sister = Buildings.Where(b => b.Type == t && (b.Open || !b.Built)).ToList();
+            if (sister.Count == 0) return true;
+            var homes = Households.Select(HomeOf).Where(h => h != null).ToList();
+            return Catchment(homes, sister, x, y) >= homes.Count * ChainCatchment;
+        }
+
+        /// <summary>The homes that would have a store here nearer (by a few tiles) than any of the chain's others.</summary>
+        static int Catchment(List<Building> homes, List<Building> stores, float x, float y)
+        {
+            int n = 0;
+            foreach (var h in homes)
+            {
+                float d = Math.Abs(h.CenterX - x) + Math.Abs(h.CenterY - y) + 3;
+                bool nearer = true;
+                foreach (var o in stores) if (Math.Abs(h.CenterX - o.CenterX) + Math.Abs(h.CenterY - o.CenterY) <= d) { nearer = false; break; }
+                if (nearer) n++;
+            }
+            return n;
         }
 
         /// <summary>Where the town grows out from: the town hall; before there is one, the middle of what's been built and
@@ -567,6 +603,7 @@ namespace RealLife.Simulation
                 if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); continue; }
                 if (Expand(t, founder) != null) { building++; EntryMonths[(int)t] = 0; }
             }
+            Chains(ref building, buildCap);
             ZoneDemand[(int)Zone.Commercial] = Math.Min(1, comDemand);
             // ---------------------------------------------------------------- work: offices and industry follow the workforce
             // people looking for work, and those driving out of town for it who'd rather work here
@@ -751,6 +788,8 @@ namespace RealLife.Simulation
             {
                 if (h.Cash < need + 10000) break;
                 int owned = Buildings.Count(b => b.Owner == Owner.Household && b.OwnerId == h.Id && IsBusiness(b));
+                // a family with one grocery chain (or their grown children) doesn't start a rival one
+                if (d.Chain != null && Buildings.Any(b => b.Owner == Owner.Household && b.Def.Chain != null && b.Type != t && (b.OwnerId == h.Id || SameFamily(GetHousehold(b.OwnerId), h)))) continue;
                 bool runs = owned == 0 && Members(h).Any(m => !m.IsChild && !m.Retired && m.Age <= 60 && !m.Owner && m.Ambition >= 0.55f &&
                                                            d.Jobs.Any(j => Defs.Qualifies(m.Edu, Defs.Get(j.Role).Needs)));
                 bool invests = owned < 3 && h.Cash >= need * 2 + 30000 && (big || owned > 0) && CanStaff(t);
@@ -759,12 +798,20 @@ namespace RealLife.Simulation
             return null;
         }
 
+        static bool SameFamily(Household a, Household b) { return a != null && b != null && a.Name == b.Name; }
+
         /// <summary>A founder reopens an empty building of this kind (bought from the bank), or builds a new one.</summary>
         Building Expand(BuildingType t, Household founder)
         {
             if (founder == null) return null;
             var shut = Buildings.FirstOrDefault(b => b.Type == t && b.Closed && b.Built && Connected(b));
             if (shut == null) return Develop(t, founder, null);
+            return Reopen(shut, founder);
+        }
+
+        /// <summary>A family buys an empty business building from the bank and opens it again.</summary>
+        Building Reopen(Building shut, Household founder)
+        {
             double price = shut.Value * 0.6;
             double down = Math.Min(price, Math.Max(price * Balance.Equity, Math.Min(Math.Max(0, founder.Cash - 8000), price * 0.4)));
             HouseholdPays(founder, down, HouseholdBook.Goods);

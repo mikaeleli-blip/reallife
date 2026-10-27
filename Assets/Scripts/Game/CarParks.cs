@@ -43,13 +43,19 @@ namespace RealLife.Game
             foreach (var b in t.Buildings)
             {
                 if (!b.Built) continue;
-                if (b.Type != BuildingType.ParkingLot && !(b.Type == BuildingType.GroceryStore && !b.Closed)) continue;
+                if (b.Type != BuildingType.ParkingLot && !(HasOwnLot(b.Type) && !b.Closed)) continue;
                 var l = new Lot { B = b, Local = LocalSpots(b) };
                 l.Booked = new List<Stay>[l.Local.Count];
                 for (int i = 0; i < l.Booked.Length; i++) l.Booked[i] = new List<Stay>();
                 lots[b.Id] = l;
                 if (b.Type == BuildingType.ParkingLot) publicLots.Add(l);
             }
+        }
+
+        /// <summary>Shops whose own car park its customers use.</summary>
+        public static bool HasOwnLot(BuildingType t)
+        {
+            return t == BuildingType.GroceryStore || t == BuildingType.DiscountStore || t == BuildingType.Supermarket || t == BuildingType.WarehouseClub;
         }
 
         // ================================================================== geometry
@@ -78,9 +84,9 @@ namespace RealLife.Game
         {
             float d = Depth(b);
             var pts = new List<Vector3> { World(b, spot.x, spot.y) };
-            if (b.Type == BuildingType.ParkingLot)
+            float az = BuildingArt.AisleZ(b.Type, d);
+            if (!float.IsNaN(az))
             {
-                float az = BuildingArt.LotAisleZ(d);
                 pts.Add(World(b, spot.x, az));
                 pts.Add(World(b, 0, az));
                 pts.Add(World(b, 0, -d / 2 + 0.6f));

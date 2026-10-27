@@ -11,7 +11,9 @@ namespace RealLife.Game.Art
         public const int Market = 0, Grill = 1, Coffee = 2, Bar = 3, Apparel = 4, Electronics = 5, Furniture = 6, Fuel = 7, AutoSales = 8,
             AutoRepair = 9, Hair = 10, Fitness = 11, Bank = 12, Offices = 13, Police = 14, Fire = 15, Clinic = 16, Hospital = 17, TownHall = 18,
             Elementary = 19, HighSchool = 20, College = 21, BusDepot = 22, Logistics = 23, Builders = 24, Foods = 25, ApparelCo = 26, Tech = 27,
-            Workshop = 28, Apartments = 29, RealEstate = 30, Open = 31;
+            Workshop = 28, Apartments = 29, RealEstate = 30, Open = 31,
+            // the second atlas (signs2): the grocery chains
+            ValleyValue = 32, Redwood = 33, Bulkworks = 34;
     }
 
     /// <summary>
@@ -95,6 +97,16 @@ namespace RealLife.Game.Art
                     for (int i = 0; i < 7; i++) if (i != 3) l.Add(new Vector3(-7.8f + i * 2.6f, LotFrontZ(d), 180));
                     for (int i = 0; i < 7; i++) l.Add(new Vector3(-7.8f + i * 2.6f, LotBackZ(d), 0));
                     break;
+                case BuildingType.DiscountStore:
+                case BuildingType.Supermarket:
+                case BuildingType.WarehouseClub:
+                {
+                    // a row along the store front, nose in, and one along the street, the way in through its middle
+                    float z0 = StoreFrontZ(d);
+                    for (float x = -w / 2 + 4.3f; x < w / 2 - 3.0f; x += 2.6f) l.Add(new Vector3(x, z0 - 4.1f, 0));
+                    for (float x = -w / 2 + 4.3f; x < w / 2 - 3.0f; x += 2.6f) if (Mathf.Abs(x) > 1.6f) l.Add(new Vector3(x, z0 - 14.7f, 180));
+                    break;
+                }
                 case BuildingType.GroceryStore:
                     // the front row of its car park (Parking below)
                     for (float x = -w / 2 + 0.9f; x < w / 2 - 3.0f; x += 2.6f) l.Add(new Vector3(x + 1.3f, -d / 2 + 2.22f, 0));
@@ -145,6 +157,9 @@ namespace RealLife.Game.Art
                 case BuildingType.Park: Park(k, w, d, ref s, season); break;
                 case BuildingType.BusDepot: BusDepot(k, w, d, ref s, season); break;
                 case BuildingType.ParkingLot: ParkingLot(k, w, d, ref s, season); break;
+                case BuildingType.DiscountStore:
+                case BuildingType.Supermarket:
+                case BuildingType.WarehouseClub: BigStore(k, w, d, ref s, closed, season, t); break;
                 case BuildingType.FreightTerminal: Terminal(k, w, d, ref s, season); break;
                 case BuildingType.Realty: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.RealEstate, H("#1d3557"), false); break;
             }

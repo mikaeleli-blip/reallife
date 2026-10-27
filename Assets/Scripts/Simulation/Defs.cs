@@ -44,7 +44,9 @@ namespace RealLife.Simulation
         // Commercial (added later; kept at the end so saved games keep their numbers)
         Realty,
         // Public (added later)
-        ParkingLot
+        ParkingLot,
+        // Commercial: the big grocery chains (added later)
+        DiscountStore, Supermarket, WarehouseClub
     }
 
     public enum Role
@@ -101,6 +103,13 @@ namespace RealLife.Simulation
         public int MinPop;                // population before anyone opens one
         public bool PlayerBuilds;
         public int Floors = 1;            // for the 3D view
+        // A grocery chain's stores: its name, its prices against the going rate, what it pays its suppliers for buying in bulk,
+        // how much better (or worse) a place to shop it is for those who can afford to care, the people it takes to fill
+        // another store, and whether you need a car to shop there (a warehouse club)
+        public string Chain;
+        public float PriceFactor = 1, BulkBuy = 1, Appeal;
+        public int PopPerStore;
+        public bool NeedsCar;
         public int TotalJobs { get { int n = 0; foreach (var j in Jobs) n += j.Count; return n; } }
         public double StartupCost { get { return Materials + Work * Balance.LaborRate; } }
     }
@@ -361,6 +370,16 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.Firefighter, 5); d.Radius = 24; d.Upkeep = 2500; d.PlayerBuilds = true; d.Floors = 2;
             d = D(BuildingType.Park, "Park", 2, 2, Category.Public, Zone.None, 60000, 30, "Somewhere to go for free. Makes the neighbourhood nicer.");
             d.Jobs = J(Role.ParkKeeper, 1); d.Radius = 12; d.Upkeep = 500; d.PlayerBuilds = true;
+            // the grocery chains: a local company opens the first store, and another as the town grows
+            d = D(BuildingType.DiscountStore, "Discount supermarket", 3, 3, Category.Commercial, Zone.Commercial, 300000, 220, "A big no-frills grocery store: the lowest prices in town, bought in bulk. The first Valley Value opens when there's a town big enough to fill it; another for every few hundred more households.");
+            d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 6, Role.StockClerk, 4); d.Sells = Good.Groceries; d.StockCap = 3000; d.Output = 120; d.MinPop = 500; d.Value = 800000;
+            d.Chain = "Valley Value"; d.PriceFactor = 1.0f; d.BulkBuy = 0.88f; d.Appeal = -0.03f; d.PopPerStore = 1100;
+            d = D(BuildingType.Supermarket, "Supermarket", 3, 3, Category.Commercial, Zone.Commercial, 360000, 240, "A bright, well-stocked grocery store: dearer than the discounter, but the families who can afford to care prefer it. Redwood Market comes to bigger towns.");
+            d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 5, Role.StockClerk, 4); d.Sells = Good.Groceries; d.StockCap = 2500; d.Output = 100; d.MinPop = 950; d.Value = 900000;
+            d.Chain = "Redwood Market"; d.PriceFactor = 1.1f; d.BulkBuy = 0.9f; d.Appeal = 0.12f; d.PopPerStore = 1600;
+            d = D(BuildingType.WarehouseClub, "Warehouse club", 4, 4, Category.Commercial, Zone.Commercial, 500000, 320, "Groceries by the pallet at the lowest prices of all, for those who drive: you can't carry a month's shopping home on the bus. Bulkworks Club comes to big towns.");
+            d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 4, Role.StockClerk, 4, Role.WarehouseWorker, 3); d.Sells = Good.Groceries; d.StockCap = 6000; d.Output = 160; d.MinPop = 1800; d.Value = 1250000;
+            d.Chain = "Bulkworks Club"; d.PriceFactor = 0.9f; d.BulkBuy = 0.8f; d.Appeal = 0f; d.PopPerStore = 3000; d.NeedsCar = true; d.Floors = 2;
             d = D(BuildingType.ParkingLot, "Parking lot", 2, 2, Category.Public, Zone.None, 45000, 25, "Thirteen spaces. Drivers park here and walk to the shops, work and places nearby instead of pulling up at the door, and they'd rather go where they can park.");
             d.Radius = Town.ParkWalk; d.Upkeep = 250; d.PlayerBuilds = true;
             d = D(BuildingType.BusDepot, "Bus depot", 2, 2, Category.Public, Zone.None, 450000, 170, "Sets up bus stops across town and runs buses round them: to work for those without a car, to school for kids too far to walk, to the highway for jobs out of town. Riders pay for a monthly pass.");

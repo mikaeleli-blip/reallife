@@ -47,6 +47,14 @@ SIGNS = [
 ]
 
 
+# the second atlas (signs2.png): the grocery chains. Its rows are SignRow 32 onwards.
+SIGNS2 = [
+    ('VALLEY VALUE', '#1d4f91', '#ffd23f', '#ffe27a', FONT_BOLD),
+    ('REDWOOD MARKET', '#b3202a', '#ffffff', '#ffe5e5', FONT_SERIF),
+    ('BULKWORKS CLUB', '#1f2a44', '#ff7a1a', '#ff9a4a', FONT_BOLD),
+]
+
+
 def _fit(draw, text, path, max_w, max_h):
     size = max_h
     while size > 8:
@@ -59,13 +67,14 @@ def _fit(draw, text, path, max_w, max_h):
     return f, draw.textbbox((0, 0), text, font=f)
 
 
-def signs(out):
+def signs(out, rows=None, name='signs'):
+    rows = SIGNS if rows is None else rows
     W, RH = 1024, 64
-    N = len(SIGNS)
+    N = 32
     alb = Image.new('RGB', (W, RH * N))
     emi = Image.new('RGB', (W, RH * N), (0, 0, 0))
     da, de = ImageDraw.Draw(alb), ImageDraw.Draw(emi)
-    for i, (text, board, letter, glow, font_path) in enumerate(SIGNS):
+    for i, (text, board, letter, glow, font_path) in enumerate(rows):
         y0 = i * RH
         da.rectangle([0, y0, W, y0 + RH], fill=board)
         de.rectangle([0, y0, W, y0 + RH], fill=tuple(int(int(board[k:k + 2], 16) * 0.12) for k in (1, 3, 5)))
@@ -75,8 +84,8 @@ def signs(out):
         da.text((tx, ty), text, font=font, fill=letter)
         de.text((tx, ty), text, font=font, fill=glow)
     a = np.asarray(alb, np.float32) / 255.0
-    save_srgb(f'{out}/signs.png', a)
-    save_srgb(f'{out}/signs_e.png', np.asarray(emi, np.float32) / 255.0)
+    save_srgb(f'{out}/{name}.png', a)
+    save_srgb(f'{out}/{name}_e.png', np.asarray(emi, np.float32) / 255.0)
     h = np.full(a.shape[:2], 0.5, np.float32)
-    save_normal(f'{out}/signs_n.png', h, 1.0)
-    save_mask(f'{out}/signs_m.png', np.zeros(a.shape[:2], np.float32), np.full(a.shape[:2], 0.55, np.float32))
+    save_normal(f'{out}/{name}_n.png', h, 1.0)
+    save_mask(f'{out}/{name}_m.png', np.zeros(a.shape[:2], np.float32), np.full(a.shape[:2], 0.55, np.float32))

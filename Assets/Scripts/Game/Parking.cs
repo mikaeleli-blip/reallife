@@ -84,6 +84,9 @@ namespace RealLife.Game
                     }
                     case BuildingType.ParkingLot:
                     case BuildingType.GroceryStore:
+                    case BuildingType.DiscountStore:
+                    case BuildingType.Supermarket:
+                    case BuildingType.WarehouseClub:
                     {
                         if (agents == null) continue;
                         var at = Spots(b);

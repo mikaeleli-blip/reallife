@@ -92,6 +92,7 @@ def main():
         ('wood', lambda: S.wood(OUT)),
         ('track', lambda: S.track(OUT)),
         ('signs', lambda: G.signs(OUT)),
+        ('signs2', lambda: G.signs(OUT, G.SIGNS2, 'signs2')),
     ]
     for name, fn in jobs:
         if only and name not in only:

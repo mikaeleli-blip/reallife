@@ -24,6 +24,10 @@ static class Program
         }
         else t = mode == "blank" ? Town.CreateNew(seed) : Town.CreateDeveloped(seed);
         var bot = mode == "blank" ? new Bot(t) : null;
+        // CHAINPOP=f: the chains come to smaller towns (their first and next stores at f times the usual size), to try them out
+        var chainPop = Environment.GetEnvironmentVariable("CHAINPOP");
+        if (!string.IsNullOrEmpty(chainPop))
+            foreach (var ct in Town.ChainTypes) { var cd = Defs.Get(ct); cd.MinPop = (int)(cd.MinPop * double.Parse(chainPop)); cd.PopPerStore = (int)(cd.PopPerStore * double.Parse(chainPop)); }
         if (Environment.GetEnvironmentVariable("DEVNOTES") == "1") t.DevNotes = new System.Collections.Generic.List<string>();
         Console.WriteLine($"{t.Name}: pop {t.Population}, households {t.Households.Count}, buildings {t.Buildings.Count}, jobs {t.JobSlots()}, employed {t.Employed()}, unemployed {t.Unemployed()}");
         if (args.Length > 4 && args[4] == "migrate")
@@ -80,7 +84,7 @@ static class Program
             if (bot != null && m % 12 == 11) Console.WriteLine("      commuters " + t.Commuters() + "/" + t.CommuteCap() + " pay in " + Town.Money(t.LastTrade.Commuting) + "  advice: " + string.Join(" | ", t.Advice()));
             if (t.DevNotes != null) { if (t.DevNotes.Count > 0) Console.WriteLine("      dev: " + string.Join(" | ", t.DevNotes)); t.DevNotes.Clear(); }
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);
-            if (watch != null) foreach (var b in t.Buildings.Where(b => b.Type.ToString() == watch)) Console.WriteLine($"      [{b.Type} {b.Id}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00} debt {Town.Money(t.Debt(b))} coll {Town.Money(t.Collateral(b))} pay {Town.Money(t.LoanPayments(b))} loss {b.LossMonths}");
+            if (watch != null) foreach (var b in t.Buildings.Where(b => watch.Split(',').Contains(b.Type.ToString()))) Console.WriteLine($"      [{b.Type} {b.Id} @{b.X},{b.Y}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00} debt {Town.Money(t.Debt(b))} coll {Town.Money(t.Collateral(b))} pay {Town.Money(t.LoanPayments(b))} loss {b.LossMonths}");
         }
         if (!string.IsNullOrEmpty(logGrep))
             foreach (var e in t.Log.Where(e => e.Day > firstDay && System.Text.RegularExpressions.Regex.IsMatch(e.Text, logGrep))) Console.WriteLine("  log " + e.Day + ": " + e.Text);
@@ -141,6 +145,9 @@ static class Program
             new[] { 39, 35, 55, 39 }, new[] { 39, 65, 55, 69 }, new[] { 27, 41, 31, 57 }
         };
 
+        int bigBlock;
+        static readonly int[][] BigBlocks = { new[] { 57, 30, 61, 34 }, new[] { 63, 30, 67, 34 }, new[] { 69, 30, 73, 34 }, new[] { 27, 59, 31, 63 }, new[] { 21, 47, 25, 51 }, new[] { 57, 36, 61, 40 } };
+
         void OpenBlock(RealLife.Simulation.Zone z = RealLife.Simulation.Zone.Residential)
         {
             if (nextBlock >= Blocks.Length) return;
@@ -191,6 +198,16 @@ static class Program
             if (m > 0 && Environment.GetEnvironmentVariable("NOFLATS") != "1" && t.ZoneDemand[(int)RealLife.Simulation.Zone.Apartments] > 0.2f && !t.HasLot(BuildingType.Apartments))
             { OpenBlock(RealLife.Simulation.Zone.Apartments); Console.WriteLine("      bot: opened a block for flats " + nextBlock); }
             if (m > 24 && m % 12 == 0 && t.ZonedFree(RealLife.Simulation.Zone.Commercial) < 6) { Road(56, 34, 56, 40); Zone(51, 35, 55, 39, RealLife.Simulation.Zone.Commercial); }
+            // room for the big grocery stores when a chain wants to come
+            if (Environment.GetEnvironmentVariable("BIGLOTS") == "1" && bigBlock < BigBlocks.Length && Town.ChainTypes.Any(ct => t.LastWants[(int)ct] > 0))
+            {
+                var b = BigBlocks[bigBlock++];
+                Road(b[0] - 1, b[1] - 1, b[2] + 1, b[1] - 1); Road(b[2] + 1, b[1] - 1, b[2] + 1, b[3] + 1);
+                Road(b[2] + 1, b[3] + 1, b[0] - 1, b[3] + 1); Road(b[0] - 1, b[3] + 1, b[0] - 1, b[1] - 1);
+                Road(b[0] - 1, b[3] + 1, b[0] - 1, 40);
+                Zone(b[0], b[1], b[2], b[3], RealLife.Simulation.Zone.Commercial);
+                Console.WriteLine("      bot: zoned a big commercial block for a chain");
+            }
         }
     }
 

@@ -536,6 +536,84 @@ namespace RealLife.Game.Art
             for (float x = -w / 2 + 1; x < w / 2 - 1; x += 1.2f) if (Mathf.Abs(x) > 1.8f) PropArt.Bush(k, new Vector3(x, 0.06f, -d / 2 + 0.6f), 0.6f, season);
         }
 
+        /// <summary>Where a big store's front wall is: its car park is in front of it (rows at -4.1 and -14.7 from it, the aisle
+        /// at -9.4).</summary>
+        public static float StoreFrontZ(float d) { return -d / 2 + 17.6f; }
+
+        /// <summary>The aisle cars drive along to and from their spots (NaN: no aisle, straight out to the street).</summary>
+        public static float AisleZ(BuildingType t, float d)
+        {
+            if (t == BuildingType.ParkingLot) return LotAisleZ(d);
+            if (t == BuildingType.DiscountStore || t == BuildingType.Supermarket || t == BuildingType.WarehouseClub) return StoreFrontZ(d) - 9.4f;
+            return float.NaN;
+        }
+
+        /// <summary>A big grocery store: a long box behind its own car park, the entrance under a canopy in the middle, the
+        /// chain's colours and name across the front. The warehouse club is bigger and plainer, with loading docks.</summary>
+        static void BigStore(MeshKit k, float w, float d, ref uint s, bool closed, int season, BuildingType t)
+        {
+            Lot(k, w, d, S("asphalt"), 0.05f, 8f);
+            bool club = t == BuildingType.WarehouseClub, nice = t == BuildingType.Supermarket;
+            float z0 = StoreFrontZ(d), z1 = d / 2 - 1f, x0 = -w / 2 + 1.5f, x1 = w / 2 - 1.5f, h = club ? 10f : 8f;
+            Material wall, band, accent;
+            int sign;
+            if (club) { wall = T("metal_panel", new Color(0.72f, 0.75f, 0.78f)); band = C(H("#1f2a44"), 0.35f); accent = C(H("#ff7a1a"), 0.35f); sign = SignRow.Bulkworks; }
+            else if (nice) { wall = T("wall_stucco", new Color(0.93f, 0.88f, 0.8f)); band = C(H("#b3202a"), 0.4f); accent = C(H("#f5f6fa"), 0.35f); sign = SignRow.Redwood; }
+            else { wall = T("metal_panel", new Color(0.9f, 0.91f, 0.93f)); band = C(H("#1d4f91"), 0.35f); accent = C(H("#ffd23f"), 0.35f); sign = SignRow.ValleyValue; }
+            var faces = Faces(x0, x1, z0, z1);
+            var front = faces[South];
+            float W = front.Width, g0 = W * 0.38f, g1 = W * 0.62f;
+            var glass = closed ? MaterialLibrary.Dark("gf_store_light", new Color(0.7f, 0.7f, 0.7f)) : S("gf_store_light", 1.8f);
+            Rect(k, front, g0, g1, 0, 4.2f, glass, new Vector2(0, 0), new Vector2(Mathf.Round((g1 - g0) / 2.7f) * 0.25f, 1));
+            k.Quad(front.At(0, 0), front.At(0, h), front.At(g0, h), front.At(g0, 0), wall, 3f);
+            k.Quad(front.At(g1, 0), front.At(g1, h), front.At(W, h), front.At(W, 0), wall, 3f);
+            k.Quad(front.At(g0, 4.2f), front.At(g0, h), front.At(g1, h), front.At(g1, 4.2f), wall, 3f);
+            for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, h, wall, 2f);
+            FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), wall, band, 0.9f);
+            // the chain's colours across the top, its name over the door, a canopy over the entrance
+            Ledge(k, front, -0.1f, W + 0.1f, h - 1.6f, h + 0.9f, 0.25f, band);
+            Ledge(k, front, -0.1f, W + 0.1f, h - 1.9f, h - 1.6f, 0.3f, accent);
+            Sign(k, front, W / 2, Mathf.Min(16f, W * 0.55f), h - 1.45f, 1.3f, sign, closed);
+            Ledge(k, front, g0 - 0.6f, g1 + 0.6f, 4.0f, 4.35f, 2.6f, band, accent);
+            if (nice)
+                foreach (float a in new[] { g0 - 0.3f, g1 + 0.3f })
+                    k.Cylinder(front.At(a, 0) + front.Normal * 2.3f, 0.22f, 0.22f, 4.0f, 10, band, band);
+            if (club)
+            {
+                // loading docks down the side
+                var dock = closed ? MaterialLibrary.Dark("gf_rollup", new Color(0.75f, 0.75f, 0.75f)) : S("gf_rollup", 1.2f);
+                var side = faces[East];
+                for (float a = 4f; a < side.Width - 3f; a += 5f) Rect(k, side, a, a + 3.2f, 0.9f, 4.2f, dock, new Vector2(0, 0), new Vector2(1, 1), 0.04f);
+            }
+            uint rs = s;
+            RoofClutter(k, x0 + 1f, x1 - 1f, z0 + 1f, z1 - 1f, h, ref rs, club ? 3f : 2.5f, wall);
+            // the car park: bays in two rows, the way in through the front row's middle
+            var paint = C(H("#f2f2ee"), 0.3f);
+            float rb = z0 - 4.1f, rf = z0 - 14.7f;
+            for (float x = -w / 2 + 3.0f; x < w / 2 - 1.6f; x += 2.6f)
+            {
+                k.Flat(x - 0.06f, rb - 2.5f, x + 0.06f, rb + 2.5f, 0.08f, paint);
+                k.Flat(x - 0.06f, rf - 2.5f, x + 0.06f, rf + 2.5f, 0.08f, paint);
+            }
+            k.Flat(-w / 2 + 3.0f, rb - 2.56f, w / 2 - 3.0f, rb - 2.44f, 0.08f, paint);
+            k.Flat(-w / 2 + 3.0f, rf + 2.44f, w / 2 - 3.0f, rf + 2.56f, 0.08f, paint);
+            // a walkway along the front of the store, trolley bays, and trees at the street corners
+            k.Flat(x0, rb + 2.6f, x1, z0, 0.1f, S("concrete"), 4f);
+            var trolley = C(H("#9aa3ab"), 0.4f, 0.5f);
+            // (at the ends of the aisle, past the last bays, where no car turns)
+            foreach (float tx in new[] { -w / 2 + 2.6f, w / 2 - 2.6f })
+                k.Box(new Vector3(tx - 0.35f, 0.06f, z0 - 10.6f), new Vector3(tx + 0.35f, 1.0f, z0 - 8.2f), trolley, accent);
+            Tree(k, -w / 2 + 1.2f, -d / 2 + 1.2f, 0.85f, season, s);
+            Tree(k, w / 2 - 1.2f, -d / 2 + 1.2f, 0.85f, season, s + 5);
+            if (club)
+            {
+                // a pylon sign by the street
+                float px = w / 2 - 3f, pz = -d / 2 + 1.5f;
+                k.Box(new Vector3(px - 0.25f, 0, pz - 0.25f), new Vector3(px + 0.25f, 6f, pz + 0.25f), band, band);
+                k.Box(new Vector3(px - 1.6f, 6f, pz - 0.3f), new Vector3(px + 1.6f, 7.6f, pz + 0.3f), accent, band);
+            }
+        }
+
         // a public car park: where its rows are, front (by the street) and back, and the aisle between
         public static float LotFrontZ(float d) { return -d / 2 + 3.2f; }
         public static float LotBackZ(float d) { return d / 2 - 5.8f; }

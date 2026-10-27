@@ -118,6 +118,18 @@ the rest: in a grocery store's own lot, in a public parking lot (Build menu: 2 x
 where they're going, or, if there's none or it's full, at the kerb outside, where the car isn't shown while they're inside.
 Parked cars stay in their spots until their drivers come back for them. Given the choice, drivers shop where they can park.
 
+**Grocery chains.** Besides the corner grocery stores there are three chains, each a local company: a family here opens the
+first store and runs it. Valley Value is the discounter (from about 500 people), Redwood Market the nicer supermarket that
+better-off families prefer even at a bit more (from about 950), and Bulkworks Club the warehouse club, cheapest of all but
+only for those with a car, and worth a longer drive (from about 1,800). A chain comes when the town's grocery shopping would
+keep a store going (sooner if the grocers here are dear) and there's a free commercial lot big enough: 3 x 3 for the first
+two, 4 x 4 for the club; the advice tells you when one is waiting for a lot. They buy by the truckload for less, keep to
+their place on price (all of a chain's stores charge the same), and fight the corner shops and each other for customers;
+the small grocers keep the people who walk to the shops, and some close. A chain whose store is full and earning opens
+another as the town grows (Valley Value about every 1,100 people, Redwood every 1,600, Bulkworks every 3,000), in a part of
+town its first store is far from. Each store has its own car park, and a store that keeps losing money closes like any
+other. The inspector shows a store's chain and how many stores it has in town.
+
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy
 repossessed homes from the bank, collect the rent, pay the property tax and keep the places up. A house sale counts as their

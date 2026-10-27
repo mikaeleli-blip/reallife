@@ -11,6 +11,7 @@ static class Check
     {
         if (args.Length > 0 && args[0] == "buses") return Buses(args.Length > 1 ? float.Parse(args[1]) : 1f / 60);
         if (args.Length > 0 && args[0] == "parking") return Parking(args.Length > 1 ? int.Parse(args[1]) : 2);
+        if (args.Length > 1 && args[0] == "topview") return TopView((BuildingType)Enum.Parse(typeof(BuildingType), args[1]), args.Length > 2 ? args[2] : "top.txt");
         int bad = Primitives();
         foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
         {
@@ -43,6 +44,39 @@ static class Check
         return 0;
     }
 
+    /// <summary>Writes a building's triangles, and cars in each of its parking spots, for a top-down look (x z y per vertex;
+    /// a line per triangle: B for the building, C for a car).</summary>
+    static int TopView(BuildingType t, string path)
+    {
+        var d = Defs.Get(t);
+        float w = d.W * 10, dep = d.H * 10;
+        var sb = new System.Text.StringBuilder();
+        void Dump(Mesh m, string tag, Func<Vector3, Vector3> xf)
+        {
+            var v = m.vertices;
+            for (int sm = 0; sm < m.subMeshCount; sm++)
+            {
+                var idx = m.GetTriangles(sm);
+                for (int i = 0; i + 2 < idx.Length; i += 3)
+                {
+                    sb.Append(tag);
+                    for (int j = 0; j < 3; j++) { var p = xf(v[idx[i + j]]); sb.Append(' ').Append(p.x.ToString("0.##")).Append(' ').Append(p.z.ToString("0.##")).Append(' ').Append(p.y.ToString("0.##")); }
+                    sb.Append('\n');
+                }
+            }
+        }
+        Dump(BuildingArt.Build(t, w, dep, 12345u, d.Floors, false, 2).Mesh, "B", p => p);
+        var car = PropArt.CarModel(new Color32(200, 0, 0, 255), 2).Mesh;
+        foreach (var sp in BuildingArt.ParkingSpots(t, w, dep, 12345u))
+        {
+            var rot = Quaternion.Euler(0, sp.z, 0);
+            Dump(car, "C", p => rot * p + new Vector3(sp.x, 0, sp.y));
+        }
+        System.IO.File.WriteAllText(path, sb.ToString());
+        Console.WriteLine("wrote " + path);
+        return 0;
+    }
+
     /// <summary>A day of drivers in a built-up town with some car parks downtown: where their cars end up, and that no two
     /// cars ever share a spot.</summary>
     static int Parking(int lotsToBuild)
@@ -53,6 +87,29 @@ static class Check
             for (int y = 47 - r; y <= 47 + r && built < lotsToBuild; y++)
                 for (int x = 47 - r; x <= 47 + r && built < lotsToBuild; x++)
                     if (t.CanPlace(BuildingType.ParkingLot, x, y) == null) { t.PlacePublic(BuildingType.ParkingLot, x, y); built++; }
+        if (Environment.GetEnvironmentVariable("CHAINS") == "1")
+        {
+            // a chain store or two near the middle, opened straight away, to try their car parks
+            var add = typeof(Town).GetMethod("AddBuilding", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var open = typeof(Town).GetMethod("OpenBusiness", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            foreach (var ct in new[] { BuildingType.DiscountStore, BuildingType.WarehouseClub })
+            {
+                var cd = Defs.Get(ct);
+                bool done = false;
+                for (int r = 0; r < 40 && !done; r++)
+                    for (int y = 47 - r; y <= 47 + r && !done; y++)
+                        for (int x = 47 - r; x <= 47 + r && !done; x++)
+                        {
+                            if (!t.FootprintFree(x, y, cd.W, cd.H)) continue;
+                            int f = t.FindFacing(x, y, cd.W, cd.H);
+                            if (f < 0) continue;
+                            var b = (Building)add.Invoke(t, new object[] { ct, x, y, f, true });
+                            open.Invoke(t, new object[] { b });
+                            Console.WriteLine("placed " + ct + " at " + x + "," + y + " facing " + f);
+                            done = true;
+                        }
+            }
+        }
         for (int d = 0; d < 12; d++) t.Advance(1f);
         Console.WriteLine("car parks built " + t.Buildings.Count(b => b.Type == BuildingType.ParkingLot && b.Built) + " of " + built);
         var go = new GameObject("world");
@@ -74,7 +131,7 @@ static class Check
         foreach (var g in drives.Select(x => x.After).Where(s => s.Building >= 0 && !s.Home).GroupBy(s => s.Building * 1000 + s.Spot))
         {
             var l = g.OrderBy(s => s.From).ToList();
-            for (int i = 1; i < l.Count; i++) if (l[i].From < l[i - 1].To) clash++;
+            for (int i = 1; i < l.Count; i++) if (l[i].From < l[i - 1].To) { clash++; Console.WriteLine($"  clash at {t.GetBuilding(l[i].Building).Type} {l[i].Building} spot {l[i].Spot}: car {l[i - 1].Car} {l[i - 1].From:0.00}-{l[i - 1].To:0.00} and car {l[i].Car} {l[i].From:0.00}-{l[i].To:0.00} same object {ReferenceEquals(l[i], l[i - 1])}"); }
         }
         Console.WriteLine("double-booked spots: " + clash);
         int started = 0, finished = 0, maxDrivers = 0, maxParked = 0;

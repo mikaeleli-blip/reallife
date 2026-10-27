@@ -139,6 +139,11 @@ namespace RealLife.Game
             if (d.Input.HasValue) rows.Pair("Has " + Defs.Name(d.Input.Value).ToLower(), b.Stock[(int)d.Input.Value].ToString("0.#") + " " + Defs.GoodUnits[(int)d.Input.Value]);
             if (b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
             if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
+            if (d.Chain != null)
+            {
+                int n = T.Buildings.Count(o => o.Type == b.Type && o.Built && o.Open);
+                rows.Pair("Chain", d.Chain + ": " + n + (n == 1 ? " store" : " stores") + " in town");
+            }
             if (b.Type == BuildingType.CarDealer) Dealer(b, rows);
             if (b.Type == BuildingType.AutoRepair) Garage(b, rows);
             double owed = T.Debt(b);

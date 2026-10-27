@@ -223,7 +223,10 @@ namespace RealLife.Game
             CarParks.Stay before;
             if (!carStay.TryGetValue(carId, out before)) before = parks.Away(carId, 0, 24);
             float drive = 0.1f + dist * Nav.Tile * 1.3f / CarSpeed;
-            float off = hour + (before.Building >= 0 ? 0.08f : 0.02f);
+            float walk = before.Building >= 0 ? 0.08f : 0.02f;
+            // not before the car has got there from its last drive (a long way out to the warehouse club, say)
+            float off = Mathf.Max(hour + walk, before.From + 0.05f);
+            t.Start = off - walk;
             float arrive = off + drive;
             CarParks.Stay after;
             if (to == home)
@@ -232,7 +235,7 @@ namespace RealLife.Game
                 after = parks.Home(carId, home, k, arrive, 24);
             }
             else if (to.Id == town.TerminalId) after = parks.Away(carId, arrive, leave);   // off out of town
-            else after = parks.Find(carId, to, arrive, leave + 0.3f) ?? parks.Away(carId, arrive, leave);
+            else after = parks.Find(carId, to, arrive, Mathf.Max(leave + 0.3f, arrive + 0.1f)) ?? parks.Away(carId, arrive, Mathf.Max(leave, arrive + 0.1f));
             before.To = off;
             t.Before = before; t.After = after;
             carStay[carId] = after;

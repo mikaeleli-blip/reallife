@@ -37,7 +37,22 @@ namespace RealLife.Game.Art
             Material m;
             if (surfaces.TryGetValue(name, out m) && m != null) return m;
             var asset = Resources.Load<Material>("RealLife/Mat/" + name);
+            var tex = asset == null ? Resources.Load<Texture2D>("RealLife/Tex/" + name) : null;
             if (asset != null) m = new Material(asset) { name = name };
+            else if (tex != null)
+            {
+                // textures newer than the editor's last material build (it makes the asset next time Unity starts): put one
+                // together here the same way
+                m = new Material(Template()) { name = name };
+                m.SetColor("_BaseColor", Color.white);
+                m.SetTexture("_BaseMap", tex);
+                var nrm = Resources.Load<Texture2D>("RealLife/Tex/" + name + "_n");
+                if (nrm != null) { m.SetTexture("_BumpMap", nrm); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP"); }
+                var mask = Resources.Load<Texture2D>("RealLife/Tex/" + name + "_m");
+                if (mask != null) { m.SetTexture("_MetallicGlossMap", mask); m.SetFloat("_Smoothness", 1f); m.SetFloat("_Metallic", 0f); m.EnableKeyword("_METALLICSPECGLOSSMAP"); }
+                var emit = Resources.Load<Texture2D>("RealLife/Tex/" + name + "_e");
+                if (emit != null) { m.SetTexture("_EmissionMap", emit); m.SetColor("_EmissionColor", Color.black); m.EnableKeyword("_EMISSION"); }
+            }
             else
             {
                 Debug.LogWarning("[Real Life] Missing material '" + name + "'. Use Real Life > Graphics > Rebuild Materials.");

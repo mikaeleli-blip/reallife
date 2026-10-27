@@ -67,6 +67,7 @@ namespace RealLife.Simulation
         {
             var t = b.Type;
             if (t == BuildingType.Bank) return BankName;
+            if (b.Def.Chain != null) return b.Def.Chain;   // every store of a chain goes by its name
             if (!Branded(t))
             {
                 bool namesake = b.Owner == Owner.Household && Buildings.Any(o => o != b && o.Type == t && !(o.Closed && o.Built) && string.IsNullOrEmpty(o.Brand)

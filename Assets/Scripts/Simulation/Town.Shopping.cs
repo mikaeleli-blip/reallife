@@ -131,7 +131,11 @@ namespace RealLife.Simulation
             bool anyStore = false;
             Building nearestShort = null;
             bool drives = HasUsableCar(h);
-            var shops = Buildings.Where(b => b.Type == type && b.Open && CanGo(h, home, b)).OrderBy(b => b.Price * (1 + Distance(home, b) / 90f) * ParkingFactor(home, b, drives)).ToList();
+            // the cheapest for the trip: those on foot care more how far it is; a nicer store is worth a bit more to a family that
+            // can afford it; a warehouse club is no use without a car, but worth a longer drive (you go less often, and fill the boot)
+            double wealth = Math.Max(0.4, Math.Min(1.6, MonthlyIncome(h) / 7000));
+            var shops = Buildings.Where(b => b.Def.Sells == g && b.Open && (!b.Def.NeedsCar || drives) && CanGo(h, home, b))
+                                 .OrderBy(b => b.Price * (1 + Distance(home, b) / (!drives ? 35f : b.Def.NeedsCar ? 150f : 90f)) * ParkingFactor(home, b, drives) * (1 - b.Def.Appeal * wealth)).ToList();
             foreach (var b in shops)
             {
                 anyStore = true;

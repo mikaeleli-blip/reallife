@@ -83,7 +83,10 @@ namespace RealLife.Game.Art
         {
             var frame = MaterialLibrary.Get(new Color32(38, 40, 44, 255), 0.4f, 0.3f);
             Ledge(k, f, center - width / 2 - 0.08f, center + width / 2 + 0.08f, y - 0.08f, y + height + 0.08f, 0.14f, frame);
-            var mat = dark ? MaterialLibrary.Dark("signs", new Color(0.5f, 0.5f, 0.5f)) : MaterialLibrary.Surface("signs", 2.2f);
+            // rows past 32 are on the second atlas
+            string atlas = row < 32 ? "signs" : "signs2";
+            row %= 32;
+            var mat = dark ? MaterialLibrary.Dark(atlas, new Color(0.5f, 0.5f, 0.5f)) : MaterialLibrary.Surface(atlas, 2.2f);
             float v1 = 1f - row / 32f, v0 = v1 - 1f / 32f;
             Rect(k, f, center - width / 2, center + width / 2, y, y + height, mat, new Vector2(0.01f, v0 + 0.002f), new Vector2(0.99f, v1 - 0.002f), 0.15f);
         }

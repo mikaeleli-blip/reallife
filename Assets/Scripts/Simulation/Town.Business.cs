@@ -173,18 +173,19 @@ namespace RealLife.Simulation
         float Buy(Building buyer, Good g, float qty)
         {
             float got = 0;
-            double imp = ImportPrice(g) * (1 + Balance.FreightOutside);
+            double bulk = buyer.Def.BulkBuy;   // a chain store buys by the truckload, for less
+            double imp = ImportPrice(g) * bulk * (1 + Balance.FreightOutside);
             var sellers = Buildings.Where(s => s != buyer && s.Open && s.Def.Makes == g && s.Stock[(int)g] > 0.5f && Connected(s)).OrderBy(s => s.Price).ToList();
             foreach (var s in sellers)
             {
                 if (got >= qty - 0.01f) break;
-                if (s.Price * (1 + Balance.FreightLocal) > imp) break;
+                if (s.Price * bulk * (1 + Balance.FreightLocal) > imp) break;
                 float q = Math.Min(qty - got, s.Stock[(int)g]);
                 double afford = Spendable(buyer) / (s.Price * (1 + Balance.FreightOutside));
                 q = (float)Math.Min(q, afford);
                 if (g == Good.Cars) q = (float)Math.Floor(q);
                 if (q <= 0.01f) break;
-                double value = q * s.Price;
+                double value = q * s.Price * bulk;
                 double fee = Freight(value, s.Id, buyer.Id, g);
                 buyer.Cash -= value + fee; buyer.Supplies += value + fee;
                 s.Cash += value; s.Revenue += value; s.Customers++; s.SoldToday += (int)Math.Ceiling(q);
@@ -193,7 +194,7 @@ namespace RealLife.Simulation
             }
             if (got < qty - 0.01f)
             {
-                double price = ImportPrice(g);
+                double price = ImportPrice(g) * bulk;
                 float q = qty - got;
                 double afford = Spendable(buyer) / (price * (1 + Balance.FreightOutside));
                 q = (float)Math.Min(q, afford);
@@ -467,6 +468,23 @@ namespace RealLife.Simulation
                 else if (b.LastCustomers <= 1) b.Price *= 1 - step * 0.5f;
                 else if (b.LossMonths >= 2) b.Price *= 1 + step * 0.5f;
                 b.Price = Math.Round(Math.Max(baseP * 0.98, Math.Min(baseP * 1.12, b.Price)), 2);
+                return;
+            }
+            if (d.Chain != null && d.Sells.HasValue)
+            {
+                // a chain keeps to its place on price: its usual price, a bit over when its stores are turning people away (or
+                // busy and still losing money), down to meet the corner shops in a price war, but never under its markup on what
+                // it pays. Its first store sets the price and the others charge the same
+                var lead = Buildings.Where(o => o.Type == b.Type && o.Open).OrderBy(o => o.Id).FirstOrDefault();
+                if (lead != null && lead != b) { b.Price = Math.Max(lead.Price, b.UnitCost * 1.08); return; }
+                double usual = ChainPrice(b.Type);
+                double lo = Math.Max(usual * 0.92, b.UnitCost * 1.14), hi = Math.Max(lo, usual * 1.12);
+                double rivals = Buildings.Where(o => o != b && o.Open && o.Def.Sells == d.Sells && o.Def.Chain == null).Select(o => o.Price).DefaultIfEmpty(double.MaxValue).Min();
+                if (lostShare > 0.12f || (b.LossMonths >= 2 && b.LastUse > 0.75f)) b.Price *= 1 + step * 0.5f;
+                else if (rivals < b.Price * 1.04) b.Price *= 1 - step * 0.5f;
+                else if (b.Price > usual * 1.01 && b.LossMonths == 0) b.Price *= 1 - step * 0.25f;
+                else if (b.Price < usual * 0.99) b.Price *= 1 + step * 0.25f;
+                b.Price = Math.Round(Math.Max(lo, Math.Min(hi, b.Price)), 2);
                 return;
             }
             if (d.Sells.HasValue)

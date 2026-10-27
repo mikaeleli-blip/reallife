@@ -163,6 +163,14 @@ namespace RealLife.Simulation
             if (VacantUnits() == 0 && !HasLot(BuildingType.House) && !HasLot(BuildingType.Apartments) && SettlersShort == 0) l.Add("Homes are full and there's no residential land by a road left to build on.");
             if (LotShort != null && LotShort.Length > (int)Zone.Apartments && LotShort[(int)Zone.Apartments]) l.Add("People want flats to rent but there's no land zoned for apartments by a road. Zone some: Homes, then Apartments.");
             if (LotShort != null && LotShort[(int)Zone.Commercial]) l.Add("A business wanted to open but found no commercial lot by a road.");
+            foreach (var t in ChainTypes)
+                if (LastWants != null && LastWants[(int)t] > 0)
+                {
+                    var d = Defs.Get(t);
+                    l.Add(Buildings.Any(b => b.Type == t && b.Open)
+                        ? d.Chain + " wants to open another store: it needs a free " + d.W + " x " + d.H + " commercial lot by a road in a part of town its store is far from."
+                        : d.Chain + " wants to open here: it needs a free " + d.W + " x " + d.H + " commercial lot by a road.");
+                }
             if (LotShort != null && LotShort[(int)Zone.Industrial]) l.Add("A firm wanted to build but found no industrial land by a road.");
             if (LotShort != null && LotShort.Length > (int)Zone.Farmland && LotShort[(int)Zone.Farmland]) l.Add("Someone wanted to start a farm but there's no farmland by a road. Zone some with the Farms tool.");
             if (NoInvestor != BuildingType.FreightTerminal) l.Add("The town could use " + (Defs.Get(NoInvestor).Name.StartsWith("O") || Defs.Get(NoInvestor).Name.StartsWith("E") || Defs.Get(NoInvestor).Name.StartsWith("A") ? "an " : "a ") + Defs.Get(NoInvestor).Name.ToLower() + ", but no family here has the savings to start one.");
