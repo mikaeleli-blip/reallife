@@ -233,6 +233,22 @@ namespace RealLife.Simulation
             }
         }
 
+        /// <summary>A short month: the owning family tides the business over from its savings, if it can spare it and the business
+        /// isn't plainly failing (it lost money five months running).</summary>
+        bool OwnersPutIn(Building b, double need)
+        {
+            if (b.Owner != Owner.Household || b.LossMonths >= 5) return false;
+            var h = GetHousehold(b.OwnerId);
+            if (h == null) return false;
+            double spare = h.Cash - Essentials(h) * 3 - 10000;
+            if (spare < need) return false;
+            HouseholdPays(h, need, HouseholdBook.Goods);
+            b.Cash += need;
+            var c = Members(h).FirstOrDefault(m => m.Owner);
+            if (c != null) Note(c, "Put " + Money(need) + " of the family's savings into " + PlaceName(b) + " to tide it over.");
+            return true;
+        }
+
         // ================================================================== every month
         /// <summary>Pay day: last month's wages, less income tax.</summary>
         void Payroll()
@@ -248,7 +264,7 @@ namespace RealLife.Simulation
                 if (!pub && b.Cash < total)
                 {
                     double need = total - b.Cash + MonthlyCosts(b) * 0.5;
-                    if (!BusinessLoan(b, need))
+                    if (!OwnersPutIn(b, need) && !BusinessLoan(b, need))
                     {
                         CloseBusiness(b, "it couldn't make payroll");
                         // what's in the account goes to the staff, a share each
@@ -307,11 +323,12 @@ namespace RealLife.Simulation
                     var oh = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
                     if (oh != null) { b.Cash -= draw; HouseholdEarns(oh, draw, HouseholdBook.Business); }
                 }
-                if (b.Cash < 0 && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
+                if (b.Cash < 0 && !OwnersPutIn(b, -b.Cash + MonthlyCosts(b)) && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
                 // a farm loses money every winter; give it the year
                 int patience = b.Type == BuildingType.Farm ? 9 : 5;
                 // a property firm between sales isn't failing while it has houses going up or on the market
-                bool selling = b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale);
+                // (or with a block just finished, still filling with tenants)
+                bool selling = b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2);
                 if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);

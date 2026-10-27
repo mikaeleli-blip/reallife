@@ -172,9 +172,9 @@ namespace RealLife.Simulation
             double reserve = forSale ? MonthlyCosts(firm) : Cushion(firm) * 0.5;
             double has = Math.Max(0, firm.Cash - reserve) + (family != null ? Math.Max(0, family.Cash - 20000) : 0);
             if (has < equity) return false;
-            // what it owes against what it has: the homes, the office, and the money in the bank (a new firm's working capital
-            // is borrowed, and sitting there)
-            if (Debt(firm) - Math.Max(0, firm.Cash) + cost > Collateral(firm) * 0.8 + cost * 0.9) return false;
+            // what it would owe against what it has: the homes, the office, and the money in the bank (a new firm's working
+            // capital is borrowed, and sitting there); the new building's loan is its cost less the owners' share
+            if (Debt(firm) - Math.Max(0, firm.Cash) + (cost - equity) > Collateral(firm) * 0.8 + cost * 0.9) return false;
             if (forSale) return Portfolio(firm).Count(b => b.ForSale || (!b.Built && b.Type == BuildingType.House)) < 4 + Portfolio(firm).Count() / 8;
             double rentIn = 0; foreach (var b in Portfolio(firm)) if (b.Built) rentIn += b.Rent * b.Households.Count;
             double newRent = d.Homes * d.Rent * HousingIndex * 0.9;
@@ -237,7 +237,7 @@ namespace RealLife.Simulation
                 double share = price * equityShare;
                 var fam = GetHousehold(f.OwnerId);
                 double has = Math.Max(0, f.Cash - Cushion(f) * 0.5) + (fam != null ? Math.Max(0, fam.Cash - 20000) : 0);
-                if (has < share || Debt(f) + price > Collateral(f) * 0.8 + price * 0.85) continue;
+                if (has < share || Debt(f) - Math.Max(0, f.Cash) + (price - share) > Collateral(f) * 0.8 + price * 0.85) continue;
                 double rentIn = 0; foreach (var o in Portfolio(f)) if (o.Built) rentIn += o.Rent * o.Households.Count;
                 double pay = Annuity(price - share, Balance.PropertyRate, Balance.PropertyMonths);
                 if (LoanPayments(f) + pay > (rentIn + b.Def.Homes * b.Def.Rent * HousingIndex * 0.9) * 0.75) continue;

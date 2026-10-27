@@ -313,7 +313,8 @@ namespace RealLife.Simulation
             // a farm is lent against next season's harvest through the winter
             // and a builder or property firm against the work it has on: their money comes in lumps
             // (or a new business in its first half year, still stocking up and finding its customers)
-            bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale)) ||
+            // (and a property firm with homes going up, on the market, or just finished and filling with tenants)
+            bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2)) ||
                             (b.Type == BuildingType.Construction && Buildings.Any(o => !o.Built && o.ContractorId == b.Id));
             if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
             // a new business gets the benefit of the doubt in its first year: lent up to what it's worth

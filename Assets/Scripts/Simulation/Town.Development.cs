@@ -303,6 +303,20 @@ namespace RealLife.Simulation
             return mainComp >= 0 && roadComp[ax + ay * Cols] == mainComp;
         }
 
+        /// <summary>A block of flats the bank puts up itself, one at a time, when renters are waiting and no property firm can.</summary>
+        Building BankFlats()
+        {
+            if (Buildings.Any(b => !b.Built && b.Type == BuildingType.Apartments && BankHeld(b))) return null;
+            int x, y;
+            if (!FindLot(BuildingType.Apartments, out x, out y)) return null;
+            var b2 = AddBuilding(BuildingType.Apartments, x, y, FindFacing(x, y, 2, 2), false);
+            BankTakes(b2);
+            StartConstruction(b2, null);
+            WorkStarted += b2.Def.Work;
+            AddLog("No property firm here can take on a block of flats, so the bank is building one to let.", LogKind.Info, b2.Id);
+            return b2;
+        }
+
         /// <summary>Is there a lot by a road on the highway's network where one of these could go.</summary>
         public bool HasLot(BuildingType t) { int x, y; return FindLot(t, out x, out y); }
 
@@ -479,6 +493,9 @@ namespace RealLife.Simulation
                 {
                     var firm = HousingFirm(BuildingType.Apartments);
                     var f = firm != null ? Develop(BuildingType.Apartments, null, firm) : null;
+                    // no firm can take a block on: with enough renters waiting, the bank puts one up, lets it, and sells it to a
+                    // firm when one can buy (BankSales)
+                    if (f == null && firm == null && rentGap >= 8) f = BankFlats();
                     if (f != null) { rentGap -= f.Def.Homes; building++; continue; }
                     flatsStuck = true;
                     if (firm == null) DevNote("flats wanted (" + rentGap + ") but no firm can take a block on");

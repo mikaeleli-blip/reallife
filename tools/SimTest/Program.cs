@@ -52,6 +52,8 @@ static class Program
         }
         Header();
         Row(t);
+        int firstDay = t.Day;
+        string logGrep = Environment.GetEnvironmentVariable("LOGGREP");
         int months = years * 12;
         for (int m = 0; m < months; m++)
         {
@@ -77,6 +79,8 @@ static class Program
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);
             if (watch != null) foreach (var b in t.Buildings.Where(b => b.Type.ToString() == watch)) Console.WriteLine($"      [{b.Type} {b.Id}] {(b.Closed ? "CLOSED" : "")} staff {b.Employees.Count} st {b.Staffing:0.00} cash {Town.Money(b.Cash)} rev {Town.Money(b.LastRevenue)} wages {Town.Money(b.LastWages)} supplies {Town.Money(b.LastSupplies)} other {Town.Money(b.LastOther)} tax {Town.Money(b.LastTax)} profit {Town.Money(b.LastProfit)} use {b.LastUse:0.00} lost {b.LastLost} cust {b.LastCustomers} price {b.Price:0.00} debt {Town.Money(t.Debt(b))} coll {Town.Money(t.Collateral(b))} pay {Town.Money(t.LoanPayments(b))} loss {b.LossMonths}");
         }
+        if (!string.IsNullOrEmpty(logGrep))
+            foreach (var e in t.Log.Where(e => e.Day > firstDay && System.Text.RegularExpressions.Regex.IsMatch(e.Text, logGrep))) Console.WriteLine("  log " + e.Day + ": " + e.Text);
         Console.WriteLine();
         Console.WriteLine("Businesses:");
         foreach (var b in t.Buildings.Where(Town.IsBusiness).OrderBy(b => b.Type))
