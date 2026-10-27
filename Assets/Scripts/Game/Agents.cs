@@ -37,7 +37,14 @@ namespace RealLife.Game
             public float PhaseStart;
             public Vector3 WaitAt;
             public int Pool { get { return Kind == 3 ? 0 : Kind; } }
+            // by car: where the car stands before and after, and the three legs (walk to it, drive, walk from it)
+            public CarParks.Stay Before, After;
+            public List<Vector3>[] Segs;
+            public float[] SegLen;
+            public GameObject Walker;
         }
+
+        struct Pend { public Building From, To; public float Hour; public int Car; public uint Seed; }
 
         Town town;
         WorldView view;
@@ -51,6 +58,10 @@ namespace RealLife.Game
         readonly Dictionary<int, int> driverCar = new Dictionary<int, int>();
         readonly Dictionary<int, int> carAt = new Dictionary<int, int>();
         readonly Dictionary<int, List<Trip>> carTrips = new Dictionary<int, List<Trip>>();
+        readonly CarParks parks = new CarParks();
+        readonly Dictionary<int, CarParks.Stay> carStay = new Dictionary<int, CarParks.Stay>();
+        readonly List<Pend> pend = new List<Pend>();
+        internal CarParks Parks { get { return parks; } }
         Transform root;
         BusLines lines;
         internal BusLines Lines { get { return lines; } }
@@ -84,7 +95,8 @@ namespace RealLife.Game
             active.Clear(); trips.Clear(); next = 0;
             lines.ClearRiders();
             planned = town.Day;
-            driverCar.Clear(); carAt.Clear(); carTrips.Clear();
+            driverCar.Clear(); carAt.Clear(); carTrips.Clear(); carStay.Clear();
+            parks.Reset(town);
             var drivers = new List<Citizen>();
             foreach (var h in town.Households)
             {
@@ -94,13 +106,15 @@ namespace RealLife.Game
                 drivers.Clear();
                 foreach (var m in town.Members(h)) if (!m.IsChild) drivers.Add(m);
                 drivers.Sort((a, b) => DriveRank(a, home).CompareTo(DriveRank(b, home)));
-                int i = 0;
+                int i = 0, k = -1;
                 foreach (var car in owned)
                 {
+                    k++;
                     if (!Town.Drivable(car)) continue;
                     if (i >= drivers.Count) break;
                     driverCar[drivers[i++].Id] = car.Id;
                     carAt[car.Id] = home.Id;
+                    carStay[car.Id] = parks.Home(car.Id, home, k, 0, 24);
                 }
             }
             foreach (var c in town.People)
@@ -136,6 +150,7 @@ namespace RealLife.Game
                     if (errand != null) { float t = 9.5f + r1 * 5f; Add(c, home, home, errand, t, car, s); Add(c, home, errand, home, t + 0.8f + r2, car, s + 1); }
                     if (fun != null) { float t = errand != null ? 16 + r3 * 4 : 11 + r3 * 8; Add(c, home, home, fun, t, car, s + 3); Add(c, home, fun, home, t + 1.5f + r2, car, s + 4); }
                 }
+                Flush(c, home);
             }
             if (town.Shipments != null)
                 foreach (var sh in town.Shipments)
@@ -155,9 +170,27 @@ namespace RealLife.Game
             return c.WorkId >= 0 ? 2 : 3;
         }
 
+        /// <summary>A trip for later today: the citizen's trips are made together (Flush), so each knows when they leave again.</summary>
         void Add(Citizen c, Building home, Building from, Building to, float hour, int carId, uint seed)
         {
             if (from == null || to == null || from == to) return;
+            pend.Add(new Pend { From = from, To = to, Hour = hour, Car = carId, Seed = seed });
+        }
+
+        void Flush(Citizen c, Building home)
+        {
+            for (int i = 0; i < pend.Count; i++)
+            {
+                var p = pend[i];
+                float leave = 24f;
+                for (int j = i + 1; j < pend.Count; j++) if (pend[j].From == p.To) { leave = pend[j].Hour; break; }
+                Make(c, home, p.From, p.To, p.Hour, p.Car, p.Seed, leave);
+            }
+            pend.Clear();
+        }
+
+        void Make(Citizen c, Building home, Building from, Building to, float hour, int carId, uint seed, float leave)
+        {
             float dist = Mathf.Abs(from.CenterX - to.CenterX) + Mathf.Abs(from.CenterY - to.CenterY);
             // they drive if their car is where they are: always away from home (it goes where they go), and from home unless
             // it's just round the corner
@@ -186,20 +219,30 @@ namespace RealLife.Game
             List<Trip> l;
             if (!carTrips.TryGetValue(carId, out l)) carTrips[carId] = l = new List<Trip>();
             l.Add(t);
+            // where the car stands: it leaves where it was, and parks near where it's going (at home, on the driveway)
+            CarParks.Stay before;
+            if (!carStay.TryGetValue(carId, out before)) before = parks.Away(carId, 0, 24);
+            float drive = 0.1f + dist * Nav.Tile * 1.3f / CarSpeed;
+            float off = hour + (before.Building >= 0 ? 0.08f : 0.02f);
+            float arrive = off + drive;
+            CarParks.Stay after;
+            if (to == home)
+            {
+                int k = town.CarsOf(town.HouseholdOf(c)).FindIndex(x => x.Id == carId);
+                after = parks.Home(carId, home, k, arrive, 24);
+            }
+            else if (to.Id == town.TerminalId) after = parks.Away(carId, arrive, leave);   // off out of town
+            else after = parks.Find(carId, to, arrive, leave + 0.3f) ?? parks.Away(carId, arrive, leave);
+            before.To = off;
+            t.Before = before; t.After = after;
+            carStay[carId] = after;
         }
 
         /// <summary>Whether a family car is on the driveway right now, rather than on the road or parked where its driver is.</summary>
         public bool CarAtHome(int carId)
         {
-            List<Trip> l;
-            if (town == null || planned != town.Day || !carTrips.TryGetValue(carId, out l)) return true;
-            float hour = town.Hour;
-            Trip last = null;
-            foreach (var t in l) if (t.Start <= hour && (last == null || t.Start >= last.Start)) last = t;
-            if (last == null) return true;
-            if (last.To != last.Home) return false;
-            float took = last.Length > 0 ? last.Length / CarSpeed : 0.2f;
-            return hour >= last.Start + took;
+            if (town == null || planned != town.Day) return true;
+            return parks.AtHome(carId, town.Hour);
         }
 
         // ================================================================== every frame
@@ -226,6 +269,11 @@ namespace RealLife.Game
                 if (t.Kind == 3)
                 {
                     if (!StepRider(t, hour)) { Release(t); active.RemoveAt(i); }
+                    continue;
+                }
+                if (t.Segs != null)
+                {
+                    if (!StepDriver(t, hour)) { Release(t); active.RemoveAt(i); }
                     continue;
                 }
                 float dist = (hour - t.Start) * t.Speed;
@@ -260,6 +308,7 @@ namespace RealLife.Game
                 }
                 t.Kind = 0; t.Legs = null;
             }
+            if (t.Kind == 1 && t.Before != null && t.After != null && BeginDrive(t, from, to)) return true;
             t.Path = nav.Polyline(from, to, t.Car);
             if (t.Path == null || t.Path.Count < 2) return false;
             t.Length = Nav.Length(t.Path);
@@ -268,21 +317,75 @@ namespace RealLife.Game
             return true;
         }
 
-        GameObject Take(Trip t)
+        /// <summary>A drive in three legs: out to where the car stands (the driveway, a car park, the kerb), the drive, and from
+        /// where it parks to the door. The car's stays get the times it actually leaves and arrives.</summary>
+        bool BeginDrive(Trip t, Building from, Building to)
         {
-            var pool = pools[t.Pool];
+            var nav = view.Nav;
+            var startB = parks.BuildingOf(t.Before);
+            var endB = parks.BuildingOf(t.After);
+            Vector3 carFrom, carTo;
+            List<Vector3> leave, arrive;
+            if (startB != null) { var sp = parks.SpotOf(t.Before); leave = CarParks.Leave(startB, sp); carFrom = leave[0]; }
+            else { carFrom = nav.Kerb(from, false); leave = new List<Vector3> { carFrom }; startB = from; }
+            if (endB != null) { var sp = parks.SpotOf(t.After); arrive = CarParks.Arrive(endB, sp); carTo = arrive[arrive.Count - 1]; }
+            else { carTo = nav.Kerb(to, true); arrive = new List<Vector3> { carTo }; endB = to; }
+            var drive = nav.Drive(startB, endB, leave, arrive);
+            if (drive == null || drive.Count < 2) return false;
+            var walkA = nav.Walk(nav.Door(from), from, startB, carFrom);
+            var walkC = nav.Walk(carTo, endB, to, nav.Door(to));
+            t.Segs = new[] { walkA, drive, walkC };
+            t.SegLen = new[] { Nav.Length(walkA), Nav.Length(drive), Nav.Length(walkC) };
+            t.Length = t.SegLen[0] + t.SegLen[1] + t.SegLen[2];
+            float a = t.SegLen[0] / WalkSpeed, b = t.SegLen[1] / CarSpeed;
+            t.Before.To = t.Start + a;
+            t.After.From = t.Start + a + b;
+            t.Go = Take(t, 1);
+            t.Go.SetActive(false);
+            t.Walker = Take(t, 0);
+            return true;
+        }
+
+        /// <summary>A driver's turn: walking to the car, driving, or walking from it. False when they're there.</summary>
+        bool StepDriver(Trip t, float hour)
+        {
+            float e = hour - t.Start;
+            if (e < 0) return true;
+            float a = t.SegLen[0] / WalkSpeed, b = t.SegLen[1] / CarSpeed, c = t.SegLen[2] / WalkSpeed;
+            int seg; float dist;
+            if (e < a) { seg = 0; dist = e * WalkSpeed; }
+            else if (e < a + b) { seg = 1; dist = (e - a) * CarSpeed; }
+            else if (e < a + b + c) { seg = 2; dist = (e - a - b) * WalkSpeed; }
+            else return false;
+            bool driving = seg == 1;
+            if (t.Go.activeSelf != driving) t.Go.SetActive(driving);
+            if (t.Walker.activeSelf == driving) t.Walker.SetActive(!driving);
+            var go = driving ? t.Go : t.Walker;
+            Vector3 dir;
+            var p = Nav.At(t.Segs[seg], dist, out dir);
+            go.transform.localPosition = p + new Vector3(0, driving ? 0.06f : 0.2f, 0);
+            if (dir.sqrMagnitude > 0.001f) go.transform.localRotation = Quaternion.LookRotation(dir);
+            return true;
+        }
+
+        GameObject Take(Trip t) { return Take(t, t.Pool); }
+
+        GameObject Take(Trip t, int poolIndex)
+        {
+            int kind = poolIndex;
+            var pool = pools[poolIndex];
             GameObject go = pool.Count > 0 ? pool.Pop() : null;
             if (go == null)
             {
-                go = new GameObject(t.Pool == 0 ? "Person" : t.Pool == 1 ? "Car" : "Truck");
+                go = new GameObject(kind == 0 ? "Person" : kind == 1 ? "Car" : "Truck");
                 go.transform.SetParent(root, false);
                 go.AddComponent<MeshFilter>();
                 var r = go.AddComponent<MeshRenderer>();
-                r.shadowCastingMode = t.Pool == 0 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
+                r.shadowCastingMode = kind == 0 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
             }
             Model m;
-            if (t.Kind == 2) m = trucks[t.Seed % (uint)trucks.Length];
-            else if (t.Kind == 1)
+            if (kind == 2) m = trucks[t.Seed % (uint)trucks.Length];
+            else if (kind == 1)
             {
                 var car = town.GetCar(t.CarId);
                 var owner = town.GetCitizen(t.Citizen);
@@ -295,7 +398,7 @@ namespace RealLife.Game
             }
             go.GetComponent<MeshFilter>().sharedMesh = m.Mesh;
             go.GetComponent<MeshRenderer>().sharedMaterials = m.Materials;
-            go.name = t.Pool == 0 ? "Person " + t.Citizen : go.name;
+            go.name = kind == 0 ? "Person " + t.Citizen : go.name;
             go.SetActive(true);
             return go;
         }
@@ -303,6 +406,7 @@ namespace RealLife.Game
         void Release(Trip t)
         {
             if (t.Kind == 3) lines.Drop(t);
+            if (t.Walker != null) { t.Walker.SetActive(false); pools[0].Push(t.Walker); t.Walker = null; }
             if (t.Go == null) return;
             t.Go.SetActive(false);
             pools[t.Pool].Push(t.Go);
@@ -406,8 +510,9 @@ namespace RealLife.Game
             int best = -1; float bd = radius * radius;
             foreach (var t in active)
             {
-                if (t.Citizen < 0 || t.Go == null || !t.Go.activeSelf) continue;
-                var sp = cam.WorldToScreenPoint(t.Go.transform.position + Vector3.up);
+                var shown = t.Walker != null && t.Walker.activeSelf ? t.Walker : t.Go;
+                if (t.Citizen < 0 || shown == null || !shown.activeSelf) continue;
+                var sp = cam.WorldToScreenPoint(shown.transform.position + Vector3.up);
                 if (sp.z < 0) continue;
                 float d = ((Vector2)sp - screen).sqrMagnitude;
                 if (d < bd) { bd = d; best = t.Citizen; }
@@ -422,7 +527,7 @@ namespace RealLife.Game
             {
                 if (t.Citizen != citizen || t.Go == null) continue;
                 if (t.Kind == 3 && t.Phase == 2) return lines.Riding(t, out pos);
-                pos = t.Go.transform.position; return true;
+                pos = (t.Walker != null && t.Walker.activeSelf ? t.Walker : t.Go).transform.position; return true;
             }
             pos = Vector3.zero; return false;
         }

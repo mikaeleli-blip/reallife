@@ -94,6 +94,49 @@ namespace RealLife.Game
             }
         }
 
+        /// <summary>A drive from one building to another: leave (from where the car stands to the street, may be empty), along
+        /// the streets keeping right, and arrive (from the street to where it parks, may be empty: it stops at the kerb).</summary>
+        public List<Vector3> Drive(Building a, Building b, List<Vector3> leave, List<Vector3> arrive)
+        {
+            int ax, ay, bx, by;
+            if (a == null || b == null || !town.AccessTile(a, out ax, out ay) || !town.AccessTile(b, out bx, out by)) return null;
+            var tiles = Route(new Vector2Int(ax, ay), new Vector2Int(bx, by));
+            if (tiles == null) return null;
+            var pts = new List<Vector3>(tiles.Count + 8);
+            if (leave != null) pts.AddRange(leave);
+            Lane(tiles, CarLane, pts, false);
+            if (arrive != null) pts.AddRange(arrive);
+            return pts;
+        }
+
+        /// <summary>Where a car pulls up at the kerb outside a building (the driving lane by its access tile).</summary>
+        public Vector3 Kerb(Building b, bool arriving)
+        {
+            int ax, ay;
+            if (b == null || !town.AccessTile(b, out ax, out ay)) return Door(b);
+            var c = Center(ax, ay);
+            var door = Door(b);
+            var toDoor = door - c; toDoor.y = 0;
+            // on the building's side of the street, along it a little
+            var side = toDoor.sqrMagnitude > 0.01f ? toDoor.normalized : Vector3.forward;
+            return c + side * CarLane;
+        }
+
+        /// <summary>On foot along the pavements from one building to another, starting and ending at the given points.</summary>
+        public List<Vector3> Walk(Vector3 start, Building a, Building b, Vector3 end)
+        {
+            if (a == b) return new List<Vector3> { start, end };
+            int ax, ay, bx, by;
+            if (a == null || b == null || !town.AccessTile(a, out ax, out ay) || !town.AccessTile(b, out bx, out by)) return new List<Vector3> { start, end };
+            var tiles = Route(new Vector2Int(ax, ay), new Vector2Int(bx, by));
+            if (tiles == null) return new List<Vector3> { start, end };
+            var pts = new List<Vector3>(tiles.Count + 4) { start, Door(a) };
+            Lane(tiles, WalkLane, pts, false);
+            pts.Add(Door(b));
+            pts.Add(end);
+            return pts;
+        }
+
         /// <summary>On foot from a building's door to a spot at a bus stop.</summary>
         public List<Vector3> WalkToStop(Building a, Vector2Int stop, Vector3 spot)
         {

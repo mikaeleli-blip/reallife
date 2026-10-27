@@ -234,7 +234,7 @@ namespace RealLife.Game
         static readonly BuildingType[] Public =
         {
             BuildingType.TownHall, BuildingType.Elementary, BuildingType.HighSchool, BuildingType.College, BuildingType.Clinic, BuildingType.Hospital,
-            BuildingType.Police, BuildingType.FireStation, BuildingType.Park, BuildingType.BusDepot
+            BuildingType.Police, BuildingType.FireStation, BuildingType.Park, BuildingType.ParkingLot, BuildingType.BusDepot
         };
 
         void BuildMenu()

@@ -26,9 +26,9 @@ namespace RealLife.Game
     }
 
     /// <summary>
-    /// The cars standing still: each family's cars on the driveway while they're at home, the cars for sale on a dealer's lot,
-    /// the cars waiting their turn outside a garage. Every one is the town's own car, so the car on the driveway is the one you
-    /// see on the road.
+    /// The cars standing still: each family's cars on the driveway while they're at home, drivers' cars in the car parks and
+    /// grocery lots while they're out (CarParks), the cars for sale on a dealer's lot, the cars waiting their turn outside a
+    /// garage. Every one is the town's own car, so the car on the driveway is the one you see on the road.
     /// </summary>
     public sealed class Parking : MonoBehaviour
     {
@@ -41,6 +41,7 @@ namespace RealLife.Game
         readonly Dictionary<int, KeyValuePair<int, List<Vector3>>> spots = new Dictionary<int, KeyValuePair<int, List<Vector3>>>();
         float next;
         int used;
+        readonly List<KeyValuePair<int, int>> parked = new List<KeyValuePair<int, int>>();
 
         public int Shown { get { return used; } }
 
@@ -66,15 +67,32 @@ namespace RealLife.Game
                     case BuildingType.House:
                     {
                         if (b.Households.Count == 0) continue;
+                        // each car has its own place on the driveway (the family's first car the first), empty while it's out
                         var at = Spots(b);
-                        int n = 0;
                         foreach (int hid in b.Households)
-                            foreach (var car in town.CarsOf(town.GetHousehold(hid)))
+                        {
+                            var cars = town.CarsOf(town.GetHousehold(hid));
+                            for (int k = 0; k < cars.Count && k < at.Count; k++)
                             {
-                                if (n >= at.Count) break;
+                                var car = cars[k];
                                 if (car.ShopId != -1 || (agents != null && !agents.CarAtHome(car.Id))) continue;
-                                Put(b, at[n++], car);
+                                Put(b, at[k], car);
                             }
+                            break;
+                        }
+                        break;
+                    }
+                    case BuildingType.ParkingLot:
+                    case BuildingType.GroceryStore:
+                    {
+                        if (agents == null) continue;
+                        var at = Spots(b);
+                        agents.Parks.ParkedAt(b, town.Hour, parked);
+                        foreach (var kv in parked)
+                        {
+                            var car = town.GetCar(kv.Value);
+                            if (car != null && kv.Key >= 0 && kv.Key < at.Count) Put(b, at[kv.Key], car);
+                        }
                         break;
                     }
                     case BuildingType.CarDealer:

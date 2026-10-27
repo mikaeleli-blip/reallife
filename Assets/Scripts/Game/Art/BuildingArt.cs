@@ -90,6 +90,15 @@ namespace RealLife.Game.Art
                 case BuildingType.AutoRepair:
                     l.Add(new Vector3(-2.65f, -d / 2 + 1.05f, 90)); l.Add(new Vector3(1.55f, -d / 2 + 1.05f, 90));
                     break;
+                case BuildingType.ParkingLot:
+                    // a row along the front with the way in through the middle, and a row along the back
+                    for (int i = 0; i < 7; i++) if (i != 3) l.Add(new Vector3(-7.8f + i * 2.6f, LotFrontZ(d), 180));
+                    for (int i = 0; i < 7; i++) l.Add(new Vector3(-7.8f + i * 2.6f, LotBackZ(d), 0));
+                    break;
+                case BuildingType.GroceryStore:
+                    // the front row of its car park (Parking below)
+                    for (float x = -w / 2 + 0.9f; x < w / 2 - 3.0f; x += 2.6f) l.Add(new Vector3(x + 1.3f, -d / 2 + 2.22f, 0));
+                    break;
             }
             return l;
         }
@@ -135,6 +144,7 @@ namespace RealLife.Game.Art
                 case BuildingType.FireStation: Station(k, w, d, ref s, season, true); break;
                 case BuildingType.Park: Park(k, w, d, ref s, season); break;
                 case BuildingType.BusDepot: BusDepot(k, w, d, ref s, season); break;
+                case BuildingType.ParkingLot: ParkingLot(k, w, d, ref s, season); break;
                 case BuildingType.FreightTerminal: Terminal(k, w, d, ref s, season); break;
                 case BuildingType.Realty: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.RealEstate, H("#1d3557"), false); break;
             }
@@ -544,7 +554,8 @@ namespace RealLife.Game.Art
             Tree(k, w / 2 - 1.2f, -d / 2 + 1.2f, 0.85f, season, s + 3);
         }
 
-        /// <summary>A parking lot: asphalt with painted bays and some cars.</summary>
+        /// <summary>A parking lot: asphalt with painted bays and some cars. (Its front row is left for the view to park real
+        /// cars in: ParkingSpots.)</summary>
         static void Parking(MeshKit k, float x0, float z0, float x1, float z1, ref uint s, float fill)
         {
             k.Flat(x0, z0, x1, z1, 0.08f, S("asphalt"), 8f);
@@ -557,7 +568,7 @@ namespace RealLife.Game.Art
                 for (float x = x0 + 0.4f; x < x1 - 2.5f; x += 2.6f)
                 {
                     k.Flat(x, rz0, x + 0.12f, rz1, 0.09f, paint);
-                    if (R(ref s) < fill) PropArt.Parked(k, new Vector3(x + 1.3f, 0.09f, (rz0 + rz1) / 2), row == 0 ? 0 : 180, s);
+                    if (R(ref s) < fill && row == 1) PropArt.Parked(k, new Vector3(x + 1.3f, 0.09f, (rz0 + rz1) / 2), 180, s);   // the front row: shoppers' cars (the view)
                 }
             }
         }

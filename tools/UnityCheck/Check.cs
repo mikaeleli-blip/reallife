@@ -10,6 +10,7 @@ static class Check
     static int Main(string[] args)
     {
         if (args.Length > 0 && args[0] == "buses") return Buses(args.Length > 1 ? float.Parse(args[1]) : 1f / 60);
+        if (args.Length > 0 && args[0] == "parking") return Parking(args.Length > 1 ? int.Parse(args[1]) : 2);
         int bad = Primitives();
         foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
         {
@@ -40,6 +41,63 @@ static class Check
             }
         Console.WriteLine(bad == 0 ? "All meshes look right." : bad + " suspicious faces.");
         return 0;
+    }
+
+    /// <summary>A day of drivers in a built-up town with some car parks downtown: where their cars end up, and that no two
+    /// cars ever share a spot.</summary>
+    static int Parking(int lotsToBuild)
+    {
+        var t = Town.CreateDeveloped(1);
+        int built = 0;
+        for (int r = 0; r < 30 && built < lotsToBuild; r++)
+            for (int y = 47 - r; y <= 47 + r && built < lotsToBuild; y++)
+                for (int x = 47 - r; x <= 47 + r && built < lotsToBuild; x++)
+                    if (t.CanPlace(BuildingType.ParkingLot, x, y) == null) { t.PlacePublic(BuildingType.ParkingLot, x, y); built++; }
+        for (int d = 0; d < 12; d++) t.Advance(1f);
+        Console.WriteLine("car parks built " + t.Buildings.Count(b => b.Type == BuildingType.ParkingLot && b.Built) + " of " + built);
+        var go = new GameObject("world");
+        var view = go.AddComponent<RealLife.Game.WorldView>();
+        typeof(RealLife.Game.WorldView).GetProperty("Nav").SetValue(view, new RealLife.Game.Nav(t));
+        var agents = go.AddComponent<RealLife.Game.Agents>();
+        agents.Bind(t, view);
+        var upd = typeof(RealLife.Game.Agents).GetMethod("Update", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        t.Hour = 3f;
+        upd.Invoke(agents, null);
+        var drives = agents.DayTrips.Where(x => x.Kind == 1 && x.After != null).ToList();
+        int toLot = drives.Count(x => x.After.Building >= 0 && !x.After.Home), toHome = drives.Count(x => x.After.Home && x.After.Building >= 0),
+            homeHidden = drives.Count(x => x.After.Home && x.After.Building < 0), kerb = drives.Count(x => !x.After.Home && x.After.Building < 0);
+        Console.WriteLine($"drives today {drives.Count}: park in a lot {toLot}, on the driveway {toHome}, home but no driveway {homeHidden}, kerb or out of town {kerb}");
+        foreach (var g in drives.Where(x => x.After.Building >= 0 && !x.After.Home).GroupBy(x => t.GetBuilding(x.After.Building).Type))
+            Console.WriteLine("  into " + g.Key + ": " + g.Count());
+        // no spot double-booked
+        int clash = 0;
+        foreach (var g in drives.Select(x => x.After).Where(s => s.Building >= 0 && !s.Home).GroupBy(s => s.Building * 1000 + s.Spot))
+        {
+            var l = g.OrderBy(s => s.From).ToList();
+            for (int i = 1; i < l.Count; i++) if (l[i].From < l[i - 1].To) clash++;
+        }
+        Console.WriteLine("double-booked spots: " + clash);
+        int started = 0, finished = 0, maxDrivers = 0, maxParked = 0;
+        var parked = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, int>>();
+        while (t.Hour < 23.5f)
+        {
+            float before = t.Hour;
+            t.Advance(0.05f / 24f);
+            if (t.Hour < before) break;
+            upd.Invoke(agents, null);
+            int act = agents.ActiveTrips.Count(x => x.Segs != null);
+            maxDrivers = Math.Max(maxDrivers, act);
+            int p = 0;
+            foreach (var b in t.Buildings.Where(b => b.Type == BuildingType.ParkingLot || b.Type == BuildingType.GroceryStore)) { agents.Parks.ParkedAt(b, t.Hour, parked); p += parked.Count; }
+            maxParked = Math.Max(maxParked, p);
+        }
+        started = agents.DayTrips.Count(x => x.Segs != null);
+        Console.WriteLine($"drives done in three legs: {started}; most driving at once {maxDrivers}; most cars parked in lots at once {maxParked}");
+        var sample = agents.DayTrips.FirstOrDefault(x => x.Segs != null && x.After.Building >= 0 && !x.After.Home);
+        if (sample != null) Console.WriteLine($"a parked drive: walk {sample.SegLen[0]:0} m, drive {sample.SegLen[1]:0} m, walk {sample.SegLen[2]:0} m");
+        var k = agents.DayTrips.FirstOrDefault(x => x.Segs != null && !x.After.Home && x.After.Building < 0 && x.To != t.TerminalId);
+        if (k != null) Console.WriteLine($"a kerb drive: walk {k.SegLen[0]:0} m, drive {k.SegLen[1]:0} m, walk {k.SegLen[2]:0} m");
+        return clash == 0 ? 0 : 1;
     }
 
     /// <summary>Runs the people and buses you'd see for a day in a built-up town with a bus depot, in steps of the given hours,

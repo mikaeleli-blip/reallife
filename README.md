@@ -113,6 +113,11 @@ take it to the highway for their jobs out of town. A family that can get everywh
 may do without a second car, or without a car at all. Riders buy a monthly pass ($55, $20 for kids), which shows in the
 town budget as bus fares; the depot's inspector shows its stops, routes, riders and fares.
 
+**Parking.** Drivers don't pull up at the door. They walk out to the car (on the driveway at home), drive, park, and walk
+the rest: in a grocery store's own lot, in a public parking lot (Build menu: 2 x 2, thirteen spaces) within a short walk of
+where they're going, or, if there's none or it's full, at the kerb outside, where the car isn't shown while they're inside.
+Parked cars stay in their spots until their drivers come back for them. Given the choice, drivers shop where they can park.
+
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy
 repossessed homes from the bank, collect the rent, pay the property tax and keep the places up. A house sale counts as their

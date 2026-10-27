@@ -42,7 +42,9 @@ namespace RealLife.Simulation
         // Special
         FreightTerminal,
         // Commercial (added later; kept at the end so saved games keep their numbers)
-        Realty
+        Realty,
+        // Public (added later)
+        ParkingLot
     }
 
     public enum Role
@@ -359,6 +361,8 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.Firefighter, 5); d.Radius = 24; d.Upkeep = 2500; d.PlayerBuilds = true; d.Floors = 2;
             d = D(BuildingType.Park, "Park", 2, 2, Category.Public, Zone.None, 60000, 30, "Somewhere to go for free. Makes the neighbourhood nicer.");
             d.Jobs = J(Role.ParkKeeper, 1); d.Radius = 12; d.Upkeep = 500; d.PlayerBuilds = true;
+            d = D(BuildingType.ParkingLot, "Parking lot", 2, 2, Category.Public, Zone.None, 45000, 25, "Thirteen spaces. Drivers park here and walk to the shops, work and places nearby instead of pulling up at the door, and they'd rather go where they can park.");
+            d.Radius = Town.ParkWalk; d.Upkeep = 250; d.PlayerBuilds = true;
             d = D(BuildingType.BusDepot, "Bus depot", 2, 2, Category.Public, Zone.None, 450000, 170, "Sets up bus stops across town and runs buses round them: to work for those without a car, to school for kids too far to walk, to the highway for jobs out of town. Riders pay for a monthly pass.");
             d.Jobs = J(Role.BusDriver, 6); d.Radius = Balance.BusRadius; d.Upkeep = 4000; d.PlayerBuilds = true;
 

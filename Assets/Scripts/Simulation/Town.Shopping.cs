@@ -130,7 +130,8 @@ namespace RealLife.Simulation
             float got = 0;
             bool anyStore = false;
             Building nearestShort = null;
-            var shops = Buildings.Where(b => b.Type == type && b.Open && CanGo(h, home, b)).OrderBy(b => b.Price * (1 + Distance(home, b) / 90f)).ToList();
+            bool drives = HasUsableCar(h);
+            var shops = Buildings.Where(b => b.Type == type && b.Open && CanGo(h, home, b)).OrderBy(b => b.Price * (1 + Distance(home, b) / 90f) * ParkingFactor(home, b, drives)).ToList();
             foreach (var b in shops)
             {
                 anyStore = true;
@@ -265,7 +266,8 @@ namespace RealLife.Simulation
             if (venueScratch.Count == 0) { Wants[(int)type] += wantWeight; return false; }
             // the favourite first; if it's full, the next
             Building best = null;
-            if (venueScratch.Count > 1) venueScratch.Sort((a, b) => ((float)a.Price * (1 + Distance(home, a) / 60f)).CompareTo((float)b.Price * (1 + Distance(home, b) / 60f)));
+            bool drives = HasUsableCar(h);
+            if (venueScratch.Count > 1) venueScratch.Sort((a, b) => ((float)a.Price * (1 + Distance(home, a) / 60f) * ParkingFactor(home, a, drives)).CompareTo((float)b.Price * (1 + Distance(home, b) / 60f) * ParkingFactor(home, b, drives)));
             foreach (var b in venueScratch)
             {
                 var bd = b.Def;

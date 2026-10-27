@@ -536,6 +536,49 @@ namespace RealLife.Game.Art
             for (float x = -w / 2 + 1; x < w / 2 - 1; x += 1.2f) if (Mathf.Abs(x) > 1.8f) PropArt.Bush(k, new Vector3(x, 0.06f, -d / 2 + 0.6f), 0.6f, season);
         }
 
+        // a public car park: where its rows are, front (by the street) and back, and the aisle between
+        public static float LotFrontZ(float d) { return -d / 2 + 3.2f; }
+        public static float LotBackZ(float d) { return d / 2 - 5.8f; }
+        public static float LotAisleZ(float d) { return -d / 2 + 8.7f; }
+
+        /// <summary>A public car park: two rows of bays either side of an aisle, the way in through the front row, trees at
+        /// the back, a P sign by the street. The cars are parked in it by the view (ParkingSpots).</summary>
+        static void ParkingLot(MeshKit k, float w, float d, ref uint s, int season)
+        {
+            Lot(k, w, d, S("asphalt"), 0.05f, 8f);
+            var paint = C(H("#f2f2ee"), 0.3f);
+            float f0 = LotFrontZ(d) - 2.5f, f1 = LotFrontZ(d) + 2.5f, b0 = LotBackZ(d) - 2.5f, b1 = LotBackZ(d) + 2.5f;
+            for (int i = 0; i <= 7; i++)
+            {
+                float x = -9.1f + i * 2.6f;
+                k.Flat(x - 0.06f, f0, x + 0.06f, f1, 0.08f, paint);
+                k.Flat(x - 0.06f, b0, x + 0.06f, b1, 0.08f, paint);
+            }
+            // the back of each row, and arrows down the way in
+            k.Flat(-9.1f, f1 - 0.06f, -1.3f, f1 + 0.06f, 0.08f, paint);
+            k.Flat(1.3f, f1 - 0.06f, 9.1f, f1 + 0.06f, 0.08f, paint);
+            k.Flat(-9.1f, b0 - 0.06f, 9.1f, b0 + 0.06f, 0.08f, paint);
+            k.Flat(-0.08f, f0 + 0.6f, 0.08f, f1 - 0.6f, 0.08f, paint);
+            // a planted strip along the back with a few trees, and lamps
+            float g0 = b1 + 0.3f;
+            if (g0 < d / 2 - 0.4f)
+            {
+                k.Box(new Vector3(-w / 2 + 0.3f, 0, g0), new Vector3(w / 2 - 0.3f, 0.18f, d / 2 - 0.3f), C(H("#9aa3ab"), 0.2f), GrassMat(season), 2f);
+                for (int i = 0; i < 3; i++) Tree(k, -6f + i * 6f, (g0 + d / 2) / 2, 0.7f, season, s + (uint)i * 17);
+                PropArt.Lamp(k, new Vector3(-3f, 0.18f, (g0 + d / 2) / 2));
+                PropArt.Lamp(k, new Vector3(3f, 0.18f, (g0 + d / 2) / 2));
+            }
+            // the sign by the street
+            var pole = C(H("#3d4248"), 0.45f, 0.5f);
+            var blue = C(H("#2e86de"), 0.4f);
+            var white = C(H("#f5f6fa"), 0.3f);
+            float sx = w / 2 - 1.2f, sz = -d / 2 + 0.7f;
+            k.Box(new Vector3(sx - 0.06f, 0, sz - 0.06f), new Vector3(sx + 0.06f, 2.9f, sz + 0.06f), pole, pole);
+            k.Box(new Vector3(sx - 0.45f, 2.1f, sz - 0.05f), new Vector3(sx + 0.45f, 3.0f, sz + 0.05f), blue, blue);
+            k.Box(new Vector3(sx - 0.18f, 2.3f, sz - 0.07f), new Vector3(sx - 0.06f, 2.8f, sz + 0.07f), white, white);
+            k.Box(new Vector3(sx - 0.06f, 2.56f, sz - 0.07f), new Vector3(sx + 0.16f, 2.8f, sz + 0.07f), white, white);
+        }
+
         static void BusDepot(MeshKit k, float w, float d, ref uint s, int season)
         {
             Lot(k, w, d, S("asphalt"), 0.05f, 8f);
@@ -656,6 +699,7 @@ namespace RealLife.Game.Art
                 case BuildingType.TownHall:
                 case BuildingType.HighSchool: return 9.5f;
                 case BuildingType.Park: return 0.6f;
+                case BuildingType.ParkingLot: return 0.5f;
                 case BuildingType.Farm: return 5;
                 case BuildingType.FoodPlant:
                 case BuildingType.GarmentFactory:
