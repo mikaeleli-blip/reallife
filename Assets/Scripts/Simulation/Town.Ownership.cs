@@ -182,6 +182,9 @@ namespace RealLife.Simulation
             return LoanPayments(firm) + pay <= (rentIn + newRent) * 0.7;
         }
 
+        /// <summary>A property firm's rent roll: what its tenants pay a month.</summary>
+        public double RentIn(Building firm) { double r = 0; foreach (var o in Portfolio(firm)) if (o.Built) r += o.Rent * o.Households.Count; return r; }
+
         /// <summary>The property firm that builds next, of those that can take it on: the one with the least already going up, and
         /// among those, more often the one with money to spare. (So a new firm gets work too, not just the biggest.)</summary>
         Building HousingFirm(BuildingType t)
@@ -228,7 +231,7 @@ namespace RealLife.Simulation
         }
 
         /// <summary>A home sold whole: a property firm buys it to let if one can, otherwise the bank does and puts it on the market.
-        /// The bank selling what it holds asks less down (equityShare).</summary>
+        /// The bank selling what it holds asks less down (equityShare), and lends the company the rest against the building.</summary>
         void SellHome(Building b, double price, double equityShare = 0.15)
         {
             Building buyer = null;
@@ -237,10 +240,13 @@ namespace RealLife.Simulation
                 double share = price * equityShare;
                 var fam = GetHousehold(f.OwnerId);
                 double has = Math.Max(0, f.Cash - Cushion(f) * 0.5) + (fam != null ? Math.Max(0, fam.Cash - 20000) : 0);
-                if (has < share || Debt(f) - Math.Max(0, f.Cash) + (price - share) > Collateral(f) * 0.8 + price * 0.85) continue;
+                // what it already owes against what it already has, and the building itself secures its own loan
+                if (has < share || Debt(f) - Math.Max(0, f.Cash) + (price - share) > Collateral(f) * 0.8 + price * (1 - equityShare)) continue;
                 double rentIn = 0; foreach (var o in Portfolio(f)) if (o.Built) rentIn += o.Rent * o.Households.Count;
+                // the rent it would bring: what it's let at now, or the going rate, at nine in ten let
+                double newRent = b.Def.Homes * Math.Max(b.Rent, b.Def.Rent * HousingIndex) * 0.9;
                 double pay = Annuity(price - share, Balance.PropertyRate, Balance.PropertyMonths);
-                if (LoanPayments(f) + pay > (rentIn + b.Def.Homes * b.Def.Rent * HousingIndex * 0.9) * 0.75) continue;
+                if (LoanPayments(f) + pay > (rentIn + newRent) * 0.75) continue;
                 buyer = f; break;
             }
             if (buyer != null)
@@ -331,7 +337,8 @@ namespace RealLife.Simulation
             foreach (var b in Buildings.ToList())
             {
                 if (!BankHeld(b) || !b.Built || b.Def.Homes == 0) continue;
-                if (b.Type == BuildingType.House) continue;   // up for sale when taken; let if it doesn't sell (HomeBuying)
+                // a house goes up for sale to families when the bank takes it; one it ended up letting goes to the firms
+                if (b.Type == BuildingType.House && (b.ForSale || b.Households.Count == 0)) continue;
                 if (Chance(0.6f)) SellHome(b, b.Value * 0.8, 0.05);
             }
         }

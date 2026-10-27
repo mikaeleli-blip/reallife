@@ -327,8 +327,9 @@ namespace RealLife.Simulation
                 // a farm loses money every winter; give it the year
                 int patience = b.Type == BuildingType.Farm ? 9 : 5;
                 // a property firm between sales isn't failing while it has houses going up or on the market
-                // (or with a block just finished, still filling with tenants)
-                bool selling = b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2);
+                // (or with a block just finished, still filling with tenants, or rent coming in that carries its loans)
+                bool selling = b.Type == BuildingType.Realty && (Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2) ||
+                                                                 (RentIn(b) > 0 && RentIn(b) >= LoanPayments(b)));
                 if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);

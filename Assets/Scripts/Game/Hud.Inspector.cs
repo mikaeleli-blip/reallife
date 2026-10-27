@@ -142,7 +142,7 @@ namespace RealLife.Game
             if (b.Type == BuildingType.CarDealer) Dealer(b, rows);
             if (b.Type == BuildingType.AutoRepair) Garage(b, rows);
             double owed = T.Debt(b);
-            if (owed > 1) rows.Pair("Loans", Town.Money(owed) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
+            if (owed > 1 && b.Type != BuildingType.Realty) rows.Pair("Loans", Town.Money(owed) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
             if (b.Type == BuildingType.Construction)
             {
                 int jobs = T.Buildings.Count(o => !o.Built && o.ContractorId == b.Id);
