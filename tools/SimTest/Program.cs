@@ -64,6 +64,7 @@ static class Program
                 var garages = t.Buildings.Where(x => x.Type == BuildingType.AutoRepair && x.Open).ToList();
                 Console.WriteLine($"      cars {owned.Count} ({owned.Count / (float)Math.Max(1, t.Households.Count):0.00}/hh, none {t.Households.Count(h => t.CarCount(h) == 0)}) age {(owned.Count > 0 ? owned.Average(c => t.CarAge(c)) : 0):0.0} cond {(owned.Count > 0 ? owned.Average(c => c.Condition) : 0):0.00} broken {owned.Count(c => c.Broken)} inShop {owned.Count(c => c.ShopId >= 0)} away {owned.Count(c => c.ShopId == -2)} | garages {garages.Count} booked {string.Join(",", garages.Select(g => t.Cars.Where(c => c.ShopId == g.Id).Sum(c => c.JobHours).ToString("0")))}h | lots {string.Join(",", t.Buildings.Where(x => x.Type == BuildingType.CarDealer && x.Open).Select(d => t.LotOf(d).Count()))} | sold {t.LastCarsSold} scrapped {t.LastScrapped} repairsAway {t.LastRepairsAway}");
                 Console.WriteLine("      " + Homes(t));
+                if (t.BusStops != null && t.BusStops.Count > 0) Console.WriteLine("      " + Buses(t));
                 if (Environment.GetEnvironmentVariable("BROKEN") == "1")
                     foreach (var c in owned.Where(c => c.Broken && c.ShopId == -1).Take(12))
                     {
@@ -184,6 +185,41 @@ static class Program
             { OpenBlock(RealLife.Simulation.Zone.Apartments); Console.WriteLine("      bot: opened a block for flats " + nextBlock); }
             if (m > 24 && m % 12 == 0 && t.ZonedFree(RealLife.Simulation.Zone.Commercial) < 6) { Road(56, 34, 56, 40); Zone(51, 35, 55, 39, RealLife.Simulation.Zone.Commercial); }
         }
+    }
+
+    static int RoadSteps(Town t, int x0, int y0, int x1, int y1)
+    {
+        var prev = new System.Collections.Generic.Dictionary<int, int>();
+        var q = new System.Collections.Generic.Queue<int>();
+        int s = y0 * t.Cols + x0, g = y1 * t.Cols + x1;
+        prev[s] = 0; q.Enqueue(s);
+        while (q.Count > 0)
+        {
+            int i = q.Dequeue();
+            if (i == g) return prev[i];
+            int x = i % t.Cols, y = i / t.Cols;
+            for (int d = 0; d < 4; d++)
+            {
+                int nx = x + Town.StepX(d), ny = y + Town.StepY(d);
+                if (!t.IsRoad(nx, ny)) continue;
+                int j = ny * t.Cols + nx;
+                if (prev.ContainsKey(j)) continue;
+                prev[j] = prev[i] + 1; q.Enqueue(j);
+            }
+        }
+        return -1;
+    }
+
+    static string Buses(Town t)
+    {
+        var loops = t.BusRoutes.Select(r =>
+        {
+            int len = 0;
+            for (int i = 0; i < r.Stops.Count; i++) { var a = t.BusStops[r.Stops[i]]; var b = t.BusStops[r.Stops[(i + 1) % r.Stops.Count]]; len += Math.Max(0, RoadSteps(t, a.X, a.Y, b.X, b.Y)); }
+            return $"{r.Stops.Count} stops {len} tiles x{r.Buses}";
+        });
+        int kids = t.People.Count(c => c.RidesBus && c.IsChild), students = t.People.Count(c => c.RidesBus && !c.IsChild && c.WorkId < 0), comm = t.People.Count(c => c.RidesBus && t.Commutes(c));
+        return $"bus: {t.BusStops.Count} stops, loops [{string.Join("; ", loops)}] riders {t.BusRiders} (kids {kids}, students {students}, commuters {comm}) cap {t.BusCapacity()} fares {Town.Money(t.LastFares)} carless hh {t.Households.Count(h => t.CarCount(h) == 0)}";
     }
 
     static string Homes(Town t)

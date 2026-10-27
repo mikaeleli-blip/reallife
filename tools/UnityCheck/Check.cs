@@ -9,6 +9,7 @@ static class Check
 {
     static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "buses") return Buses(args.Length > 1 ? float.Parse(args[1]) : 1f / 60);
         int bad = Primitives();
         foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
         {
@@ -29,6 +30,8 @@ static class Check
         }
         var tk = new MeshKit(); PropArt.Tree(tk, Vector3.zero, 1, 2, 7); PropArt.Pine(tk, new Vector3(5, 0, 0), 1, 2);
         bad += Audit("trees", tk.ToModel("t"), 10, 10, false);
+        var bk = new MeshKit(); PropArt.BusShelter(bk, Vector3.zero, 0); PropArt.BusStopSign(bk, new Vector3(3, 0, 0), 0);
+        bad += Audit("bus stop", bk.ToModel("s"), 10, 10, false);
         foreach (int season in new[] { 0, 1, 3 })
             foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
             {
@@ -36,6 +39,51 @@ static class Check
                 bad += Audit(t + " s" + season + " closed", BuildingArt.Build(t, d.W * 10, d.H * 10, 777u, d.Floors, true, season), d.W * 10, d.H * 10, false, true);
             }
         Console.WriteLine(bad == 0 ? "All meshes look right." : bad + " suspicious faces.");
+        return 0;
+    }
+
+    /// <summary>Runs the people and buses you'd see for a day in a built-up town with a bus depot, in steps of the given hours,
+    /// and prints what the buses did.</summary>
+    static int Buses(float step)
+    {
+        var t = Town.CreateDeveloped(1);
+        Building dep = null;
+        for (int r = 0; r < 30 && dep == null; r++)
+            for (int y = 47 - r; y <= 47 + r && dep == null; y++)
+                for (int x = 45 - r; x <= 45 + r && dep == null; x++)
+                    if (t.CanPlace(BuildingType.BusDepot, x, y) == null) dep = t.PlacePublic(BuildingType.BusDepot, x, y);
+        for (int d = 0; d < 40; d++) t.Advance(1f);
+        t.EnsureBusNet();
+        Console.WriteLine($"depot at {dep.X},{dep.Y} built {dep.Built} drivers {dep.Employees.Count} stops {t.BusStops.Count} routes {t.BusRoutes.Count} riders {t.BusRiders}");
+        var go = new GameObject("world");
+        var view = go.AddComponent<RealLife.Game.WorldView>();
+        typeof(RealLife.Game.WorldView).GetProperty("Nav").SetValue(view, new RealLife.Game.Nav(t));
+        var agents = go.AddComponent<RealLife.Game.Agents>();
+        agents.Bind(t, view);
+        var upd = typeof(RealLife.Game.Agents).GetMethod("Update", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        t.Hour = 3f;
+        upd.Invoke(agents, null);
+        var L = agents.Lines;
+        Console.WriteLine("lines: " + L.Describe());
+        Console.WriteLine("bus trips planned today: " + agents.DayTrips.Count(x => x.Kind == 3) + " of " + agents.DayTrips.Count + " (kids " + agents.DayTrips.Count(x => x.Kind == 3 && t.GetCitizen(x.Citizen) != null && t.GetCitizen(x.Citizen).IsChild) + ")");
+        float lastPrint = -1;
+        int maxWait = 0;
+        int startDay = t.Day;
+        while (t.Day < startDay + 2 || t.Hour < 23.8f)
+        {
+            float before = t.Hour;
+            t.Advance(step / 24f);
+            if (t.Hour < before) { lastPrint = -1; Console.WriteLine("-- next day: bus trips planned " + agents.DayTrips.Count(x => x.Kind == 3)); }
+            upd.Invoke(agents, null);
+            maxWait = Math.Max(maxWait, L.WaitingNow);
+            if (t.Hour - lastPrint >= 1f)
+            {
+                lastPrint = (float)Math.Floor(t.Hour);
+                var act = agents.ActiveTrips;
+                Console.WriteLine($"{t.Hour,5:0.0}h buses {L.BusesOut} | riders walking to a stop {act.Count(x => x.Kind == 3 && x.Phase == 0)} waiting {L.WaitingNow} on board {L.RidingNow} walking on {act.Count(x => x.Kind == 3 && x.Phase == 3)} | boarded {L.Boarded} got off {L.Alighted} gave up {agents.GaveUp}");
+            }
+        }
+        Console.WriteLine($"day done: boarded {L.Boarded}, got off {L.Alighted}, gave up {agents.GaveUp}, most waiting at once {maxWait}");
         return 0;
     }
 

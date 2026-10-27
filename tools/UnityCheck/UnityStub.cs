@@ -140,6 +140,8 @@ namespace UnityEngine
     public static class Mathf
     {
         public const float PI = (float)Math.PI;
+        public const float Rad2Deg = 57.29578f, Deg2Rad = 0.0174532924f;
+        public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
         public static float Clamp(float v, float a, float b) => v < a ? a : v > b ? b : v;
         public static int Clamp(int v, int a, int b) => v < a ? a : v > b ? b : v;
         public static float Clamp01(float v) => Clamp(v, 0, 1);

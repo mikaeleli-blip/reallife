@@ -47,6 +47,7 @@ namespace RealLife.Game
             rows.Pair("Property tax", Town.Money(bk.PropertyTax), Ui.Good);
             rows.Pair("Business tax", Town.Money(bk.BusinessTax), Ui.Good);
             rows.Pair("College tuition", Town.Money(bk.Fees), Ui.Good);
+            if (bk.Fares > 0) rows.Pair("Bus fares", Town.Money(bk.Fares), Ui.Good);
             rows.Pair("Public employees' pay", "-" + Town.Money(bk.PublicWages));
             rows.Pair("Upkeep of buildings and roads", "-" + Town.Money(bk.Upkeep));
             rows.Pair("Unemployment benefits", "-" + Town.Money(bk.Benefits));

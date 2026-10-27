@@ -229,7 +229,7 @@ namespace RealLife.Simulation
                 if (b.Type != type || !b.Open || !Connected(b)) continue;
                 var d = b.Def;
                 float dist = home != null ? Distance(home, b) : 0;
-                if (dist > d.Radius) continue;
+                if (dist > d.Radius && !BusConnects(home, b)) continue;   // beyond its catchment, the school bus
                 int n = Enrolled(b);
                 if (n >= d.Seats) continue;
                 float score = dist + n * 0.05f;

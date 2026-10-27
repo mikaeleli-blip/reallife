@@ -9,14 +9,15 @@ namespace RealLife.Game
     /// The people and vehicles you see moving. Each day every citizen gets a plan from what the simulation says they did:
     /// to work or school in the morning, home in the afternoon by way of a shop, out for the evening. They walk, or drive if
     /// there's a car for them and it's far: the family's working cars go to the longest drives first, and each is the town's
-    /// own car in its own paint. Trucks carry the day's shipments to and from the highway.
+    /// own car in its own paint. Without a car, a long way, and a bus stop near both ends, they take the bus (BusLines): kids
+    /// to school, too. Trucks carry the day's shipments to and from the highway.
     /// </summary>
     public sealed class Agents : MonoBehaviour
     {
         public const float WalkSpeed = 160f, CarSpeed = 520f, TruckSpeed = 420f;   // metres per game hour
         const int MaxActive = 700;
 
-        sealed class Trip
+        internal sealed class Trip
         {
             public int Citizen = -1;     // -1: a truck
             public int From, To;          // building ids (-1: the highway)
@@ -27,8 +28,15 @@ namespace RealLife.Game
             public float Length, Speed;
             public bool Failed, Done;
             public GameObject Go;
-            public int Kind;              // 0 walking, 1 car, 2 truck
+            public int Kind;              // 0 walking, 1 car, 2 truck, 3 by bus
             public int CarId = -1, Home = -1;
+            // by bus: the rides, which one they're on, and where they are in it
+            public List<BusLines.Leg> Legs;
+            public int LegIdx;
+            public int Phase;             // 0 walking to the stop, 1 waiting, 2 riding, 3 walking from the stop
+            public float PhaseStart;
+            public Vector3 WaitAt;
+            public int Pool { get { return Kind == 3 ? 0 : Kind; } }
         }
 
         Town town;
@@ -44,6 +52,11 @@ namespace RealLife.Game
         readonly Dictionary<int, int> carAt = new Dictionary<int, int>();
         readonly Dictionary<int, List<Trip>> carTrips = new Dictionary<int, List<Trip>>();
         Transform root;
+        BusLines lines;
+        internal BusLines Lines { get { return lines; } }
+        internal List<Trip> ActiveTrips { get { return active; } }
+        internal List<Trip> DayTrips { get { return trips; } }
+        internal int GaveUp;
 
         public void Bind(Town t, WorldView v)
         {
@@ -51,6 +64,8 @@ namespace RealLife.Game
             foreach (var tr in active) Release(tr);
             active.Clear(); trips.Clear(); next = 0; planned = -1;
             if (root == null) { root = new GameObject("Agents").transform; root.SetParent(transform, false); }
+            if (lines == null) lines = new BusLines(this, root);
+            lines.Bind(t, v.Nav);
             if (people == null)
             {
                 people = new Model[14]; kids = new Model[6];
@@ -67,6 +82,7 @@ namespace RealLife.Game
         {
             foreach (var tr in active) Release(tr);
             active.Clear(); trips.Clear(); next = 0;
+            lines.ClearRiders();
             planned = town.Day;
             driverCar.Clear(); carAt.Clear(); carTrips.Clear();
             var drivers = new List<Citizen>();
@@ -150,7 +166,22 @@ namespace RealLife.Game
             var t = new Trip { Citizen = c.Id, From = from.Id, To = to.Id, Start = hour, Car = car, Kind = car ? 1 : 0, Seed = seed,
                                CarId = car ? carId : -1, Home = home.Id };
             trips.Add(t);
-            if (!car) return;
+            if (!car)
+            {
+                // too far to walk: the bus, if there's a stop near both ends; they set off earlier to allow for it
+                if (dist > Town.RideMin && lines.Ready)
+                {
+                    int fs = town.StopNear(from), ts = town.StopNear(to);
+                    float hours = 0;
+                    var legs = fs >= 0 && ts >= 0 ? lines.Plan(fs, ts, out hours) : null;
+                    if (legs != null)
+                    {
+                        t.Kind = 3; t.Legs = legs;
+                        t.Start = Mathf.Max(BusLines.First + 0.1f, hour - Mathf.Min(2f, hours * 0.8f + 0.3f));
+                    }
+                }
+                return;
+            }
             carAt[carId] = to.Id;
             List<Trip> l;
             if (!carTrips.TryGetValue(carId, out l)) carTrips[carId] = l = new List<Trip>();
@@ -175,6 +206,7 @@ namespace RealLife.Game
         void Update()
         {
             if (town == null) return;
+            if (lines.Sync()) DropRiders();
             if (planned != town.Day) Plan();
             float hour = town.Hour;
             if (hour < lastHour - 12) { lastHour = hour; return; }
@@ -191,6 +223,11 @@ namespace RealLife.Game
             for (int i = active.Count - 1; i >= 0; i--)
             {
                 var t = active[i];
+                if (t.Kind == 3)
+                {
+                    if (!StepRider(t, hour)) { Release(t); active.RemoveAt(i); }
+                    continue;
+                }
                 float dist = (hour - t.Start) * t.Speed;
                 if (dist >= t.Length || dist < 0) { Release(t); active.RemoveAt(i); continue; }
                 Vector3 dir;
@@ -198,6 +235,7 @@ namespace RealLife.Game
                 t.Go.transform.localPosition = p + new Vector3(0, t.Kind == 0 ? 0.2f : 0.06f, 0);
                 if (dir.sqrMagnitude > 0.001f) t.Go.transform.localRotation = Quaternion.LookRotation(dir);
             }
+            lines.Update(hour);
         }
 
         bool Begin(Trip t)
@@ -206,6 +244,22 @@ namespace RealLife.Game
             var from = t.From >= 0 ? town.GetBuilding(t.From) : town.Terminal;
             var to = t.To >= 0 ? town.GetBuilding(t.To) : town.Terminal;
             if (from == null || to == null) return false;
+            if (t.Kind == 3)
+            {
+                // off to the stop; if it can't be reached they walk the whole way
+                int stop = t.Legs[0].Board;
+                t.LegIdx = 0;
+                t.WaitAt = lines.WaitSpot(stop, t.Seed);
+                t.Path = nav.WalkToStop(from, lines.StopTile(stop), t.WaitAt);
+                if (t.Path != null && t.Path.Count >= 2)
+                {
+                    t.Length = Nav.Length(t.Path); t.Speed = WalkSpeed;
+                    t.Phase = 0; t.PhaseStart = t.Start;
+                    t.Go = Take(t);
+                    return true;
+                }
+                t.Kind = 0; t.Legs = null;
+            }
             t.Path = nav.Polyline(from, to, t.Car);
             if (t.Path == null || t.Path.Count < 2) return false;
             t.Length = Nav.Length(t.Path);
@@ -216,15 +270,15 @@ namespace RealLife.Game
 
         GameObject Take(Trip t)
         {
-            var pool = pools[t.Kind];
+            var pool = pools[t.Pool];
             GameObject go = pool.Count > 0 ? pool.Pop() : null;
             if (go == null)
             {
-                go = new GameObject(t.Kind == 0 ? "Person" : t.Kind == 1 ? "Car" : "Truck");
+                go = new GameObject(t.Pool == 0 ? "Person" : t.Pool == 1 ? "Car" : "Truck");
                 go.transform.SetParent(root, false);
                 go.AddComponent<MeshFilter>();
                 var r = go.AddComponent<MeshRenderer>();
-                r.shadowCastingMode = t.Kind == 0 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
+                r.shadowCastingMode = t.Pool == 0 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
             }
             Model m;
             if (t.Kind == 2) m = trucks[t.Seed % (uint)trucks.Length];
@@ -241,17 +295,108 @@ namespace RealLife.Game
             }
             go.GetComponent<MeshFilter>().sharedMesh = m.Mesh;
             go.GetComponent<MeshRenderer>().sharedMaterials = m.Materials;
-            go.name = t.Kind == 0 ? "Person " + t.Citizen : go.name;
+            go.name = t.Pool == 0 ? "Person " + t.Citizen : go.name;
             go.SetActive(true);
             return go;
         }
 
         void Release(Trip t)
         {
+            if (t.Kind == 3) lines.Drop(t);
             if (t.Go == null) return;
             t.Go.SetActive(false);
-            pools[t.Kind].Push(t.Go);
+            pools[t.Pool].Push(t.Go);
             t.Go = null;
+        }
+
+        // ================================================================== riding the bus
+        /// <summary>A bus rider's turn: walking to or from a stop, waiting, or on board. False when they've arrived (or given up).</summary>
+        bool StepRider(Trip t, float hour)
+        {
+            switch (t.Phase)
+            {
+                case 0:
+                case 3:
+                {
+                    float dist = (hour - t.PhaseStart) * WalkSpeed;
+                    if (dist < 0) return true;
+                    if (dist >= t.Length)
+                    {
+                        if (t.Phase == 3) return false;
+                        t.Phase = 1; t.PhaseStart = hour;
+                        Stand(t);
+                        lines.Wait(t);
+                        return true;
+                    }
+                    Vector3 dir;
+                    var p = Nav.At(t.Path, dist, out dir);
+                    t.Go.transform.localPosition = p + new Vector3(0, 0.2f, 0);
+                    if (dir.sqrMagnitude > 0.001f) t.Go.transform.localRotation = Quaternion.LookRotation(dir);
+                    return true;
+                }
+                case 1:
+                    if (hour - t.PhaseStart < 3f || hour < t.PhaseStart) return true;
+                    GaveUp++;   // after three hours they give up
+                    return false;
+                default:
+                    return true;   // on the bus: it carries them
+            }
+        }
+
+        /// <summary>Waiting at the stop, facing the road.</summary>
+        void Stand(Trip t)
+        {
+            if (t.Go == null) return;
+            t.Go.SetActive(true);
+            t.Go.transform.localPosition = t.WaitAt + new Vector3(0, 0.2f, 0);
+            int stop = t.Legs[t.LegIdx].Board;
+            var tile = Nav.Center(lines.StopTile(stop));
+            var face = tile - t.WaitAt; face.y = 0;
+            if (face.sqrMagnitude > 0.01f) t.Go.transform.localRotation = Quaternion.LookRotation(face);
+        }
+
+        internal void Board(Trip t)
+        {
+            t.Phase = 2;
+            if (t.Go != null) t.Go.SetActive(false);
+        }
+
+        internal void Alight(Trip t, int stop, float hour)
+        {
+            t.LegIdx++;
+            t.PhaseStart = hour;
+            if (t.LegIdx < t.Legs.Count)
+            {
+                // changing buses at the depot
+                t.Phase = 1;
+                t.WaitAt = lines.WaitSpot(stop, t.Seed * 7 + 3);
+                Stand(t);
+                lines.Wait(t);
+                return;
+            }
+            var to = t.To >= 0 ? town.GetBuilding(t.To) : town.Terminal;
+            var spot = lines.WaitSpot(stop, t.Seed * 13 + 5);
+            t.Path = view.Nav.WalkFromStop(lines.StopTile(stop), spot, to);
+            if (t.Path == null || t.Path.Count < 2) { Finish(t); return; }
+            t.Length = Nav.Length(t.Path);
+            t.Phase = 3;
+            if (t.Go != null) t.Go.SetActive(true);
+        }
+
+        /// <summary>Their trip's over: off the bus at the end of the day, or the lines changed.</summary>
+        internal void Finish(Trip t)
+        {
+            int i = active.IndexOf(t);
+            Release(t);
+            if (i >= 0) active.RemoveAt(i);
+        }
+
+        void DropRiders()
+        {
+            for (int i = active.Count - 1; i >= 0; i--)
+                if (active[i].Kind == 3) { Release(active[i]); active.RemoveAt(i); }
+            // and the day's plan, made with the old lines, walks instead
+            foreach (var t in trips) if (t.Kind == 3 && t.Go == null) { t.Kind = 0; t.Legs = null; }
         }
 
         // ================================================================== picking and following
@@ -261,7 +406,7 @@ namespace RealLife.Game
             int best = -1; float bd = radius * radius;
             foreach (var t in active)
             {
-                if (t.Citizen < 0 || t.Go == null) continue;
+                if (t.Citizen < 0 || t.Go == null || !t.Go.activeSelf) continue;
                 var sp = cam.WorldToScreenPoint(t.Go.transform.position + Vector3.up);
                 if (sp.z < 0) continue;
                 float d = ((Vector2)sp - screen).sqrMagnitude;
@@ -274,7 +419,11 @@ namespace RealLife.Game
         public bool Where(int citizen, out Vector3 pos)
         {
             foreach (var t in active)
-                if (t.Citizen == citizen && t.Go != null) { pos = t.Go.transform.position; return true; }
+            {
+                if (t.Citizen != citizen || t.Go == null) continue;
+                if (t.Kind == 3 && t.Phase == 2) return lines.Riding(t, out pos);
+                pos = t.Go.transform.position; return true;
+            }
             pos = Vector3.zero; return false;
         }
 

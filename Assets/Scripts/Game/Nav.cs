@@ -69,22 +69,82 @@ namespace RealLife.Game
             if (tiles == null) return null;
             var pts = new List<Vector3>(tiles.Count + 4);
             pts.Add(Door(a));
-            float lane = car ? 2.2f : 4.1f;
-            for (int i = 0; i < tiles.Count; i++)
+            Lane(tiles, car ? CarLane : WalkLane, pts, false);
+            pts.Add(Door(b));
+            return pts;
+        }
+
+        public const float CarLane = 2.2f, WalkLane = 4.1f;
+
+        /// <summary>A point for each tile, kept to the right of the direction of travel. A loop's first and last tiles are the same.</summary>
+        static void Lane(List<Vector2Int> tiles, float lane, List<Vector3> pts, bool loop)
+        {
+            int n = tiles.Count;
+            for (int i = 0; i < n; i++)
             {
                 var c = Center(tiles[i]);
-                Vector3 dirIn = i > 0 ? (c - Center(tiles[i - 1])).normalized : Vector3.zero;
-                Vector3 dirOut = i < tiles.Count - 1 ? (Center(tiles[i + 1]) - c).normalized : Vector3.zero;
+                Vector3 dirIn = i > 0 ? (c - Center(tiles[i - 1])).normalized : loop && n > 2 ? (c - Center(tiles[n - 2])).normalized : Vector3.zero;
+                Vector3 dirOut = i < n - 1 ? (Center(tiles[i + 1]) - c).normalized : loop && n > 2 ? (Center(tiles[1]) - c).normalized : Vector3.zero;
                 Vector3 dir = (dirIn + dirOut);
                 if (dir.sqrMagnitude < 0.01f) dir = dirIn.sqrMagnitude > 0 ? dirIn : dirOut;
                 if (dir.sqrMagnitude < 0.01f) { pts.Add(c); continue; }
                 dir.Normalize();
-                // keep right of the direction of travel
                 var right = new Vector3(dir.z, 0, -dir.x);
                 pts.Add(c + right * lane * (Mathf.Abs(dir.x) > 0.1f && Mathf.Abs(dir.z) > 0.1f ? 1.2f : 1f));
             }
+        }
+
+        /// <summary>On foot from a building's door to a spot at a bus stop.</summary>
+        public List<Vector3> WalkToStop(Building a, Vector2Int stop, Vector3 spot)
+        {
+            int ax, ay;
+            if (a == null || !town.AccessTile(a, out ax, out ay)) return null;
+            var tiles = Route(new Vector2Int(ax, ay), stop);
+            if (tiles == null) return null;
+            var pts = new List<Vector3>(tiles.Count + 2) { Door(a) };
+            Lane(tiles, WalkLane, pts, false);
+            pts.Add(spot);
+            return pts;
+        }
+
+        /// <summary>On foot from a spot at a bus stop to a building's door.</summary>
+        public List<Vector3> WalkFromStop(Vector2Int stop, Vector3 spot, Building b)
+        {
+            int bx, by;
+            if (b == null || !town.AccessTile(b, out bx, out by)) return null;
+            var tiles = Route(stop, new Vector2Int(bx, by));
+            if (tiles == null) return null;
+            var pts = new List<Vector3>(tiles.Count + 2) { spot };
+            Lane(tiles, WalkLane, pts, false);
             pts.Add(Door(b));
             return pts;
+        }
+
+        /// <summary>A bus's loop through its stops and back to the first, in the driving lane. at gets the point index of each
+        /// stop along it (the first is 0, and the loop ends back there). Null if a stop can't be reached.</summary>
+        public List<Vector3> Loop(List<Vector2Int> stops, List<int> at)
+        {
+            var tiles = new List<Vector2Int>();
+            at.Clear();
+            for (int i = 0; i < stops.Count; i++)
+            {
+                var seg = Route(stops[i], stops[(i + 1) % stops.Count]);
+                if (seg == null || seg.Count == 0) return null;
+                at.Add(tiles.Count == 0 ? 0 : tiles.Count - 1);
+                for (int j = tiles.Count == 0 ? 0 : 1; j < seg.Count; j++) tiles.Add(seg[j]);
+            }
+            if (tiles.Count < 2) return null;
+            var pts = new List<Vector3>(tiles.Count);
+            Lane(tiles, CarLane, pts, true);
+            return pts;
+        }
+
+        /// <summary>The distance along a polyline to each of its points.</summary>
+        public static float[] Along(List<Vector3> pts)
+        {
+            var d = new float[pts.Count];
+            for (int i = 1; i < pts.Count; i++) d[i] = d[i - 1] + Vector3.Distance(pts[i - 1], pts[i]);
+            return d;
         }
 
         /// <summary>The middle of a building's street front, just inside the lot.</summary>

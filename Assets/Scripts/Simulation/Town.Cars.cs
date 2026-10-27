@@ -207,10 +207,13 @@ namespace RealLife.Simulation
                 if (worst != null && (worst.Condition < 0.12f || CarAge(worst) > 16) && Chance(0.15f)) BuyCar(h, home, ms, thrift, worst);
                 else if (worst != null && CarAge(worst) > 7 && (h.Cash > 90000 || MonthlyIncome(h) > 10000) && Chance(0.004f)) BuyCar(h, home, ms, thrift, worst);
                 // a second car when two people drive a long way to work
-                if (cars.Count == 1 && drives.Count >= 2 && MonthlyIncome(h) > 6500 && Chance(0.01f)) BuyCar(h, home, ms, thrift, null);
+                // (unless the bus gets the other one there and money's not so loose)
+                if (cars.Count == 1 && drives.Count >= 2 && MonthlyIncome(h) > 6500 && Chance(0.01f) && !(MonthlyIncome(h) < 8000 && BusCovers(h, home))) BuyCar(h, home, ms, thrift, null);
             }
             else if (Chance(0.06f))
             {
+                // a family that gets everywhere by bus and hasn't much put by does without
+                if (MonthlyIncome(h) < 7500 && h.Cash < 50000 && BusCovers(h, home)) return;
                 // a car when there's a long way to work, or kids, and it's affordable
                 bool farJob = ms.Any(c => c.WorkId >= 0 && Distance(home, GetBuilding(c.WorkId)) > 14);
                 bool kids = ms.Any(c => c.IsChild);
@@ -304,6 +307,14 @@ namespace RealLife.Simulation
             double bill = Quote(g, c, c.JobHours, c.JobParts);
             double value = CarValue(c);
             bool notWorthIt = bill > value * 0.55 || CarAge(c) > 15;
+            // not worth fixing, and the bus will do: a family short of money gives the car up
+            if (notWorthIt && CarCount(h) == 1 && MonthlyIncome(h) < 6000 && BusCovers(h, home) && Chance(0.5f))
+            {
+                SellOrScrap(c, h, null, false);
+                var gave = ms.FirstOrDefault(m => !m.IsChild);
+                if (gave != null) Note(gave, "Gave up the car: the bus does.");
+                return;
+            }
             if (notWorthIt && BuyCar(h, home, ms, thrift, c)) return;
             // a family with another car may do without this one rather than pay
             if (notWorthIt && CarCount(h) > 1 && h.Cash < bill * 3) { SellOrScrap(c, h, null, false); return; }

@@ -41,6 +41,7 @@ namespace RealLife.Simulation
         // Today (for the 3D view and the inspector)
         public int ErrandId = -1;         // a shop visited today
         public int LeisureId = -1;        // a restaurant, bar, café, gym or park visited today
+        [NonSerialized] public bool RidesBus;   // goes to work or school by bus (decided each day)
         public bool AtWork;
         public int Outings, LastOutings;  // times they went out this month and last
         public string Note;               // the latest thing that happened to them
@@ -187,11 +188,11 @@ namespace RealLife.Simulation
     [Serializable]
     public class TownBook
     {
-        public double IncomeTax, SalesTax, PropertyTax, BusinessTax, Fees;
+        public double IncomeTax, SalesTax, PropertyTax, BusinessTax, Fees, Fares;
         public double PublicWages, Upkeep, Benefits, Construction, Interest;
-        public double TotalIn { get { return IncomeTax + SalesTax + PropertyTax + BusinessTax + Fees; } }
+        public double TotalIn { get { return IncomeTax + SalesTax + PropertyTax + BusinessTax + Fees + Fares; } }
         public double TotalOut { get { return PublicWages + Upkeep + Benefits + Construction + Interest; } }
-        public void Clear() { IncomeTax = SalesTax = PropertyTax = BusinessTax = Fees = PublicWages = Upkeep = Benefits = Construction = Interest = 0; }
+        public void Clear() { IncomeTax = SalesTax = PropertyTax = BusinessTax = Fees = Fares = PublicWages = Upkeep = Benefits = Construction = Interest = 0; }
         public TownBook Copy() { return (TownBook)MemberwiseClone(); }
     }
 

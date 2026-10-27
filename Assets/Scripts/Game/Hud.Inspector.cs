@@ -318,10 +318,28 @@ namespace RealLife.Game
                 rows.Pair("Seen today", b.ServedToday + " of " + T.PatientCapacity(b));
                 if (T.LastUntreated > 0) rows.Pair("Untreated in town last month", T.LastUntreated.ToString(), Ui.Warn);
             }
+            if (b.Type == BuildingType.BusDepot) BusInfo(b, rows);
             if (d.Radius > 0 && d.Radius < 900) rows.Pair("Serves within", d.Radius + " tiles");
             double wages = 0; foreach (var id in b.Employees) { var c = T.GetCitizen(id); if (c != null) wages += c.Wage; }
             rows.Pair("Running cost", Town.Money(wages + d.Upkeep) + " a month");
             Staff(b, rows);
+        }
+
+        void BusInfo(Building b, Rows rows)
+        {
+            rows.Header("Buses");
+            T.EnsureBusNet();
+            int stops = T.BusStops.Count(s => s.Depot == b.Id);
+            var routes = T.BusRoutes.Where(r => r.Depot == b.Id).ToList();
+            if (stops == 0) { rows.Pair("Service", b.Employees.Count == 0 ? "No drivers yet" : "No streets to run on", Ui.Warn); return; }
+            rows.Pair("Stops", stops.ToString());
+            rows.Pair("Routes", routes.Count + " (" + string.Join(", ", routes.Select(r => r.Stops.Count + " stops, " + r.Buses + (r.Buses == 1 ? " bus" : " buses"))) + ")");
+            int cap = T.BusCapacity();
+            rows.Pair("Regular riders", T.BusRiders + " of " + cap + " it has room for", T.BusRiders > cap ? Ui.Warn : Ui.Text);
+            int kids = T.People.Count(c => c.RidesBus && c.IsChild), work = T.People.Count(c => c.RidesBus && c.WorkId >= 0);
+            rows.Pair("To work / to school", work + " / " + (T.BusRiders - work));
+            rows.Pair("Fares last month", Town.Money(T.LastFares), Ui.Good);
+            rows.Pair("Pass", Town.Money(Town.FareAdult) + " a month, " + Town.Money(Town.FareChild) + " for kids");
         }
 
         void Terminal(Rows rows)
@@ -353,7 +371,7 @@ namespace RealLife.Game
             Ui.Small(rows.Next(20), (int)c.Age + (c.Female ? ", woman" : ", man") + (c.IsChild ? "" : " · " + Defs.EduName(c.Edu).ToLower()) + (c.Dropout ? " (dropped out)" : ""));
             var work = T.WorkOf(c);
             string status; Color sc = Ui.Text;
-            if (work != null && T.Commutes(c)) status = "Drives to a job out of town · " + Town.Money(c.Wage) + "/mo";
+            if (work != null && T.Commutes(c)) status = (c.RidesBus ? "Takes the bus to a job out of town · " : "Drives to a job out of town · ") + Town.Money(c.Wage) + "/mo";
             else if (work != null) status = Defs.Get(c.Role).Name + (c.Owner ? " and owner" : "") + " at " + T.Ref(work) + " · " + Town.Money(c.Wage) + "/mo";
             else if (c.Stage != Stage.None) { var s = T.GetBuilding(c.SchoolId); status = s != null ? Defs.StageName(c.Stage) + ", year " + (1 + (int)c.StageYears) : "No school place"; if (s == null) sc = Ui.Bad; }
             else if (c.Retired) status = "Retired";
@@ -364,6 +382,7 @@ namespace RealLife.Game
             if (work != null) { if (Ui.Link(sr, status)) gc.FocusBuilding(work); }
             else if (c.Stage != Stage.None && T.GetBuilding(c.SchoolId) != null) { if (Ui.Link(sr, status)) gc.FocusBuilding(T.GetBuilding(c.SchoolId)); }
             else Ui.Label(sr, status, sc);
+            if (c.RidesBus && !T.Commutes(c)) Ui.Small(rows.Next(20), c.WorkId >= 0 ? "Takes the bus to work" : "Takes the bus to school");
             if (c.Sick > 0) Ui.Small(rows.Next(20), Ui.Col("Ill" + (c.ErrandId >= 0 && T.GetBuilding(c.ErrandId) != null && (T.GetBuilding(c.ErrandId).Type == BuildingType.Clinic || T.GetBuilding(c.ErrandId).Type == BuildingType.Hospital) ? ", seeing the doctor" : ""), Ui.Warn));
             rows.Space(4);
             var hr = rows.Next(18, 2); Ui.Small(hr, "Happiness"); Ui.Right(hr, Mathf.RoundToInt(c.Happiness) + "%");

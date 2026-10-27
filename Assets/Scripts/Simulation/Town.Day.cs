@@ -18,6 +18,7 @@ namespace RealLife.Simulation
             LaborDaily();
             CommuteDaily();
             Attendance();
+            BusDaily();
             ReadyTrucks();
             ShopsOpen();
             Produce();
@@ -35,6 +36,7 @@ namespace RealLife.Simulation
             CloseMonth();
             Payroll();
             HousingMonthly();
+            BusFares();
             LoansMonthly();
             BusinessMonthly();
             Budgets();

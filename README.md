@@ -103,6 +103,16 @@ new, and without a dealer here people buy in the next town over. Worn-out cars a
 on the road and on the driveway, the stock on a dealer's lot and the cars waiting outside a garage; the inspector shows a
 family's cars, a dealer's lot and a garage's queue, and the Economy panel counts cars bought, scrapped and repaired out of town.
 
+**Buses.** Build a bus depot (Build menu) and once it has drivers it sets up stops by itself: one within a short walk of
+every home, shop, workplace and school in its reach, and one at the highway. It splits them into a few loops out from the
+depot and back, and its buses (one per driver) run them from early morning to late evening, pulling in wherever someone's
+waiting or wants to get off. People with a long way to go and no car of their own that day (the family's cars go to the
+longest drives) walk to a stop, wait, ride, change at the depot if they need another route, and walk the rest; kids take it
+to school when it's too far to walk, and a school's catchment stretches as far as the buses go. Commuters without a car can
+take it to the highway for their jobs out of town. A family that can get everywhere it needs by bus, and hasn't much money,
+may do without a second car, or without a car at all. Riders buy a monthly pass ($55, $20 for kids), which shows in the
+town budget as bus fares; the depot's inspector shows its stops, routes, riders and fares.
+
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy
 repossessed homes from the bank, collect the rent, pay the property tax and keep the places up. A house sale counts as their

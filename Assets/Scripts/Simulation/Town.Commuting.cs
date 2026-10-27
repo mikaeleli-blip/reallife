@@ -39,7 +39,7 @@ namespace RealLife.Simulation
             var t = Terminal;
             if (t == null || c.IsChild || c.Retired) return false;
             var home = HomeOf(c);
-            return home != null && Connected(home) && CarCount(HouseholdOf(c)) > 0;   // in the garage, they get a lift
+            return home != null && Connected(home) && (CarCount(HouseholdOf(c)) > 0 || BusConnects(home, t));   // in the garage, they get a lift
         }
 
         void StartCommuting(Citizen c, bool silent)
@@ -79,7 +79,7 @@ namespace RealLife.Simulation
                 Treasury += tax; Book.IncomeTax += tax;
                 Trade.Commuting += pay; t.WageBill += pay;
                 // and someone whose family no longer has a car can't get there any more
-                if (h != null && CarCount(h) == 0) { LeaveJob(c, null); Note(c, "Lost the job out of town: no way to get there."); }
+                if (h != null && CarCount(h) == 0 && !BusConnects(HomeOf(h), t)) { LeaveJob(c, null); Note(c, "Lost the job out of town: no way to get there."); }
             }
         }
 

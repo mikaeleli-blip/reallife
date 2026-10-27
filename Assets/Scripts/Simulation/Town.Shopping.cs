@@ -38,7 +38,7 @@ namespace RealLife.Simulation
             if (!Connected(shop)) return false;
             if (Distance(home, shop) <= Balance.WalkTiles) return true;
             if (HasUsableCar(h) && h.Fuel > 0) return true;
-            return BusServes(home) && BusServes(shop);
+            return BusConnects(home, shop);
         }
 
         bool CanDriveOutOfTown(Household h, Building home) { return HasUsableCar(h) && h.Fuel > 0.3f && Connected(home); }

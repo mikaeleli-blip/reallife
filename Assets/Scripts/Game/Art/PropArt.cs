@@ -168,6 +168,44 @@ namespace RealLife.Game.Art
 
         public static Model BusModel(Color32 body) { var k = new MeshKit(); Bus(k, body); return k.ToModel("bus"); }
 
+        /// <summary>A bus shelter at p: glass back and sides, a roof and a bench, open on its -z side (the road).</summary>
+        public static void BusShelter(MeshKit k, Vector3 p, float yaw)
+        {
+            var frame = M(MeshKit.Hex("#3d4248"), 0.45f, 0.5f);
+            var roof = M(MeshKit.Hex("#2e86de"), 0.45f, 0.1f);
+            var seat = M(MeshKit.Hex("#8b5e3c"), 0.25f);
+            var pane = Pane;
+            k.Push(p, yaw);
+            // posts at the corners
+            foreach (var x in new[] { -1.25f, 1.17f })
+                foreach (var z in new[] { -0.5f, 0.38f })
+                    k.Box(new Vector3(x, 0, z), new Vector3(x + 0.08f, 2.3f, z + 0.08f), frame, frame);
+            // glass back and ends
+            k.Box(new Vector3(-1.2f, 0.15f, 0.4f), new Vector3(1.2f, 2.2f, 0.44f), pane, pane);
+            k.Box(new Vector3(-1.24f, 0.15f, -0.1f), new Vector3(-1.2f, 2.2f, 0.4f), pane, pane);
+            k.Box(new Vector3(1.2f, 0.15f, -0.1f), new Vector3(1.24f, 2.2f, 0.4f), pane, pane);
+            // roof, a touch wider than the frame
+            k.Box(new Vector3(-1.4f, 2.3f, -0.65f), new Vector3(1.4f, 2.42f, 0.6f), roof, roof);
+            // bench along the back
+            k.Box(new Vector3(-0.95f, 0.42f, 0.05f), new Vector3(0.95f, 0.5f, 0.36f), seat, seat);
+            k.Box(new Vector3(-0.85f, 0, 0.15f), new Vector3(-0.78f, 0.42f, 0.3f), frame, frame);
+            k.Box(new Vector3(0.78f, 0, 0.15f), new Vector3(0.85f, 0.42f, 0.3f), frame, frame);
+            k.Pop();
+        }
+
+        /// <summary>A bus-stop sign on a pole at p.</summary>
+        public static void BusStopSign(MeshKit k, Vector3 p, float yaw)
+        {
+            var pole = M(MeshKit.Hex("#3d4248"), 0.45f, 0.5f);
+            var plate = M(MeshKit.Hex("#2e86de"), 0.4f);
+            var band = M(MeshKit.Hex("#f5f6fa"), 0.3f);
+            k.Push(p, yaw);
+            k.Box(new Vector3(-0.05f, 0, -0.05f), new Vector3(0.05f, 2.7f, 0.05f), pole, pole);
+            k.Box(new Vector3(-0.3f, 2.2f, -0.04f), new Vector3(0.3f, 2.8f, 0.04f), plate, plate);
+            k.Box(new Vector3(-0.31f, 2.42f, -0.05f), new Vector3(0.31f, 2.56f, 0.05f), band, band);
+            k.Pop();
+        }
+
         public static void Bench(MeshKit k, Vector3 p, float yaw)
         {
             var wood = M(MeshKit.Hex("#8b5e3c"), 0.25f);

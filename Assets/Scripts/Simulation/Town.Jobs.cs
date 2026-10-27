@@ -100,13 +100,6 @@ namespace RealLife.Simulation
 
         public bool HasCar(Citizen c) { var h = HouseholdOf(c); return h != null && HasUsableCar(h); }
 
-        public bool BusServes(Building a)
-        {
-            if (a == null) return false;
-            foreach (var b in Buildings) if (b.Type == BuildingType.BusDepot && b.Open && b.Employees.Count > 0 && Distance(a, b) <= b.Def.Radius) return true;
-            return false;
-        }
-
         /// <summary>Can they get to work there every day: on foot if it's close, otherwise by car or bus.</summary>
         public bool CanReach(Citizen c, Building work)
         {
@@ -116,7 +109,7 @@ namespace RealLife.Simulation
             float d = Distance(home, work);
             if (d <= Balance.WalkTiles) return true;
             if (HasCar(c)) return true;
-            return BusServes(home) && BusServes(work);
+            return BusConnects(home, work);
         }
 
         // ================================================================== hiring and leaving
