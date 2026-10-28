@@ -784,6 +784,21 @@ namespace RealLife.Game.Art
                 case BuildingType.ElectronicsPlant:
                 case BuildingType.Trucking:
                 case BuildingType.BusDepot: return 9.2f;
+                case BuildingType.Hotel: return 26;
+                case BuildingType.Cinema:
+                case BuildingType.ClimbingGym:
+                case BuildingType.EngineeringFirm:
+                case BuildingType.MarketingAgency: return 11;
+                case BuildingType.Theater: return 12.5f;
+                case BuildingType.SwimClub:
+                case BuildingType.SkatingRink:
+                case BuildingType.LawFirm:
+                case BuildingType.CallCenter:
+                case BuildingType.DesignStudio:
+                case BuildingType.PhysioClinic:
+                case BuildingType.AccountingFirm:
+                case BuildingType.Motel:
+                case BuildingType.BedAndBreakfast: return 8;
                 default: return 6.3f;
             }
         }

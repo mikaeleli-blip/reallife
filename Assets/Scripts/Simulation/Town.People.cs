@@ -182,6 +182,7 @@ namespace RealLife.Simulation
             AddLog(c.Name + " died, aged " + (int)c.Age + ".", LogKind.Death, c.Id, true);
             DeathsMonth++;
             var h = HouseholdOf(c);
+            if (h != null) Funeral(h, HomeOf(h));
             RemovePerson(c);
         }
 
@@ -516,6 +517,8 @@ namespace RealLife.Simulation
                 double spend = 0; foreach (var k in h.LastOut) spend += k;
                 double housing = h.LastOut[HouseholdBook.Housing];
                 bool kids = ms.Any(m => m.IsChild && m.Age >= Balance.SchoolAge);
+                // having what they need in the house, and somewhere in town to get it
+                float comfort = (Comfort(h) - 0.45f) * 12;
                 float health = Coverage(home, BuildingType.Clinic) + Coverage(home, BuildingType.Hospital) > 0 ? 1 : 0;
                 float safety = (Coverage(home, BuildingType.Police) + Coverage(home, BuildingType.FireStation)) * 0.5f;
                 float park = Coverage(home, BuildingType.Park);
@@ -540,6 +543,7 @@ namespace RealLife.Simulation
                     else if (c.Edu >= Edu.Degree && c.WorkId >= 0 && Defs.Get(c.Role).Needs < Edu.HighSchool) t -= 8;   // overqualified
                     if (h.Members.Count > (home != null && home.Type == BuildingType.Apartments ? 4 : 6)) t -= 6;
                     t += Math.Min(8, c.LastOutings * 1.5f);
+                    t += Math.Max(-4, Math.Min(5, comfort));
                     c.Happiness = Math.Max(0, Math.Min(100, c.Happiness * 0.6f + t * 0.4f));
                     sum += c.Happiness; n++;
                 }

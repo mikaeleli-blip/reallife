@@ -25,6 +25,7 @@ namespace RealLife.Simulation
             Restock();
             ConstructionDaily();
             HouseholdsDaily();
+            Visitors();
             GaragesDaily();
             DealersDaily();
             Exports();
@@ -61,6 +62,12 @@ namespace RealLife.Simulation
             foreach (var c in People) { c.LastOutings = c.Outings; c.Outings = 0; }
             if (LastImports == null) LastImports = new double[Defs.GoodCount];
             Array.Copy(ImportsByGood, LastImports, LastImports.Length); Array.Clear(ImportsByGood, 0, ImportsByGood.Length);
+            if (SpendByGood == null) SpendByGood = new double[Defs.GoodCount];
+            if (SpendByService == null) SpendByService = new double[Enum.GetValues(typeof(Service)).Length];
+            LastSpendByGood = (double[])SpendByGood.Clone(); LastSpendByService = (double[])SpendByService.Clone();
+            Array.Clear(SpendByGood, 0, SpendByGood.Length); Array.Clear(SpendByService, 0, SpendByService.Length);
+            if (LastExports == null || LastExports.Length != ExportsByGood.Length) LastExports = new double[ExportsByGood.Length];
+            Array.Copy(ExportsByGood, LastExports, LastExports.Length);
             Array.Clear(ExportsByGood, 0, ExportsByGood.Length);
             LastFreightOutside = FreightOutsideMonth;
             for (int i = 0; i < Wants.Length; i++) { LastWants[i] = Wants[i]; Wants[i] = 0; }

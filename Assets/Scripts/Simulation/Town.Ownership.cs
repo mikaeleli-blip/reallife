@@ -51,6 +51,7 @@ namespace RealLife.Simulation
         /// <summary>Do the bigger firms of this kind go by a brand rather than the family's name.</summary>
         static bool Branded(BuildingType t)
         {
+            if (Defs.Get(t).Branded) return true;
             switch (t)
             {
                 case BuildingType.GroceryStore: case BuildingType.Office: case BuildingType.FoodPlant: case BuildingType.GarmentFactory:

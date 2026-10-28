@@ -356,7 +356,7 @@ namespace RealLife.Simulation
                 var d = b.Def;
                 if (d.Sells.HasValue) b.Stock[(int)d.Sells.Value] = d.Sells == Good.Cars ? 8 : d.StockCap * 0.6f;
                 if (d.Makes.HasValue) b.Stock[(int)d.Makes.Value] = d.StockCap * 0.15f;
-                if (d.Input.HasValue) b.Stock[(int)d.Input.Value] = Math.Max(d.StockCap * 0.1f, d.InputPer * d.Output * b.Employees.Count * 3);
+                foreach (var i in d.Inputs) b.Stock[(int)i.Good] = Math.Max(d.StockCap * 0.1f * Math.Min(1, i.Per), i.Per * d.Output * b.Employees.Count * 3);
             }
             // children to school
             foreach (var c in People) if (c.IsChild) Enrol(c);
@@ -419,7 +419,7 @@ namespace RealLife.Simulation
                 case BuildingType.Gym: return f + " Fitness";
                 case BuildingType.Bank: return f + " Bank";
                 case BuildingType.Realty: return f + " Properties";
-                default: return f + " Co.";
+                default: return f + (Defs.Get(t).Suffix ?? " Co.");
             }
         }
     }

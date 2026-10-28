@@ -15,7 +15,7 @@ namespace UnityEngine
         public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.x + b.x, a.y + b.y);
         public static implicit operator Vector2(Vector3 v) => new Vector2(v.x, v.y);
         public static implicit operator Vector3(Vector2 v) => new Vector3(v.x, v.y, 0);
-        public static Vector2 zero => new Vector2(0, 0);
+        public static Vector2 zero => new Vector2(0, 0); public static Vector2 one => new Vector2(1, 1);
     }
     public struct Vector2Int
     {
@@ -112,7 +112,7 @@ namespace UnityEngine
     {
         public float r, g, b, a;
         public Color(float r, float g, float b, float a = 1) { this.r = r; this.g = g; this.b = b; this.a = a; }
-        public static Color white => new Color(1, 1, 1); public static Color clear => new Color(0, 0, 0, 0); public static Color black => new Color(0, 0, 0);
+        public static Color white => new Color(1, 1, 1); public static Color clear => new Color(0, 0, 0, 0); public static Color black => new Color(0, 0, 0); public static Color grey => new Color(0.5f, 0.5f, 0.5f); public static Color gray => grey;
         public static Color Lerp(Color a, Color b, float t) { t = Mathf.Clamp01(t); return new Color(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t); }
         public static Color operator *(Color c, float f) => new Color(c.r * f, c.g * f, c.b * f, c.a * f);
         public static implicit operator Color(Color32 c) => new Color(c.r / 255f, c.g / 255f, c.b / 255f, c.a / 255f);
@@ -212,10 +212,11 @@ namespace UnityEngine
     public enum MaterialGlobalIlluminationFlags { None, RealtimeEmissive, BakedEmissive, EmissiveIsBlack }
     public class Material : Object
     {
-        public Material(Shader s) { } public Material(Material m) { }
+        public Material(Shader s) { } public Material(Material m) { if (m != null) { BaseColor = m.BaseColor; name = m.name; } }
+        public Color BaseColor = Color.white;   // (the check tool's preview reads it)
         public MaterialGlobalIlluminationFlags globalIlluminationFlags; public bool enableInstancing;
-        public void SetFloat(string n, float v) { } public void SetColor(string n, Color c) { }
-        public void SetFloat(int n, float v) { } public void SetColor(int n, Color c) { } public void SetTexture(string n, Texture t) { }
+        public void SetFloat(string n, float v) { } public void SetColor(string n, Color c) { if (n == "_BaseColor") BaseColor = c; }
+        public void SetFloat(int n, float v) { } public void SetColor(int n, Color c) { if (n == "_BaseColor".GetHashCode()) BaseColor = c; } public void SetTexture(string n, Texture t) { }
         public bool HasProperty(int n) => true; public bool HasProperty(string n) => true;
         public void EnableKeyword(string k) { } public void DisableKeyword(string k) { }
     }

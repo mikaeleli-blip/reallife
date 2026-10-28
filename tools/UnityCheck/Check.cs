@@ -12,6 +12,7 @@ static class Check
         if (args.Length > 0 && args[0] == "buses") return Buses(args.Length > 1 ? float.Parse(args[1]) : 1f / 60);
         if (args.Length > 0 && args[0] == "parking") return Parking(args.Length > 1 ? int.Parse(args[1]) : 2);
         if (args.Length > 1 && args[0] == "topview") return TopView((BuildingType)Enum.Parse(typeof(BuildingType), args[1]), args.Length > 2 ? args[2] : "top.txt");
+        if (args.Length > 1 && args[0] == "dump") return Dump(args[1], args.Length > 2 ? args[2] : "dump");
         int bad = Primitives();
         foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
         {
@@ -46,6 +47,42 @@ static class Check
 
     /// <summary>Writes a building's triangles, and cars in each of its parking spots, for a top-down look (x z y per vertex;
     /// a line per triangle: B for the building, C for a car).</summary>
+    /// <summary>Each building's triangles with their material's name and colour, for tools/preview.py to draw. Types by name,
+    /// comma separated, or "new" for the ones after WarehouseClub.</summary>
+    static int Dump(string which, string dir)
+    {
+        System.IO.Directory.CreateDirectory(dir);
+        var types = which == "new" ? Defs.All.Where(t => t > BuildingType.WarehouseClub).ToList()
+                  : which == "all" ? Defs.All.ToList()
+                  : which.Split(',').Select(x => (BuildingType)Enum.Parse(typeof(BuildingType), x)).ToList();
+        foreach (var t in types)
+        {
+            var d = Defs.Get(t);
+            float w = d.W * 10, dep = d.H * 10;
+            var model = BuildingArt.Build(t, w, dep, 12345u, d.Floors, false, 2);
+            var sb = new System.Text.StringBuilder();
+            sb.Append("S ").Append(w).Append(' ').Append(dep).Append('\n');
+            var m = model.Mesh; var v = m.vertices;
+            for (int sm = 0; sm < m.subMeshCount; sm++)
+            {
+                var mat = model.Materials[sm];
+                var c = mat != null ? mat.BaseColor : Color.white;
+                string nm = mat != null && !string.IsNullOrEmpty(mat.name) ? mat.name.Replace(' ', '_') : "?";
+                sb.Append("M ").Append(nm).Append(' ').Append(c.r.ToString("0.###")).Append(' ').Append(c.g.ToString("0.###")).Append(' ').Append(c.b.ToString("0.###")).Append('\n');
+                var idx = m.GetTriangles(sm);
+                for (int i = 0; i + 2 < idx.Length; i += 3)
+                {
+                    sb.Append('T');
+                    for (int j = 0; j < 3; j++) { var p = v[idx[i + j]]; sb.Append(' ').Append(p.x.ToString("0.##")).Append(' ').Append(p.y.ToString("0.##")).Append(' ').Append(p.z.ToString("0.##")); }
+                    sb.Append('\n');
+                }
+            }
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, t + ".txt"), sb.ToString());
+        }
+        Console.WriteLine("dumped " + types.Count + " to " + dir);
+        return 0;
+    }
+
     static int TopView(BuildingType t, string path)
     {
         var d = Defs.Get(t);

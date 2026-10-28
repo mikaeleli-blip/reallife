@@ -62,8 +62,15 @@ static class Program
         int firstDay = t.Day;
         string logGrep = Environment.GetEnvironmentVariable("LOGGREP");
         int months = years * 12;
+        // each business's profit month by month (TYPES=1 prints how each kind did over its last two years)
+        var track = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<double>>();
         for (int m = 0; m < months; m++)
         {
+            foreach (var b in t.Buildings) if (Town.IsBusiness(b) && b.Open && t.Day - b.BuiltDay > 8)
+            {
+                if (!track.TryGetValue(b.Id, out var l)) track[b.Id] = l = new System.Collections.Generic.List<double>();
+                l.Add(b.LastProfit);
+            }
             if (bot != null) bot.Month(m);
             for (int d = 0; d < Balance.DaysPerMonth; d++) t.Advance(1f);
             Row(t);
@@ -88,6 +95,16 @@ static class Program
         }
         if (!string.IsNullOrEmpty(logGrep))
             foreach (var e in t.Log.Where(e => e.Day > firstDay && System.Text.RegularExpressions.Regex.IsMatch(e.Text, logGrep))) Console.WriteLine("  log " + e.Day + ": " + e.Text);
+        if (Environment.GetEnvironmentVariable("TYPES") == "1")
+        {
+            Console.WriteLine();
+            Console.WriteLine("By kind (avg monthly profit over each one's last 24 months; closed ones count):");
+            foreach (var g in t.Buildings.Where(Town.IsBusiness).GroupBy(b => b.Type).OrderBy(g => g.Key))
+            {
+                var ps = g.Where(b => track.ContainsKey(b.Id)).Select(b => track[b.Id].Skip(Math.Max(0, track[b.Id].Count - 24)).Average()).ToList();
+                Console.WriteLine($"  {Defs.Get(g.Key).Name,-26} {g.Count(b => b.Open),2} open {g.Count(b => b.Closed && b.Built),2} closed  avg profit {(ps.Count > 0 ? Town.Money(ps.Average()) : "-"),9}  worst {(ps.Count > 0 ? Town.Money(ps.Min()) : "-"),9}");
+            }
+        }
         Console.WriteLine();
         Console.WriteLine("Businesses:");
         foreach (var b in t.Buildings.Where(Town.IsBusiness).OrderBy(b => b.Type))
@@ -96,6 +113,17 @@ static class Program
             ")  out " + Town.Money(t.LastTrade.Outflow) + " (imports " + Town.Money(t.LastTrade.Imports) + ", utilities " + Town.Money(t.LastTrade.Utilities) + ", profits " + Town.Money(t.LastTrade.Profits) + ", freight " + Town.Money(t.LastTrade.Freight) + ")");
         var b2 = t.LastBook;
         Console.WriteLine($"Town book: in {Town.Money(b2.TotalIn)} (inc {Town.Money(b2.IncomeTax)} sales {Town.Money(b2.SalesTax)} prop {Town.Money(b2.PropertyTax)} biz {Town.Money(b2.BusinessTax)} fees {Town.Money(b2.Fees)}) out {Town.Money(b2.TotalOut)} (wages {Town.Money(b2.PublicWages)} upkeep {Town.Money(b2.Upkeep)} benefits {Town.Money(b2.Benefits)} build {Town.Money(b2.Construction)} interest {Town.Money(b2.Interest)})");
+        {
+            var hh = t.Households;
+            Console.WriteLine("Household month (avg): in " + string.Join(", ", Enumerable.Range(0, HouseholdBook.Count).Where(i => HouseholdBook.InNames[i] != "").Select(i => HouseholdBook.InNames[i] + " " + Town.Money(hh.Average(h => h.LastIn[i])))));
+            Console.WriteLine("  out " + string.Join(", ", Enumerable.Range(0, HouseholdBook.Count).Select(i => HouseholdBook.OutNames[i] + " " + Town.Money(hh.Average(h => h.LastOut[i])))) + " | fun left " + Town.Money(hh.Average(h => h.FunMoney)) + " cash median " + Town.Money(t.MedianCash()));
+        }
+        if (t.LastSpendByGood != null)
+        {
+            int nh = Math.Max(1, t.Households.Count);
+            Console.WriteLine("  spend/hh goods: " + string.Join(", ", Enumerable.Range(0, Defs.GoodCount).Where(i => t.LastSpendByGood[i] > 0).OrderByDescending(i => t.LastSpendByGood[i]).Select(i => Defs.GoodNames[i] + " " + Town.Money(t.LastSpendByGood[i] / nh))));
+            Console.WriteLine("  spend/hh services: " + string.Join(", ", Enumerable.Range(0, t.LastSpendByService.Length).Where(i => t.LastSpendByService[i] > 0).OrderByDescending(i => t.LastSpendByService[i]).Select(i => ((Service)i) + " " + Town.Money(t.LastSpendByService[i] / nh))));
+        }
         Console.WriteLine("Edu: " + string.Join(", ", Enum.GetValues(typeof(Edu)).Cast<Edu>().Select(e => e + " " + t.People.Count(c => !c.IsChild && c.Edu == e))));
         Console.WriteLine("Advice: " + string.Join(" | ", t.Advice()));
         Console.WriteLine(Homes(t));

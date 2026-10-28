@@ -43,7 +43,7 @@ namespace RealLife.Simulation
             var d = b.Def;
             int staff = b.Employees.Count; if (staff == 0) foreach (var j in d.Jobs) staff += DesiredStaff(b, j);
             staff = Math.Max(1, staff);
-            if (d.Input.HasValue) return d.Output * d.InputPer * staff * Balance.DaysPerMonth * ImportPrice(d.Input.Value) * 0.8;
+            if (d.HasInputs) { double c = 0; foreach (var i in d.Inputs) c += i.Per * ImportPrice(i.Good); return d.Output * c * staff * Balance.DaysPerMonth * 0.8; }
             if (d.Sells.HasValue) return d.Output * staff * Balance.DaysPerMonth * Defs.Wholesale[(int)d.Sells.Value] * 0.45;
             return 0;
         }
@@ -103,7 +103,7 @@ namespace RealLife.Simulation
                 var d = b.Def;
                 if (!b.Open || !IsBusiness(b) || !Connected(b)) continue;
                 int present = PresentStaff(b);
-                if (b.Type == BuildingType.Office)
+                if (d.Bills || b.Type == BuildingType.Office)
                 {
                     double bill = 0;
                     foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null && c.AtWork) bill += Defs.Get(c.Role).Billing * (1 + Math.Min(0.4, c.Experience * 0.015)); }
@@ -119,34 +119,33 @@ namespace RealLife.Simulation
                 b.CapTotal += potential;
                 float room = Math.Max(0, d.StockCap - b.Stock[(int)g]);
                 float made = Math.Min(potential, room);
-                if (d.Input.HasValue && d.InputPer > 0) made = Math.Min(made, b.Stock[(int)d.Input.Value] / d.InputPer);
+                foreach (var i in d.Inputs) if (i.Per > 0) made = Math.Min(made, b.Stock[(int)i.Good] / i.Per);
                 if (made <= 0) continue;
-                if (d.Input.HasValue) b.Stock[(int)d.Input.Value] -= made * d.InputPer;
+                foreach (var i in d.Inputs) b.Stock[(int)i.Good] = Math.Max(0, b.Stock[(int)i.Good] - made * i.Per);
                 b.Stock[(int)g] += made;
                 b.Produced = made; b.CapUsed += made;
             }
         }
 
-        /// <summary>What a business wants to buy today, and of what.</summary>
-        bool Needs(Building b, out Good g, out float qty)
+        /// <summary>How much of a good a business wants to buy today (0: none): stock for a shop, supplies for a plant or a service.</summary>
+        float Wanted(Building b, Good g)
         {
-            var d = b.Def; g = Good.Crops; qty = 0;
-            if (d.Sells.HasValue)
+            var d = b.Def;
+            if (d.Sells == g)
             {
-                g = d.Sells.Value;
+                if (g == Good.Cars) return 0;   // dealers order cars themselves (DealersDaily)
                 float s = b.Stock[(int)g];
-                if (g == Good.Cars) return false;   // dealers order cars themselves (DealersDaily)
-                else if (s < d.StockCap * 0.5f) qty = d.StockCap * 0.85f - s;
+                return s < d.StockCap * 0.5f ? d.StockCap * 0.85f - s : 0;
             }
-            else if (d.Input.HasValue)
+            foreach (var i in d.Inputs)
             {
-                g = d.Input.Value;
+                if (i.Good != g) continue;
                 int staff = 0; foreach (var j in d.Jobs) staff += DesiredStaff(b, j);
-                float target = Math.Max(1, staff) * d.Output * d.InputPer * 5f;
-                if (d.Makes.HasValue) target = Math.Min(target, d.StockCap * d.InputPer * 0.5f + 1);
-                if (b.Stock[(int)g] < target * 0.5f) qty = target - b.Stock[(int)g];
+                float target = Math.Max(1, staff) * d.Output * i.Per * 5f;
+                if (d.Makes.HasValue) target = Math.Min(target, d.StockCap * i.Per * 0.5f + 1);
+                return b.Stock[(int)g] < target * 0.5f ? target - b.Stock[(int)g] : 0;
             }
-            return qty > 0.01f;
+            return 0;
         }
 
         void Restock()
@@ -154,9 +153,9 @@ namespace RealLife.Simulation
             foreach (var b in Buildings.OrderBy(x => Rand()).ToList())
             {
                 if (!b.Open || !IsBusiness(b) || !Connected(b)) continue;
-                Good g; float qty;
-                if (!Needs(b, out g, out qty)) continue;
-                Buy(b, g, qty);
+                var d = b.Def;
+                if (d.Sells.HasValue) { float q = Wanted(b, d.Sells.Value); if (q > 0.01f) Buy(b, d.Sells.Value, q); }
+                foreach (var i in d.Inputs) { float q = Wanted(b, i.Good); if (q > 0.01f) Buy(b, i.Good, q); }
             }
         }
 
@@ -226,12 +225,38 @@ namespace RealLife.Simulation
                 float s = b.Stock[(int)g];
                 if (s < d.StockCap * 0.3f) continue;
                 float q = s - d.StockCap * 0.2f;
-                double value = q * World(g);
+                // the buyers out of town only take so much from one small town before they pay less for more
+                double value = q * World(g) * ExportFactor(g, ExportsByGood[(int)g] + q * World(g) * 0.5);
                 double fee = Freight(value, b.Id, -1, g);
                 b.Stock[(int)g] -= q;
                 b.Cash += value - fee; b.Revenue += value; b.OtherCosts += fee;
                 Trade.Exports += value; ExportsByGood[(int)g] += value;
             }
+        }
+
+        /// <summary>The buyers out of town for a good: what they take in a month at the full price, from how much one plant
+        /// makes. Past that they pay less, down to 60% of the price.</summary>
+        public static double ExportCap(Good g)
+        {
+            if (exportCaps == null)
+            {
+                exportCaps = new double[Defs.GoodCount];
+                foreach (var t in Defs.All)
+                {
+                    var d = Defs.Get(t);
+                    if (d.Makes.HasValue) { int i = (int)d.Makes.Value; exportCaps[i] = Math.Max(exportCaps[i], d.TotalJobs * d.Output * Balance.DaysPerMonth * Defs.World[i]); }
+                }
+                for (int i = 0; i < exportCaps.Length; i++) exportCaps[i] = Math.Max(20000, exportCaps[i] * Defs.Goods[i].ExportDepth);
+            }
+            return exportCaps[(int)g];
+        }
+        static double[] exportCaps;
+
+        /// <summary>The share of the world price exports fetch when a month's shipments come to this much.</summary>
+        public double ExportFactor(Good g, double monthValue)
+        {
+            double cap = ExportCap(g);
+            return monthValue <= cap ? 1 : Math.Max(0.6, 1 - 0.35 * (monthValue - cap) / cap);
         }
 
         /// <summary>A short month: the owning family tides the business over from its savings, if it can spare it and the business
@@ -417,7 +442,7 @@ namespace RealLife.Simulation
             var d = b.Def;
             float s = b.Staffing;
             float lostShare = b.LastLost / (float)Math.Max(1, b.LastCustomers + b.LastLost);
-            if (b.Type == BuildingType.Office) s += b.LastProfit > 0 ? 0.15f : b.LossMonths >= 2 ? -0.15f : 0;
+            if (d.Bills || b.Type == BuildingType.Office) s += b.LastProfit > 0 ? 0.15f : b.LossMonths >= 2 ? -0.15f : 0;
             else if (b.Type == BuildingType.Construction)
             {
                 // a crew sized to the work on the books: what's left on its sites, over the next few months
@@ -431,7 +456,7 @@ namespace RealLife.Simulation
             else if (d.Makes.HasValue)
             {
                 float fill = b.Stock[(int)d.Makes.Value] / d.StockCap;
-                bool inputs = !d.Input.HasValue || b.Stock[(int)d.Input.Value] > 0.5f;
+                bool inputs = true; foreach (var i in d.Inputs) if (b.Stock[(int)i.Good] <= 0.5f) inputs = false;
                 bool young = Day - b.BuiltDay < Balance.DaysPerYear / 2;
                 if (fill > 0.9f) s -= 0.15f;
                 else if (young && inputs && b.Cash > MonthlyCosts(b)) s += 0.15f;   // a new plant hires up to the size it was built for
@@ -490,8 +515,8 @@ namespace RealLife.Simulation
             if (d.Sells.HasValue)
             {
                 var g = d.Sells.Value;
-                baseP = Defs.Retail[(int)g];
-                floor = Math.Max(baseP * Balance.PriceLow, (b.UnitCost > 0 ? b.UnitCost : Defs.Wholesale[(int)g]) * 1.06);
+                baseP = Defs.Retail[(int)g] * d.PriceFactor;
+                floor = Math.Max(baseP * Balance.PriceLow, (b.UnitCost > 0 ? b.UnitCost : Defs.Wholesale[(int)g] * d.BulkBuy) * 1.06);
                 float fill = b.Stock[(int)g] / d.StockCap;
                 if (lostShare > 0.12f) b.Price *= 1 + step;
                 else if (fill > 0.7f && b.LastUse < 0.6f) b.Price *= 1 - step;

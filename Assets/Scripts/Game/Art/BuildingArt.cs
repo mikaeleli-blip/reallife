@@ -162,6 +162,7 @@ namespace RealLife.Game.Art
                 case BuildingType.WarehouseClub: BigStore(k, w, d, ref s, closed, season, t); break;
                 case BuildingType.FreightTerminal: Terminal(k, w, d, ref s, season); break;
                 case BuildingType.Realty: Shop(k, w, d, ref s, closed, season, 2, "gf_store_light", SignRow.RealEstate, H("#1d3557"), false); break;
+                default: Extra(k, t, w, d, ref s, closed, season, floors); break;
             }
             return k.ToModel(t.ToString());
         }

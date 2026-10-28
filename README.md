@@ -130,6 +130,26 @@ another as the town grows (Valley Value about every 1,100 people, Redwood every 
 town its first store is far from. Each store has its own car park, and a store that keeps losing money closes like any
 other. The inspector shows a store's chain and how many stores it has in town.
 
+**What gets made and sold.** Besides the basics there are about 150 kinds of business, each with a building of its own,
+and what opens depends on what the town buys and has the people for. Farmland can carry dairy farms, cattle ranches,
+poultry farms, tree farms, orchards, vineyards and plant nurseries as well as crop farms. Industry works in chains: logs from
+the tree farms go to the sawmill and the paper mill, lumber to the cabinet shops and instrument makers, paper to the
+printers; the quarry feeds the brickworks, the concrete plant and the glassworks; the steel mill feeds the machine shops and
+the appliance and bicycle makers; the chemical plant feeds the plastics, paint and soap makers and the pharmaceutical lab;
+the ranches feed the meatpacker and the tannery, and the tannery the shoe factory; crops go to the flour mill, the textile
+mill, the brewery, the distillery and the cannery. A maker buys what it needs from the plants here when that's cheaper than
+importing it, and exports what the town can't use. The shops sell the new goods (shoes, appliances, hardware, medicine,
+toiletries, books, toys, sporting goods, jewelry, drink, pet supplies, plants, bicycles, instruments, stationery,
+homewares), and families buy them as they wear out or when they have money to spare. There are pizzerias, diners, sushi
+bars, steakhouses and two dozen other places to eat and drink; yoga studios, climbing gyms and a swim club; barbers, nail
+salons and a day spa; a cinema, bowling, an arcade, mini golf, a skating rink and a theater; dentists, opticians, vets and
+physios; laundromats, dry cleaners, tailors and phone repair; daycare and lessons for kids; law, accounting, software and
+other offices that bill clients out of town; motels and hotels for visitors; a funeral home and a taxi company. Each needs
+enough people round it (the bigger and fancier, the bigger the town), and no kind gets built over and over: one plant of a
+kind per 600 people or so, and only two or three making the same thing until the town is much bigger, so a growing town
+gets more kinds of business rather than more of the same. Most of the new industry wants Industrial land and the shops
+Commercial land, so zone some of each.
+
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy
 repossessed homes from the bank, collect the rent, pay the property tax and keep the places up. A house sale counts as their

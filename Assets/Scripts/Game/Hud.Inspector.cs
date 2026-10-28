@@ -121,11 +121,11 @@ namespace RealLife.Game
             rows.Pair("In the bank", Town.Money(b.Cash), b.Cash < 0 ? Ui.Bad : Ui.Text);
             if (b.LossMonths >= 2) Ui.Small(rows.Next(20), Ui.Col("Losing money " + b.LossMonths + " months running.", Ui.Bad));
 
-            if (d.Sells.HasValue || d.Serves != Service.None || d.Makes.HasValue || b.Type == BuildingType.Office || b.Type == BuildingType.Construction) rows.Header("Trade");
+            if (d.Sells.HasValue || d.Serves != Service.None || d.Makes.HasValue || d.Bills || b.Type == BuildingType.Office || b.Type == BuildingType.Construction) rows.Header("Trade");
             if (d.Sells.HasValue && b.Type != BuildingType.CarDealer)
             {
                 var g = d.Sells.Value;
-                rows.Pair("Price of " + Defs.Name(g).ToLower(), Town.Money(b.Price) + PriceVs(b.Price, Defs.Retail[(int)g]));
+                rows.Pair("Price of " + Defs.Name(g).ToLower(), Town.Money(b.Price) + PriceVs(b.Price, Defs.Retail[(int)g] * (d.Chain != null ? 1 : d.PriceFactor)));
                 StockBar(rows, Defs.Name(g) + " in stock", b.Stock[(int)g], d.StockCap);
             }
             if (d.Serves != Service.None) rows.Pair(b.Type == BuildingType.AutoRepair ? "Labour, per hour" : "Price per " + ServiceUnit(d.Serves), Town.Money(b.Price) + PriceVs(b.Price, d.ServicePrice));
@@ -136,8 +136,8 @@ namespace RealLife.Game
                 StockBar(rows, Defs.Name(g) + " in store", b.Stock[(int)g], d.StockCap);
                 rows.Pair("Made today", b.Produced.ToString("0.#") + " " + Defs.GoodUnits[(int)g]);
             }
-            if (d.Input.HasValue) rows.Pair("Has " + Defs.Name(d.Input.Value).ToLower(), b.Stock[(int)d.Input.Value].ToString("0.#") + " " + Defs.GoodUnits[(int)d.Input.Value]);
-            if (b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
+            foreach (var i in d.Inputs) rows.Pair("Has " + Defs.Name(i.Good).ToLower(), b.Stock[(int)i.Good].ToString("#,0.#") + " " + Defs.GoodUnits[(int)i.Good]);
+            if (d.Bills || b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
             if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
             if (d.Chain != null)
             {
@@ -220,18 +220,7 @@ namespace RealLife.Game
             if (queue.Count > 12) Ui.Small(rows.Next(20), "and " + (queue.Count - 12) + " more");
         }
 
-        static string ServiceUnit(Service s)
-        {
-            switch (s)
-            {
-                case Service.Meals: return "meal";
-                case Service.Coffee: return "coffee";
-                case Service.Drinks: return "drink";
-                case Service.Haircut: return "haircut";
-                case Service.Fitness: return "visit";
-                default: return "repair";
-            }
-        }
+        static string ServiceUnit(Service s) { return s == Service.CarRepair ? "repair" : Defs.ServiceInfo(s).Unit; }
 
         static string PriceVs(double p, double normal)
         {

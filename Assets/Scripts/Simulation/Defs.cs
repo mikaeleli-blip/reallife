@@ -5,10 +5,24 @@ namespace RealLife.Simulation
 {
     /// <summary>Things that are made, moved and sold. One sim day is about a real week, so a unit of groceries is a week's
     /// food for one person and a month is four days.</summary>
-    public enum Good { Crops, Groceries, Clothes, Electronics, Furniture, Fuel, Parts, Materials, Cars }
+    public enum Good
+    {
+        Crops, Groceries, Clothes, Electronics, Furniture, Fuel, Parts, Materials, Cars,
+        // added later (kept at the end so saved games keep their numbers): raw materials, what the mills and plants make from
+        // them, and more things people buy (Catalog.cs)
+        Logs, Ore, Stone, Milk, Livestock, Lumber, Steel, Chemicals, Plastics, Textiles, Leather, Paper, Glass, Flour,
+        Shoes, Appliances, Hardware, Medicine, Toiletries, Books, Toys, SportingGoods, Jewelry, Beverages, PetSupplies, Plants,
+        Bicycles, Instruments, Stationery, Homewares
+    }
 
     /// <summary>Things people pay for that can't be stored: a meal out, a haircut, a repair.</summary>
-    public enum Service { None, Meals, Coffee, Drinks, Haircut, Fitness, CarRepair }
+    public enum Service
+    {
+        None, Meals, Coffee, Drinks, Haircut, Fitness, CarRepair,
+        // added later
+        Treats, Movies, Bowling, Games, Shows, Nightlife, Beauty, Dental, EyeCare, VetCare, Laundry, Repairs, CarWash, Physio,
+        Lessons, Childcare, Rides, Lodging, Funeral
+    }
 
     public enum Zone : byte { None, Residential, Commercial, Industrial, Farmland, Apartments }   // Residential: houses
 
@@ -46,7 +60,37 @@ namespace RealLife.Simulation
         // Public (added later)
         ParkingLot,
         // Commercial: the big grocery chains (added later)
-        DiscountStore, Supermarket, WarehouseClub
+        DiscountStore, Supermarket, WarehouseClub,
+        // ---- added later still (Catalog.cs) ----
+        // Farmland
+        DairyFarm, CattleRanch, PoultryFarm, TreeFarm, Orchard, Vineyard, PlantNursery,
+        // Industrial: mills and plants that make materials, food and drink
+        Sawmill, PaperMill, SteelMill, MetalShop, AutoPartsPlant, ChemicalPlant, PlasticsPlant, TextileMill, Tannery, Glassworks,
+        Quarry, Brickworks, ConcretePlant, FlourMill, BreadFactory, DairyPlant, Meatpacking, Cannery, Brewery, Winery, Distillery,
+        BottlingPlant, PetFoodPlant,
+        // Industrial: factories and workshops that make things people buy
+        ShoeFactory, AppliancePlant, ToolWorks, PaintFactory, PharmaLab, SoapWorks, PrintingPress, PaperGoodsPlant, ToyFactory,
+        SportsGoodsFactory, BicycleWorks, InstrumentWorkshop, JewelryWorkshop, Pottery, MattressFactory, CabinetShop,
+        // Shops
+        ShoeStore, ApplianceStore, HardwareStore, Pharmacy, Drugstore, Bookstore, ToyStore, SportsStore, Jeweler, LiquorStore,
+        PetStore, GardenCenter, Florist, BikeShop, MusicStore, StationeryStore, HomeGoodsStore,
+        Boutique, ThriftStore, DepartmentStore, PhoneStore, MattressStore, ConvenienceStore, Butcher, Bakery, FarmersMarket, FishMarket,
+        // Places to eat and drink
+        Pizzeria, BurgerJoint, Diner, SushiBar, TacoShop, Steakhouse, NoodleBar, ChickenShack, SandwichShop, FineDining, BBQJoint,
+        SeafoodRestaurant, CurryHouse, ThaiRestaurant,
+        TeaHouse, JuiceBar, DonutShop, IceCreamParlor, CandyShop, BakeryCafe,
+        SportsBar, WineBar, Brewpub, CocktailLounge, Nightclub, KaraokeBar,
+        // Fitness, looks, fun
+        YogaStudio, BoxingGym, ClimbingGym, SwimClub, MartialArtsDojo, Barbershop, NailSalon, DaySpa, TattooParlor, TanningSalon,
+        Cinema, BowlingAlley, Arcade, PoolHall, EscapeRoom, MiniGolf, SkatingRink, Theater, ComedyClub,
+        // Health, household and family services
+        Dentist, Optician, VetClinic, PhysioClinic, Laundromat, DryCleaner, Tailor, PhoneRepair, CarWash,
+        Daycare, MusicSchool, DanceStudio, TutoringCenter, DrivingSchool,
+        // Offices
+        LawFirm, AccountingFirm, InsuranceAgency, RealEstateAgency, ArchitectureFirm, MarketingAgency, SoftwareStudio, CallCenter,
+        EngineeringFirm, DesignStudio,
+        // Visitors and the rest
+        Motel, Hotel, BedAndBreakfast, FuneralHome, TaxiCompany
     }
 
     public enum Role
@@ -57,7 +101,11 @@ namespace RealLife.Simulation
         Cashier, StockClerk, StoreManager, Cook, Chef, Waiter, Barista, Bartender, SalesClerk, Attendant, CarSales,
         Mechanic, Hairdresser, Trainer, OfficeClerk, Accountant, Developer, Teller, LoanOfficer, BranchManager,
         Teacher, Professor, Janitor, Nurse, Doctor, Receptionist, PoliceOfficer, Firefighter, BusDriver, TownClerk, ParkKeeper,
-        PropertyManager, Handyman, Commuter
+        PropertyManager, Handyman, Commuter,
+        // added later (Catalog.cs)
+        Machinist, Chemist, LabTech, Craftsman, Butcher, Baker, Brewer, Printer, Pharmacist, Dentist, DentalHygienist, Optometrist,
+        Veterinarian, VetTech, Physiotherapist, Lawyer, Paralegal, Architect, Designer, Agent, CallAgent, Instructor, CareWorker,
+        Beautician, TattooArtist, Usher, Performer, Housekeeper, Driver, Mortician, Tailor, Florist
     }
 
     public sealed class RoleDef
@@ -73,6 +121,13 @@ namespace RealLife.Simulation
     {
         public Role Role; public int Count;
         public JobSlot(Role r, int n) { Role = r; Count = n; }
+    }
+
+    /// <summary>Something a business uses up: so much of a good for each unit it makes or each customer it serves.</summary>
+    public struct InputSlot
+    {
+        public Good Good; public float Per;
+        public InputSlot(Good g, float per) { Good = g; Per = per; }
     }
 
     public sealed class BuildingDef
@@ -91,7 +146,7 @@ namespace RealLife.Simulation
         // Trade
         public Good? Sells;               // sold to households over the counter
         public Good? Makes;               // produced
-        public Good? Input; public float InputPer;   // what each unit made (or each service) uses up
+        public InputSlot[] Inputs = new InputSlot[0];   // what each unit made (or each customer served) uses up
         public float Output;              // units made, or customers served, per worker-day
         public Service Serves;
         public double ServicePrice;
@@ -110,7 +165,18 @@ namespace RealLife.Simulation
         public float PriceFactor = 1, BulkBuy = 1, Appeal;
         public int PopPerStore;
         public bool NeedsCar;
+        // For the many kinds of business added later (Catalog.cs): the end of a firm's name ("Pizza", "Sawmill"), whether it goes
+        // by a brand rather than the family's name, how many people it takes for each one in town, what a visit is worth when
+        // it's wanted and there's none, and whether its staff bill clients out of town (an office)
+        public string Suffix;
+        public bool Branded;
+        public int PopPer;
+        public double Ticket;
+        public bool Bills;
         public int TotalJobs { get { int n = 0; foreach (var j in Jobs) n += j.Count; return n; } }
+        public bool HasInputs { get { return Inputs.Length > 0; } }
+        /// <summary>Adds what it uses up.</summary>
+        public BuildingDef In(Good g, float per) { var l = new List<InputSlot>(Inputs) { new InputSlot(g, per) }; Inputs = l.ToArray(); return this; }
         public double StartupCost { get { return Materials + Work * Balance.LaborRate; } }
     }
 
@@ -158,7 +224,7 @@ namespace RealLife.Simulation
         public const int BusRadius = 30;
     }
 
-    public static class Defs
+    public static partial class Defs
     {
         static readonly Dictionary<BuildingType, BuildingDef> defs = new Dictionary<BuildingType, BuildingDef>();
         static readonly Dictionary<Role, RoleDef> roles = new Dictionary<Role, RoleDef>();
@@ -170,28 +236,13 @@ namespace RealLife.Simulation
         public static RoleDef Get(Role r) { return roles[r]; }
 
         // Prices: what households pay in a shop (Retail), what a maker gets selling to a shop in town (Wholesale),
-        // what the outside world pays for exports (World) and charges for imports (Import).
-        public static readonly double[] Retail    = { 0,  78,  68, 880, 690, 58,   0,    0, 29000 };
-        public static readonly double[] Wholesale = { 23, 56,  40, 640, 450, 46,  40, 1000, 24900 };
-        public static readonly double[] World     = { 19, 50,  35, 600, 420, 42,  40, 1000, 25000 };
-        public static readonly double[] Import    = { 27, 64,  46, 700, 500, 46,  42, 1050, 25500 };
-        public static readonly string[] GoodNames = { "Crops", "Groceries", "Clothes", "Electronics", "Furniture", "Fuel", "Parts", "Materials", "Cars" };
-        public static readonly string[] GoodUnits = { "t", "wk", "pcs", "pcs", "pcs", "tank", "kits", "lots", "cars" };
+        // what the outside world pays for exports (World) and charges for imports (Import). Filled from the goods table
+        // (Catalog.cs).
+        public static double[] Retail, Wholesale, World, Import;
+        public static string[] GoodNames, GoodUnits;
         public static string Name(Good g) { return GoodNames[(int)g]; }
 
-        public static string ServiceName(Service s)
-        {
-            switch (s)
-            {
-                case Service.Meals: return "Meals";
-                case Service.Coffee: return "Coffee";
-                case Service.Drinks: return "Drinks";
-                case Service.Haircut: return "Haircuts";
-                case Service.Fitness: return "Workouts";
-                case Service.CarRepair: return "Repairs";
-                default: return "";
-            }
-        }
+        public static string ServiceName(Service s) { return s == Service.None ? "" : ServiceInfo(s).Name; }
 
         public static string EduName(Edu e)
         {
@@ -251,6 +302,7 @@ namespace RealLife.Simulation
 
         static Defs()
         {
+            BuildGoods();
             R(Role.None, "", Edu.None, 0);
             R(Role.Farmer, "Farmer", Edu.None, 2500);
             R(Role.PlantWorker, "Plant worker", Edu.None, 2700);
@@ -309,11 +361,11 @@ namespace RealLife.Simulation
             d = D(BuildingType.GroceryStore, "Grocery store", 2, 2, Category.Commercial, Zone.Commercial, 100000, 120, "Buys groceries from food plants (or imports them) and sells them to families.");
             d.Jobs = J(Role.StoreManager, 1, Role.Cashier, 4, Role.StockClerk, 2); d.Sells = Good.Groceries; d.StockCap = 900; d.Output = 70; d.MinPop = 0; d.Value = 300000;
             d = D(BuildingType.Restaurant, "Restaurant", 2, 1, Category.Commercial, Zone.Commercial, 150000, 70, "Cooks and waiters serve meals. Uses groceries.");
-            d.Jobs = J(Role.Chef, 1, Role.Cook, 2, Role.Waiter, 3); d.Serves = Service.Meals; d.ServicePrice = 25; d.Output = 80; d.Input = Good.Groceries; d.InputPer = 0.13f; d.StockCap = 80; d.MinPop = 0; d.Value = 300000;
+            d.Jobs = J(Role.Chef, 1, Role.Cook, 2, Role.Waiter, 3); d.Serves = Service.Meals; d.ServicePrice = 25; d.Output = 80; d.In(Good.Groceries, 0.13f); d.StockCap = 80; d.MinPop = 0; d.Value = 300000;
             d = D(BuildingType.Cafe, "Café", 1, 1, Category.Commercial, Zone.Commercial, 70000, 35, "Coffee and pastries.");
-            d.Jobs = J(Role.Barista, 3); d.Serves = Service.Coffee; d.ServicePrice = 6; d.Output = 220; d.Input = Good.Groceries; d.InputPer = 0.02f; d.StockCap = 30; d.MinPop = 120; d.Value = 160000; d.Floors = 2;
+            d.Jobs = J(Role.Barista, 3); d.Serves = Service.Coffee; d.ServicePrice = 6; d.Output = 220; d.In(Good.Groceries, 0.02f); d.StockCap = 30; d.MinPop = 120; d.Value = 160000; d.Floors = 2;
             d = D(BuildingType.Bar, "Bar", 1, 1, Category.Commercial, Zone.Commercial, 75000, 35, "Where people go after work.");
-            d.Jobs = J(Role.Bartender, 3); d.Serves = Service.Drinks; d.ServicePrice = 16; d.Output = 90; d.Input = Good.Groceries; d.InputPer = 0.06f; d.StockCap = 30; d.MinPop = 100; d.Value = 170000; d.Floors = 2;
+            d.Jobs = J(Role.Bartender, 3); d.Serves = Service.Drinks; d.ServicePrice = 16; d.Output = 90; d.In(Good.Beverages, 0.6f).In(Good.Groceries, 0.02f); d.StockCap = 30; d.MinPop = 100; d.Value = 170000; d.Floors = 2;
             d = D(BuildingType.ClothingStore, "Clothing store", 1, 1, Category.Commercial, Zone.Commercial, 80000, 40, "Clothes wear out; people come here to replace them.");
             d.Jobs = J(Role.SalesClerk, 3); d.Sells = Good.Clothes; d.StockCap = 400; d.Output = 60; d.MinPop = 90; d.Value = 180000; d.Floors = 2;
             d = D(BuildingType.ElectronicsStore, "Electronics store", 1, 1, Category.Commercial, Zone.Commercial, 90000, 40, "Phones, TVs and laptops.");
@@ -325,7 +377,7 @@ namespace RealLife.Simulation
             d = D(BuildingType.CarDealer, "Car dealership", 2, 2, Category.Commercial, Zone.Commercial, 230000, 90, "Sells new cars it orders in and used ones it takes in trade, usually on a car loan.");
             d.Jobs = J(Role.CarSales, 2, Role.Mechanic, 1); d.Sells = Good.Cars; d.StockCap = 12; d.Output = 2; d.MinPop = 450; d.Value = 520000;
             d = D(BuildingType.AutoRepair, "Auto repair", 1, 1, Category.Commercial, Zone.Commercial, 85000, 40, "Services cars and fixes them when they break down, by the hour plus parts. Cars wait their turn.");
-            d.Jobs = J(Role.Mechanic, 3); d.Serves = Service.CarRepair; d.ServicePrice = 95; d.Output = 35; d.Input = Good.Parts; d.InputPer = 0.6f; d.StockCap = 300; d.MinPop = 200; d.Value = 190000;
+            d.Jobs = J(Role.Mechanic, 3); d.Serves = Service.CarRepair; d.ServicePrice = 95; d.Output = 35; d.In(Good.Parts, 0.6f); d.StockCap = 300; d.MinPop = 200; d.Value = 190000;
             d = D(BuildingType.HairSalon, "Hair salon", 1, 1, Category.Commercial, Zone.Commercial, 55000, 30, "Haircuts.");
             d.Jobs = J(Role.Hairdresser, 3); d.Serves = Service.Haircut; d.ServicePrice = 48; d.Output = 28; d.MinPop = 200; d.Value = 140000; d.Floors = 2;
             d = D(BuildingType.Gym, "Gym", 2, 1, Category.Commercial, Zone.Commercial, 130000, 55, "Keeps people healthy and happier.");
@@ -337,15 +389,15 @@ namespace RealLife.Simulation
 
             // ---------------------------------------------------------------- Industrial
             d = D(BuildingType.Farm, "Farm", 3, 3, Category.Industrial, Zone.Farmland, 180000, 80, "Grows crops for the food plant. Surplus is sold out of town. Farms go on farmland.");
-            d.Jobs = J(Role.Farmer, 4); d.Makes = Good.Crops; d.Output = 52; d.Input = Good.Fuel; d.InputPer = 0.03f; d.StockCap = 1200; d.Value = 420000;
+            d.Jobs = J(Role.Farmer, 4); d.Makes = Good.Crops; d.Output = 52; d.In(Good.Fuel, 0.03f); d.StockCap = 1200; d.Value = 420000;
             d = D(BuildingType.FoodPlant, "Food processing plant", 2, 2, Category.Industrial, Zone.Industrial, 520000, 200, "Turns crops into groceries for the stores.");
-            d.Jobs = J(Role.Technician, 1, Role.PlantWorker, 6); d.Makes = Good.Groceries; d.Input = Good.Crops; d.InputPer = 1f; d.Output = 46; d.StockCap = 1200; d.Value = 900000;
-            d = D(BuildingType.GarmentFactory, "Garment factory", 2, 2, Category.Industrial, Zone.Industrial, 480000, 190, "Sews clothes from imported parts.");
-            d.Jobs = J(Role.Technician, 1, Role.Assembler, 8); d.Makes = Good.Clothes; d.Input = Good.Parts; d.InputPer = 0.35f; d.Output = 75; d.StockCap = 1400; d.Value = 850000;
-            d = D(BuildingType.ElectronicsPlant, "Electronics plant", 3, 2, Category.Industrial, Zone.Industrial, 900000, 320, "Assembles devices. Needs engineers and technicians.");
-            d.Jobs = J(Role.Engineer, 2, Role.Technician, 2, Role.Assembler, 8); d.Makes = Good.Electronics; d.Input = Good.Parts; d.InputPer = 6f; d.Output = 5.6f; d.StockCap = 300; d.Value = 1600000;
-            d = D(BuildingType.FurnitureWorkshop, "Furniture workshop", 2, 2, Category.Industrial, Zone.Industrial, 380000, 160, "Builds furniture from timber and fittings.");
-            d.Jobs = J(Role.Technician, 1, Role.Assembler, 5); d.Makes = Good.Furniture; d.Input = Good.Parts; d.InputPer = 4.5f; d.Output = 7f; d.StockCap = 300; d.Value = 700000;
+            d.Jobs = J(Role.Technician, 1, Role.PlantWorker, 6); d.Makes = Good.Groceries; d.In(Good.Crops, 1f); d.Output = 46; d.StockCap = 1200; d.Value = 900000;
+            d = D(BuildingType.GarmentFactory, "Garment factory", 2, 2, Category.Industrial, Zone.Industrial, 480000, 190, "Sews clothes from cloth: from the textile mill, or imported.");
+            d.Jobs = J(Role.Technician, 1, Role.Assembler, 8); d.Makes = Good.Clothes; d.In(Good.Textiles, 0.6f); d.Output = 75; d.StockCap = 1400; d.Value = 850000;
+            d = D(BuildingType.ElectronicsPlant, "Electronics plant", 3, 2, Category.Industrial, Zone.Industrial, 900000, 320, "Assembles devices from parts and plastics. Needs engineers and technicians.");
+            d.Jobs = J(Role.Engineer, 2, Role.Technician, 2, Role.Assembler, 8); d.Makes = Good.Electronics; d.In(Good.Parts, 4f).In(Good.Plastics, 0.9f); d.Output = 5.6f; d.StockCap = 300; d.Value = 1600000;
+            d = D(BuildingType.FurnitureWorkshop, "Furniture workshop", 2, 2, Category.Industrial, Zone.Industrial, 380000, 160, "Builds furniture from lumber and upholstery cloth.");
+            d.Jobs = J(Role.Technician, 1, Role.Assembler, 5); d.Makes = Good.Furniture; d.In(Good.Lumber, 1.2f).In(Good.Textiles, 1.5f); d.Output = 7f; d.StockCap = 300; d.Value = 700000;
             d = D(BuildingType.Construction, "Construction company", 2, 2, Category.Industrial, Zone.Industrial, 220000, 90, "Builds everything in town. Without one, contractors come from outside and charge more.");
             d.Jobs = J(Role.SiteManager, 1, Role.Electrician, 2, Role.Plumber, 2, Role.ConstructionWorker, 7); d.Value = 450000;
             d = D(BuildingType.Trucking, "Trucking depot", 2, 2, Category.Industrial, Zone.Industrial, 250000, 100, "Moves goods between businesses and to the highway. Without one, outside haulers charge more.");
@@ -389,6 +441,11 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.PropertyManager, 2, Role.Handyman, 3); d.MinPop = 0; d.Value = 220000; d.Floors = 2;
 
             d = D(BuildingType.FreightTerminal, "Highway & freight terminal", 2, 2, Category.Special, Zone.None, 0, 0, "Where the highway enters town. Imports, exports and newcomers come through here.");
+
+            // the many kinds of business added later
+            Roles();
+            Catalog();
+            Services();
         }
     }
 }

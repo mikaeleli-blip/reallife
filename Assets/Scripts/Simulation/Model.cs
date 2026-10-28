@@ -64,6 +64,7 @@ namespace RealLife.Simulation
         public float Pantry;              // groceries in the house, person-weeks
         public float Clothes = 0.8f;      // 0..1: how worn the family's clothes are (1 new)
         public float Electronics = 0.7f, Furniture = 0.7f;
+        public float[] Has;               // by good: how much of a full supply they have of the other things they buy (Catalog.Needs)
         public float Fuel;                // tanks
         // from saves before cars were kept one by one (Town.Cars): read once and turned into cars
         public int Cars;

@@ -83,8 +83,8 @@ namespace RealLife.Game.Art
         {
             var frame = MaterialLibrary.Get(new Color32(38, 40, 44, 255), 0.4f, 0.3f);
             Ledge(k, f, center - width / 2 - 0.08f, center + width / 2 + 0.08f, y - 0.08f, y + height + 0.08f, 0.14f, frame);
-            // rows past 32 are on the second atlas
-            string atlas = row < 32 ? "signs" : "signs2";
+            // rows past 32 are on signs2, past 64 on signs3 and so on (SignRows)
+            string atlas = row < 32 ? "signs" : "signs" + (row / 32 + 1);
             row %= 32;
             var mat = dark ? MaterialLibrary.Dark(atlas, new Color(0.5f, 0.5f, 0.5f)) : MaterialLibrary.Surface(atlas, 2.2f);
             float v1 = 1f - row / 32f, v0 = v1 - 1f / 32f;

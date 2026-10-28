@@ -228,7 +228,7 @@ namespace RealLife.Simulation
             var d = b.Def;
             // a builder starts with a small crew and takes on hands as work comes in
             b.Closed = false; b.ClosedDays = 0; b.Staffing = b.Type == BuildingType.Construction ? 0.3f : d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
-            if (d.Sells.HasValue) b.Price = d.Chain != null ? ChainPrice(b.Type) : Defs.Retail[(int)d.Sells.Value];
+            if (d.Sells.HasValue) b.Price = d.Chain != null ? ChainPrice(b.Type) : Defs.Retail[(int)d.Sells.Value] * d.PriceFactor;
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
             // enough to see it through to the first sales: longer for a property firm waiting on its first houses
@@ -413,7 +413,7 @@ namespace RealLife.Simulation
                 case BuildingType.FurnitureStore: return 690 / 1.2;   // as for electronics
                 case BuildingType.GasStation: return 150 / 0.6;
                 case BuildingType.CarDealer: return Balance.CarPrice / 2.5;   // counted on every try, bought or not
-                default: return 0;
+                default: return Defs.Get(t).Ticket;
             }
         }
 
@@ -421,8 +421,8 @@ namespace RealLife.Simulation
         static double Margin(BuildingType t)
         {
             var d = Defs.Get(t);
-            if (d.Sells.HasValue) { int g = (int)d.Sells.Value; return (Defs.Retail[g] - Defs.Wholesale[g]) / Defs.Retail[g]; }
-            if (d.Serves != Service.None) return d.Input.HasValue ? 1 - d.InputPer * Defs.Wholesale[(int)d.Input.Value] / d.ServicePrice : 1;
+            if (d.Sells.HasValue) { int g = (int)d.Sells.Value; double p = Defs.Retail[g] * d.PriceFactor; return (p - Defs.Wholesale[g] * d.BulkBuy) / p; }
+            if (d.Serves != Service.None) { double c = 0; foreach (var i in d.Inputs) c += i.Per * Defs.Wholesale[(int)i.Good]; return 1 - c / d.ServicePrice; }
             return 1;
         }
 
@@ -430,7 +430,7 @@ namespace RealLife.Simulation
         double RunningCost(BuildingType t, double revenue)
         {
             var d = Defs.Get(t);
-            double unit = d.Sells.HasValue ? Defs.Retail[(int)d.Sells.Value] : d.Serves != Service.None ? d.ServicePrice : 1;
+            double unit = d.Sells.HasValue ? Defs.Retail[(int)d.Sells.Value] * d.PriceFactor : d.Serves != Service.None ? d.ServicePrice : 1;
             double perWorker = Math.Max(0.01, d.Output * Balance.DaysPerMonth);
             int crew = d.Output > 0 ? (int)Math.Round(revenue / unit / perWorker + 0.3) : 3;
             crew = Math.Max(1, Math.Min(d.TotalJobs, crew));
@@ -440,26 +440,46 @@ namespace RealLife.Simulation
                    + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
         }
 
-        /// <summary>Would a new plant pay its way fully staffed: what it makes at the price it would get (shops here for the food
-        /// plant when they're importing groceries, otherwise the world price less freight), against wages, upkeep and its loan.</summary>
-        bool PlantPays(BuildingType t)
+        /// <summary>Would a new plant pay its way fully staffed: what it makes, sold to the shops and plants here that now import
+        /// it (at the wholesale price) and the rest out of town (at the world price less freight, and less again if the town
+        /// already ships a lot of it), less what its inputs cost, against wages, upkeep and its loan. Returns its margin over
+        /// costs (above 1.1 it pays).</summary>
+        double PlantCase(BuildingType t)
         {
             var d = Defs.Get(t);
-            if (!d.Makes.HasValue) return true;
-            int g = (int)d.Makes.Value;
-            bool local = t == BuildingType.FoodPlant && LastImports[(int)Good.Groceries] > 15000 || t == BuildingType.Farm && LastImports[(int)Good.Crops] > 8000;
-            double price = local ? Defs.Wholesale[g] * (1 - Balance.FreightLocal) : World(d.Makes.Value) * (1 - Balance.FreightOutside);
-            double units = d.TotalJobs * d.Output * Balance.DaysPerMonth * (t == BuildingType.Farm ? 0.95 : 1);
-            double input = d.Input.HasValue ? d.InputPer * ImportPrice(d.Input.Value) * (1 + Balance.FreightOutside) : 0;
-            double margin = units * (price - input);
+            if (!d.Makes.HasValue) return 2;
+            var good = d.Makes.Value;
+            int g = (int)good;
+            double units = d.TotalJobs * d.Output * Balance.DaysPerMonth * (IsFarm(t) ? 0.95 : 1);
+            // what the businesses here bring in from out of town now, in units: a plant here would take its place
+            double local = Math.Min(units, (LastImports != null ? LastImports[g] : 0) / Math.Max(1, ImportPrice(good)));
+            double exports = units - local;
+            double lastOut = LastExports != null ? LastExports[g] : 0;
+            double world = World(good) * (1 - Balance.FreightOutside) * ExportFactor(good, lastOut + exports * World(good));
+            double revenue = local * Defs.Wholesale[g] * (1 - Balance.FreightLocal) + exports * world;
+            double input = 0;
+            foreach (var i in d.Inputs) input += i.Per * InputPrice(i.Good);
+            double margin = revenue - units * input;
             // at what the plants here are paying now, not the textbook rate
             var plants = Buildings.Where(b => b.Open && b.Def.Cat == Category.Industrial && b.Def.Makes.HasValue).ToList();
             double going = plants.Count > 0 ? Math.Max(1, plants.Average(b => b.WageMult)) : 1;
             double cost = 0; foreach (var j in d.Jobs) cost += j.Count * Math.Max(Policy.MinWage, Defs.Get(j.Role).Wage * going);
             cost += d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
                     + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
-            return margin >= cost * 1.1;
+            return margin / Math.Max(1, cost);
         }
+
+        bool PlantPays(BuildingType t) { return PlantCase(t) >= 1.1; }
+
+        /// <summary>What a plant pays for an input: from the cheapest maker here, or imported.</summary>
+        double InputPrice(Good g)
+        {
+            double p = ImportPrice(g) * (1 + Balance.FreightOutside);
+            foreach (var b in Buildings) if (b.Open && b.Def.Makes == g && b.Stock[(int)g] > 1) p = Math.Min(p, b.Price * (1 + Balance.FreightLocal));
+            return p;
+        }
+
+        public static bool IsFarm(BuildingType t) { return Defs.Get(t).Zone == Zone.Farmland; }
 
         /// <summary>Would a new one pay its way on this much custom, with something to spare?</summary>
         bool PaysItsWay(BuildingType t, double revenue, double spare = 1.08)
@@ -557,51 +577,47 @@ namespace RealLife.Simulation
             }
             // ---------------------------------------------------------------- shops and services
             float comDemand = 0;
-            foreach (var t in new[] { BuildingType.GroceryStore, BuildingType.Restaurant, BuildingType.Cafe, BuildingType.Bar, BuildingType.ClothingStore,
-                                      BuildingType.ElectronicsStore, BuildingType.FurnitureStore, BuildingType.GasStation, BuildingType.CarDealer,
-                                      BuildingType.AutoRepair, BuildingType.HairSalon, BuildingType.Gym, BuildingType.Bank })
+            // the car trade and the bank, each one kind of place
+            foreach (var t in new[] { BuildingType.CarDealer, BuildingType.AutoRepair, BuildingType.Bank })
             {
                 var d = Defs.Get(t);
                 if (pop < d.MinPop) continue;
                 var same = Buildings.Where(b => b.Type == t).ToList();
-                var open = same.Where(b => b.Open).ToList();
                 if (same.Any(b => !b.Built)) continue;
-                bool caseHolds, strong = false;
+                var open = same.Where(b => b.Open).ToList();
+                bool strong = false, caseHolds;
                 if (t == BuildingType.Bank) caseHolds = open.Count == 0;
-                else if (open.Count == 0)
-                {
-                    // nobody sells it here: is there enough custom going out of town to keep one going? For goods and repairs
-                    // that's what people actually spend elsewhere (most of which a shop here would win); for the rest, the
-                    // visits people wanted to make
-                    bool goods = Defs.Get(t).Sells.HasValue || t == BuildingType.AutoRepair;
-                    // (some of those who can't buy something here go without, and would buy if it were sold here; but
-                    // groceries and fuel they always fetch, and some would carry on shopping where they do)
-                    // and a dealer here won't have the very car everyone wants: many would still buy where they did
-                    double away = SpendAway[(int)t] * (t == BuildingType.GroceryStore || t == BuildingType.GasStation ? 0.85 : t == BuildingType.CarDealer ? 0.7 : 1.0);
-                    double rev = goods ? away : WantAvg[(int)t] * SpendPerWant(t);
-                    // thin retail margins need a clearer case, except for the everyday things people buy every week
-                    bool everyday = t == BuildingType.GroceryStore || t == BuildingType.GasStation;
-                    caseHolds = PaysItsWay(t, rev, everyday ? 1.0 : goods ? 1.25 : 1.08);
-                    if (caseHolds) DevNote(t + " est rev " + Money(rev) + " margin " + Margin(t).ToString("0.00") + " cost " + Money(RunningCost(t, rev)));
-                    strong = PaysItsWay(t, rev, 1.8);
-                }
-                else
-                {
-                    // the ones here are full, all making money and still turning people away: room for one more
-                    float lost = open.Sum(b => b.LastLost), served = open.Sum(b => b.LastCustomers);
-                    bool full = open.All(b => b.Staffing >= 0.95f && b.LastUse > 0.85f);
-                    bool earning = open.All(b => b.LastProfit > 0 && b.LossMonths == 0);
-                    bool room = open.Count < 1 + pop / PopPer(t);
-                    double price = open.Average(b => b.Price) * (t == BuildingType.GroceryStore ? 4 : TicketSize(t));
-                    double rev = lost * price;
-                    caseHolds = full && earning && room && lost > Math.Max(8, served * 0.15f) && PaysItsWay(t, rev);
-                }
+                else caseHolds = TradeCase(t, t, open, pop, out strong, null);
                 if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
                 if (!ReadyToOpen(t, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
                 if (building >= buildCap) continue;
                 var founder = Founder(t);
                 if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); continue; }
                 if (Expand(t, founder) != null) { building++; EntryMonths[(int)t] = 0; }
+            }
+            // everything else by trade: meals out might be a pizzeria, a diner or a sushi bar; clothes a boutique or a thrift store.
+            // The town gets what it hasn't got before more of the same.
+            foreach (var m in Defs.Markets)
+            {
+                var kinds = m.Kinds.Where(t => pop >= Defs.Get(t).MinPop).ToList();
+                if (kinds.Count == 0) continue;
+                var same = Buildings.Where(b => Array.IndexOf(m.Kinds, b.Type) >= 0).ToList();
+                if (same.Any(b => !b.Built)) continue;
+                var open = same.Where(b => b.Open).ToList();
+                var t0 = m.Primary;
+                bool strong;
+                BuildingType pick;
+                bool caseHolds = TradeCase(t0, BuildingType.FreightTerminal, open, pop, out strong, kinds, m, out pick);
+                if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
+                if (!ReadyToOpen(t0, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
+                if (building >= buildCap) continue;
+                // an empty shop of the trade the bank holds goes first, as it was; otherwise the kind picked
+                var shut = Buildings.FirstOrDefault(b => Array.IndexOf(m.Kinds, b.Type) >= 0 && b.Closed && b.Built && Connected(b) && pop >= b.Def.MinPop);
+                var kind = shut != null ? shut.Type : pick;
+                var founder = Founder(kind);
+                if (founder == null) { NoInvestor = kind; DevNote("no founder for " + kind); continue; }
+                var nb = shut != null ? Reopen(shut, founder) : Develop(kind, founder, null);
+                if (nb != null) { building++; EntryMonths[(int)t0] = 0; }
             }
             Chains(ref building, buildCap);
             ZoneDemand[(int)Zone.Commercial] = Math.Min(1, comDemand);
@@ -612,64 +628,101 @@ namespace RealLife.Simulation
             int school = looking.Count(c => c.Edu == Edu.HighSchool), trade = looking.Count(c => c.Edu == Edu.Trade), basic = looking.Count(c => c.Edu == Edu.None);
             float indDemand = (looking.Count - pop * 0.04f) / Math.Max(6f, pop / 20f);
             ZoneDemand[(int)Zone.Industrial] = Math.Max(-1, Math.Min(1, indDemand));
-            bool officePending = Buildings.Any(b => b.Type == BuildingType.Office && !b.Built);
-            bool officeCase = !officePending && (grads >= 5 || (grads >= 3 && school >= 4)) && Buildings.Where(b => b.Type == BuildingType.Office && b.Open).All(b => b.LastProfit > 0);
+            // offices: a firm of whatever kind would hire the people who are looking (a call center for those without a diploma,
+            // a law firm for graduates), what the town hasn't got first
+            bool officePending = Buildings.Any(b => (b.Def.Bills || b.Type == BuildingType.Office) && !b.Built);
+            BuildingType officeKind = BuildingType.Office; int officeFit = -1;
+            if (!officePending)
+                foreach (var t in Defs.All)
+                {
+                    var d = Defs.Get(t);
+                    if (!(d.Bills || t == BuildingType.Office) || pop < d.MinPop) continue;
+                    if (!Buildings.Where(b => b.Type == t && b.Open).All(b => b.LastProfit > 0)) continue;
+                    int have = Buildings.Count(b => b.Type == t && (b.Open || !b.Built));
+                    if (have >= 1 + pop / (t == BuildingType.Office ? 700 : 1000)) continue;
+                    int fit = Qualified(looking, t, grads);
+                    int need = (int)Math.Ceiling(d.TotalJobs * (t == BuildingType.Office ? 0.3 : 0.5));
+                    if (fit < need) continue;
+                    int score = Math.Min(fit, 8) * 2 - have * 12 + (int)(Fancy(t) * 4);
+                    if (score > officeFit) { officeFit = score; officeKind = t; }
+                }
+            bool officeCase = officeFit >= 0;
             if (ReadyToOpen(BuildingType.Office, officeCase, 2, grads >= 10) && building < buildCap)
             {
-                var founder = Founder(BuildingType.Office);
-                if (founder == null) NoInvestor = BuildingType.Office;
-                else if (Expand(BuildingType.Office, founder) != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; }
+                var founder = Founder(officeKind);
+                if (founder == null) NoInvestor = officeKind;
+                else if (Expand(officeKind, founder) != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; }
             }
+            // industry: a plant of whatever kind would hire the people who are looking and pay its way, leaving out any that
+            // failed here this past year; first what the town's businesses now import, then what the town doesn't make yet
             bool factoryPending = Buildings.Any(b => !b.Built && b.Def.Cat == Category.Industrial);
             bool factoryCase = !factoryPending && looking.Count >= 7 + pop / 40;
             FactoryMonths = factoryCase ? FactoryMonths + 1 : 0;
             if (FactoryMonths >= 2 && building < buildCap)
             {
-                // the kind of plant that would hire the people who are looking, leaving out any that failed here this past year
-                var kinds = new List<BuildingType>();
-                if (grads >= 2 && trade >= 2) kinds.Add(BuildingType.ElectronicsPlant);
-                if (basic > school && basic >= 4) { kinds.Add(BuildingType.FoodPlant); if (ZonedFree(Zone.Farmland) >= 9) kinds.Add(BuildingType.Farm); }
-                if (trade >= 2) kinds.Add(BuildingType.FurnitureWorkshop);
-                kinds.Add(BuildingType.GarmentFactory);
                 bool strong = looking.Count >= 20 + pop / 20;
-                // and any kind whose plants here are already struggling, short-handed or only scraping by
-                kinds.RemoveAll(k => Cooling(k, strong) || !PlantPays(k) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 2 + pop / 200 ||
-                                     looking.Count < Defs.Get(k).TotalJobs || pop < 150 ||
-                                     Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04)));
-                // something the town doesn't make yet before more of the same
-                if (kinds.Any(k => !Buildings.Any(b => b.Type == k && (b.Open || !b.Built))))
-                    kinds.RemoveAll(k => Buildings.Any(b => b.Type == k && (b.Open || !b.Built)));
-                DevNote("factory: looking " + looking.Count + " basic " + basic + " school " + school + " trade " + trade + " grads " + grads + " -> " + string.Join(",", kinds));
-                if (kinds.Count > 0)
+                BuildingType best = BuildingType.FreightTerminal; double bestScore = double.MinValue;
+                var notes = new List<string>();
+                foreach (var k in Defs.All)
                 {
-                    var t = kinds[RandInt(0, kinds.Count)];
-                    var founder = Founder(t);
-                    if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); }
-                    else if (Expand(t, founder) != null) { building++; FactoryMonths = 0; }
+                    var d = Defs.Get(k);
+                    if (d.Cat != Category.Industrial || !d.Makes.HasValue || pop < Math.Max(150, d.MinPop)) continue;
+                    if (Cooling(k, strong) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 1 + pop / 600) continue;
+                    if (Buildings.Count(b => b.Def.Makes == d.Makes && (b.Open || !b.Built)) >= 2 + pop / 500) continue;
+                    if (looking.Count < d.TotalJobs * 0.7f || Qualified(looking, k, grads) < d.TotalJobs * 0.6f) continue;
+                    if (ZonedFree(d.Zone) < d.W * d.H) continue;
+                    // any of its kind here already struggling, short-handed or only scraping by
+                    if (Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04))) continue;
+                    double pays = PlantCase(k);
+                    if (pays < 1.1) continue;
+                    int g = (int)d.Makes.Value;
+                    double score = Math.Min(2, pays) + (LastImports[g] > 5000 ? 1.5 : 0) + (Buildings.Any(b => b.Def.Makes == d.Makes && b.Open) ? 0 : 0.8) + Rand() * 0.6;
+                    notes.Add(k + " " + pays.ToString("0.00"));
+                    if (score > bestScore) { bestScore = score; best = k; }
+                }
+                DevNote("factory: looking " + looking.Count + " basic " + basic + " school " + school + " trade " + trade + " grads " + grads + " -> " + string.Join(",", notes));
+                if (best != BuildingType.FreightTerminal)
+                {
+                    var founder = Founder(best);
+                    if (founder == null) { NoInvestor = best; DevNote("no founder for " + best); }
+                    else if (Expand(best, founder) != null) { building++; FactoryMonths = 0; }
                 }
             }
-            // food: a plant when the stores import groceries, farms when the plant imports crops
-            double grocImports = LastImports[(int)Good.Groceries], cropImports = LastImports[(int)Good.Crops];
-            ZoneDemand[(int)Zone.Farmland] = Math.Max(-1, Math.Min(1, (float)(cropImports / 30000.0)));
+            // supply: a plant or farm when the town's businesses import a lot of what one would make, and the ones here are busy
+            // (a food plant when the stores import groceries, farms when it imports crops, a sawmill when the furniture makers
+            // import lumber)
+            double farmImports = 0;
+            foreach (var g in new[] { Good.Crops, Good.Milk, Good.Livestock, Good.Logs, Good.Plants }) farmImports += LastImports[(int)g];
+            ZoneDemand[(int)Zone.Farmland] = Math.Max(-1, Math.Min(1, (float)(farmImports / 30000.0)));
             if (building < buildCap && !factoryPending)
-            {
-                bool plantCase = grocImports > 25000 && Buildings.Where(b => b.Type == BuildingType.FoodPlant && b.Open).All(b => b.LastUse > 0.8f) && PlantPays(BuildingType.FoodPlant);
-                if (ReadyToOpen(BuildingType.FoodPlant, plantCase, 3, grocImports > 60000))
+                foreach (var gd in Defs.Goods)
                 {
-                    var founder = Founder(BuildingType.FoodPlant);
-                    if (founder == null) NoInvestor = BuildingType.FoodPlant;
-                    else if (Expand(BuildingType.FoodPlant, founder) != null) { building++; EntryMonths[(int)BuildingType.FoodPlant] = 0; }
+                    var g = gd.Good;
+                    double imports = LastImports[(int)g];
+                    if (imports < 12000) continue;
+                    var makers = Defs.All.Where(k => Defs.Get(k).Makes == g && Defs.Get(k).Cat == Category.Industrial).ToList();
+                    if (makers.Count == 0) continue;
+                    var key = makers[0];
+                    if (Buildings.Any(b => makers.Contains(b.Type) && !b.Built)) { ReadyToOpen(key, false, 3, false); continue; }
+                    var mine = Buildings.Where(b => makers.Contains(b.Type) && b.Open).ToList();
+                    if (mine.Count >= 2 + pop / 500) { ReadyToOpen(key, false, 3, false); continue; }
+                    bool busy = mine.All(b => b.LastUse > 0.8f && b.LossMonths < 4);
+                    // the kind that pays best, with land for it
+                    BuildingType kind = BuildingType.FreightTerminal; double kp = 1.1;
+                    foreach (var k in makers)
+                    {
+                        var d = Defs.Get(k);
+                        if (pop < d.MinPop || ZonedFree(d.Zone) < d.W * d.H || Cooling(k, imports > 60000)) continue;
+                        if (Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 1 + pop / 600) continue;
+                        double p = PlantCase(k) + (mine.Any(b => b.Type == k) ? 0 : 0.15) + Rand() * 0.1;
+                        if (p > kp) { kp = p; kind = k; }
+                    }
+                    bool supplyCase = busy && kind != BuildingType.FreightTerminal && imports > Math.Max(12000, 0.25 * Defs.Get(kind).TotalJobs * Defs.Get(kind).Output * Balance.DaysPerMonth * gd.Wholesale);
+                    if (!ReadyToOpen(key, supplyCase, IsFarm(kind) ? 2 : 3, imports > 60000)) continue;
+                    var founder = Founder(kind);
+                    if (founder == null) { NoInvestor = kind; continue; }
+                    if (Expand(kind, founder) != null) { building++; EntryMonths[(int)key] = 0; if (building >= buildCap) break; }
                 }
-                var farms = Buildings.Where(b => b.Type == BuildingType.Farm && b.Open).ToList();
-                bool farmCase = cropImports > 12000 && !Buildings.Any(b => b.Type == BuildingType.Farm && !b.Built) &&
-                                farms.All(b => b.LossMonths < 4) && (farms.Count == 0 || farms.Average(b => b.Cash) > 0) && PlantPays(BuildingType.Farm);
-                if (ReadyToOpen(BuildingType.Farm, farmCase, 2, cropImports > 30000) && building < buildCap)
-                {
-                    var founder = Founder(BuildingType.Farm);
-                    if (founder == null) NoInvestor = BuildingType.Farm;
-                    else if (Expand(BuildingType.Farm, founder) != null) { building++; EntryMonths[(int)BuildingType.Farm] = 0; }
-                }
-            }
             // builders: one if there's none; another only when the ones here are flat out with months of work queued
             var builders = Buildings.Where(b => b.Type == BuildingType.Construction && b.Open).ToList();
             bool builderPending = Buildings.Any(b => b.Type == BuildingType.Construction && !b.Built);
@@ -706,7 +759,92 @@ namespace RealLife.Simulation
         public int FactoryMonths;            // months in a row there have been enough people looking for work to staff a plant
         public float WorkStarted, WorkRate;  // labour-days of private building started this month, and the running average
         [NonSerialized] public double[] LastImports = new double[Defs.GoodCount];
+        [NonSerialized] public double[] LastExports = new double[Defs.GoodCount];
         [NonSerialized] public double LastFreightOutside;
+
+        bool TradeCase(BuildingType t0, BuildingType unused, List<Building> open, int pop, out bool strong, List<BuildingType> kinds)
+        {
+            BuildingType pick;
+            return TradeCase(t0, unused, open, pop, out strong, kinds, null, out pick);
+        }
+
+        /// <summary>Is there a case for another place in this trade, and which kind it would be. With none here: is there enough
+        /// custom going out of town (or wanted) to keep one going. With some: are they full, all making money and still turning
+        /// people away.</summary>
+        bool TradeCase(BuildingType t0, BuildingType unused, List<Building> open, int pop, out bool strong, List<BuildingType> kinds, Market m, out BuildingType pick)
+        {
+            strong = false;
+            pick = t0;
+            var d0 = Defs.Get(t0);
+            bool goods = d0.Sells.HasValue || t0 == BuildingType.AutoRepair;
+            // the kinds in the order this town would try them: what it hasn't got first
+            var order = kinds == null ? new List<BuildingType> { t0 } : kinds.OrderBy(k => open.Any(b => b.Type == k) ? 1 : 0).ThenBy(k => Fancy(k)).ToList();
+            if (open.Count == 0)
+            {
+                // nobody does it here: is there enough custom going out of town to keep one going? For goods and repairs
+                // that's what people actually spend elsewhere (most of which a shop here would win); for the rest, the
+                // visits people wanted to make
+                // (some of those who can't buy something here go without, and would buy if it were sold here; but
+                // groceries and fuel they always fetch, and some would carry on shopping where they do)
+                // and a dealer here won't have the very car everyone wants: many would still buy where they did
+                double away = SpendAway[(int)t0] * (t0 == BuildingType.GroceryStore || t0 == BuildingType.GasStation ? 0.85 : t0 == BuildingType.CarDealer ? 0.7 : 1.0);
+                double rev = goods ? away : WantAvg[(int)t0] * SpendPerWant(t0);
+                // thin retail margins need a clearer case, except for the everyday things people buy every week
+                bool everyday = t0 == BuildingType.GroceryStore || t0 == BuildingType.GasStation;
+                foreach (var k in order)
+                {
+                    if (!PaysItsWay(k, rev, everyday ? 1.0 : goods ? 1.25 : 1.08)) continue;
+                    pick = k;
+                    DevNote(k + " est rev " + Money(rev) + " margin " + Margin(k).ToString("0.00") + " cost " + Money(RunningCost(k, rev)));
+                    strong = PaysItsWay(k, rev, 1.8);
+                    return true;
+                }
+                return false;
+            }
+            // the ones here are full, all making money and still turning people away: room for one more
+            float lost = open.Sum(b => b.LastLost), served = open.Sum(b => b.LastCustomers);
+            bool full = open.All(b => b.Staffing >= 0.95f && b.LastUse > 0.85f);
+            bool earning = open.All(b => b.LastProfit > 0 && b.LossMonths == 0);
+            bool room = open.Count < 1 + pop / PopPer(t0);
+            double price = open.Average(b => b.Price) * (t0 == BuildingType.GroceryStore ? 4 : TicketSize(t0));
+            double rev2 = lost * price;
+            if (!(full && earning && room && lost > Math.Max(8, served * 0.15f))) return false;
+            foreach (var k in order) if (PaysItsWay(k, rev2)) { pick = k; return true; }
+            return false;
+        }
+
+        /// <summary>A fixed order for each town in which it takes to new kinds of place: one town's first restaurant is a
+        /// diner, another's a pizzeria. Cheaper, plainer kinds tend to come first.</summary>
+        float Fancy(BuildingType t)
+        {
+            uint x = 2166136261u;
+            foreach (char ch in Name ?? "") { x ^= ch; x *= 16777619u; }
+            x ^= (uint)((int)t * 2654435761u); x ^= x >> 15; x *= 2246822519u; x ^= x >> 13;
+            return (x % 1000) / 1000f + (float)(Defs.Get(t).StartupCost / 400000.0);
+        }
+
+        /// <summary>How many of the people looking could fill this kind of business's jobs (up to how many of each it has).</summary>
+        int Qualified(List<Citizen> looking, BuildingType t, int grads)
+        {
+            var d = Defs.Get(t);
+            int n = 0;
+            var used = new HashSet<int>();
+            foreach (var j in d.Jobs)
+            {
+                var need = Defs.Get(j.Role).Needs;
+                int got = 0;
+                foreach (var c in looking)
+                {
+                    if (got >= j.Count) break;
+                    if (used.Contains(c.Id) || !Defs.Qualifies(c.Edu, need)) continue;
+                    used.Add(c.Id); got++;
+                }
+                // graduates in jobs below them would move for one that needs their degree
+                if (need >= Edu.Degree && got < j.Count) got = Math.Min(j.Count, got + Math.Max(0, grads - used.Count(id => GetCitizen(id) != null && GetCitizen(id).Edu >= Edu.Degree)));
+                n += got;
+            }
+            return n;
+        }
 
         static int PopPer(BuildingType t)
         {
@@ -724,7 +862,7 @@ namespace RealLife.Simulation
                 case BuildingType.AutoRepair: return 400;
                 case BuildingType.HairSalon: return 320;
                 case BuildingType.Gym: return 500;
-                default: return 2500;
+                default: { var d = Defs.Get(t); return d.PopPer > 0 ? d.PopPer : 2500; }
             }
         }
 

@@ -113,7 +113,7 @@ namespace RealLife.Simulation
             IndexCars();
             buildingAt = new int[Cols * Rows];
             foreach (var b in Buildings) Stamp(b, b.Id);
-            if (PriceDrift == null || PriceDrift.Length != Defs.GoodCount) { PriceDrift = new float[Defs.GoodCount]; for (int i = 0; i < PriceDrift.Length; i++) PriceDrift[i] = 1f; }
+            if (PriceDrift == null || PriceDrift.Length != Defs.GoodCount) PriceDrift = Resized(PriceDrift, Defs.GoodCount, 1f);
             int nt = Defs.All.Length;
             if (Wants == null || Wants.Length != nt) Wants = new float[nt];
             if (LastWants == null || LastWants.Length != nt) LastWants = new float[nt];
@@ -126,9 +126,19 @@ namespace RealLife.Simulation
             int nz = Enum.GetValues(typeof(Zone)).Length;
             if (ZoneDemand == null || ZoneDemand.Length != nz) ZoneDemand = new float[nz];
             if (LotShort == null || LotShort.Length != nz) LotShort = new bool[nz];
-            foreach (var b in Buildings) if (b.Stock == null || b.Stock.Length != Defs.GoodCount) b.Stock = new float[Defs.GoodCount];
+            // saves from before there were more goods: their stock carries over
+            foreach (var b in Buildings) if (b.Stock == null || b.Stock.Length != Defs.GoodCount) b.Stock = Resized(b.Stock, Defs.GoodCount, 0f);
+            foreach (var h in Households) if (h.Has == null || h.Has.Length != Defs.GoodCount) h.Has = Resized(h.Has, Defs.GoodCount, -1f);
+            foreach (var h in Households) for (int i = 0; i < h.Has.Length; i++) if (h.Has[i] < 0) h.Has[i] = 0.55f + Rand() * 0.4f;
             RebuildRoads();
             MapVersion++;
+        }
+
+        static float[] Resized(float[] a, int n, float fill)
+        {
+            var r = new float[n];
+            for (int i = 0; i < n; i++) r[i] = a != null && i < a.Length ? a[i] : fill;
+            return r;
         }
 
         void Stamp(Building b, int id)
