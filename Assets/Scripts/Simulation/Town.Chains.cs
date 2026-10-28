@@ -74,20 +74,26 @@ namespace RealLife.Simulation
             {
                 var d = Defs.Get(t);
                 var mine = Buildings.Where(b => b.Type == t).ToList();
-                if (mine.Any(b => !b.Built)) continue;
                 var open = mine.Where(b => b.Open).ToList();
-                if (pop < d.MinPop || building >= buildCap) { ReadyToOpen(t, false, 2, false); continue; }
+                var p = Pro(d.Chain, t, 0, open.Count, 0, Outlook.Promising);
+                var site = mine.FirstOrDefault(b => !b.Built);
+                if (site != null) { p.State = Outlook.Building; p.Site = site.Id; continue; }
+                if (pop < d.MinPop) { p.State = Outlook.TooSmall; p.MinPop = d.MinPop; ReadyToOpen(t, false, 2, false); continue; }
+                if (building >= buildCap) { p.State = Outlook.BuildersBusy; ReadyToOpen(t, false, 2, false); continue; }
                 if (open.Count == 0)
                 {
                     double rev;
                     bool pays = ChainPays(t, out rev);
+                    p.Away = rev; p.Estimate = true;
+                    if (!pays) { p.State = Outlook.Thin; p.Need = LeastThatPays(r => r * ChainMargin(t) >= RunningCost(t, r) * 1.2); }
                     if (pays) DevNote(d.Chain + " at pop " + pop + " est rev " + Money(rev) + " margin " + ChainMargin(t).ToString("0.00") + " cost " + Money(RunningCost(t, rev)));
-                    if (!ReadyToOpen(t, pays, 2, false)) continue;
+                    if (!Ready(p, t, pays, 2, false)) continue;
                     var founder = Entrepreneur(t);
-                    if (founder == null) { NoInvestor = t; DevNote("no founder for " + d.Chain); continue; }
+                    if (founder == null) { p.State = Outlook.NoBacker; NoInvestor = t; DevNote("no founder for " + d.Chain); continue; }
                     var b = Expand(t, founder);
-                    if (b == null) continue;
+                    if (b == null) { p.State = Outlook.NoLot; continue; }
                     building++; EntryMonths[(int)t] = 0;
+                    p.State = Outlook.Opening; p.Site = b.Id;
                     AddLog("The " + founder.Name + " family is opening " + d.Chain + ", the town's first " + d.Name.ToLower() + ".", LogKind.Good, b.Id);
                 }
                 else
@@ -96,14 +102,19 @@ namespace RealLife.Simulation
                     bool room = pop >= (open.Count + 1) * d.PopPerStore;
                     bool earning = open.All(b => b.LastProfit > 0 && b.LossMonths == 0);
                     bool busy = open.All(b => b.LastUse > 0.8f) || open.Sum(b => b.LastLost) > 20;
-                    if (!ReadyToOpen(t, room && earning && busy, 3, false)) continue;
+                    p.Away = open.Sum(b => b.LastLost) * open.Average(b => b.Price) * 4;
+                    if (!room) { p.State = Outlook.Enough; p.Per = d.PopPerStore; }
+                    else if (!earning) p.State = Outlook.Struggling;
+                    else if (!busy) p.State = Outlook.HaveRoom;
+                    if (!Ready(p, t, room && earning && busy, 3, false)) continue;
                     var owner = open[0].Owner == Owner.Household ? GetHousehold(open[0].OwnerId) : null;
-                    if (owner == null || owner.Cash < d.StartupCost * FoundersShare(t) + 10000) { DevNote(d.Chain + ": owners can't fund another store yet"); continue; }
+                    if (owner == null || owner.Cash < d.StartupCost * FoundersShare(t) + 10000) { p.State = Outlook.NoBacker; DevNote(d.Chain + ": owners can't fund another store yet"); continue; }
                     // a store of theirs the bank took back, if it's in a part of town that needs one; else a new one
                     var shut = Buildings.FirstOrDefault(o => o.Type == t && o.Closed && o.Built && Connected(o) && GoodChainSpot(t, o.CenterX, o.CenterY));
                     var b = shut != null ? Reopen(shut, owner) : Develop(t, owner, null);
-                    if (b == null) continue;
+                    if (b == null) { p.State = Outlook.NoLot; continue; }
                     building++; EntryMonths[(int)t] = 0;
+                    p.State = Outlook.Opening; p.Site = b.Id;
                     AddLog(d.Chain + " is opening store number " + (open.Count + 1) + " in town.", LogKind.Good, b.Id);
                 }
             }

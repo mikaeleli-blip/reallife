@@ -49,6 +49,11 @@ The **Homes** tool zones land for **Houses** or **Apartments**: pick which in th
 Click any building or any person walking or driving to inspect them. Hold **Shift** while placing a public building to place
 several.
 
+The **Market** panel lists, for each trade, plant and office, what the town spends elsewhere for want of one (or imports,
+for a plant) and where the next one stands: being built, promising for a month or two, waiting on a lot, a backer, the
+builders or workers, short of custom (and about how much it would need), or not until the town is bigger. Hover a line for
+the details; click one that's going up to see it. It's filled in once a month.
+
 ## Time and money
 
 One day is about a real week; a month is four days and a year is 48. At 1x a day takes six minutes, so you can watch the

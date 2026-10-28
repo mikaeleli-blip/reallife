@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace RealLife.Game
 {
-    public enum Panel { None, Town, Economy, People, News }
+    public enum Panel { None, Town, Economy, People, News, Market }
 
     /// <summary>
     /// The HUD: the top bar (date, speed, headline numbers), the toolbar, the building menu, the inspector on the right,
@@ -77,6 +77,7 @@ namespace RealLife.Game
                 case Panel.Economy: EconomyPanel(); break;
                 case Panel.People: PeoplePanel(); break;
                 case Panel.News: NewsPanel(); break;
+                case Panel.Market: MarketPanel(); break;
             }
             Inspector();
             Toasts();
@@ -180,7 +181,7 @@ namespace RealLife.Game
         {
             float W = Screen.width / Ui.S, H = Screen.height / Ui.S;
             float bw = 84, bh = 54, gap = 4;
-            int n = 13;
+            int n = 14;
             float total = n * (bw + gap) + 14;
             float x0 = (W - total) / 2, y = H - bh - 12;
             var back = Claim(Ui.R(x0 - 8, y - 8, total + 16, bh + 16));
@@ -199,6 +200,7 @@ namespace RealLife.Game
             x += 14;
             ToolButton(ref x, y, bw, bh, "Laws", Open == Panel.Town, () => Toggle(Panel.Town), "Taxes, wages, benefits, staffing, and the town budget.");
             ToolButton(ref x, y, bw, bh, "Economy", Open == Panel.Economy, () => Toggle(Panel.Economy), "Jobs, wages, prices, trade, businesses and history.");
+            ToolButton(ref x, y, bw, bh, "Market", Open == Panel.Market, () => Toggle(Panel.Market), "What the town spends elsewhere, and where the next shop, plant or office of each kind stands.");
             ToolButton(ref x, y, bw, bh, "People", Open == Panel.People, () => Toggle(Panel.People), "Who lives here: ages, education, housing, the unemployed.");
             ToolButton(ref x, y, bw, bh, "News", Open == Panel.News, () => Toggle(Panel.News), "What's been happening in town.");
         }

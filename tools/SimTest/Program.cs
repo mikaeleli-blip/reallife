@@ -128,6 +128,14 @@ static class Program
         Console.WriteLine("Advice: " + string.Join(" | ", t.Advice()));
         Console.WriteLine(Homes(t));
         Console.WriteLine("Wants: " + string.Join(", ", Defs.All.Where(x => t.LastWants[(int)x] > 0).Select(x => x + " " + t.LastWants[(int)x].ToString("0"))));
+        if (Environment.GetEnvironmentVariable("PRO") == "1" && t.Prospects != null)
+            foreach (var g in t.Prospects.GroupBy(x => x.Group))
+            {
+                Console.WriteLine("Prospects " + (g.Key == 0 ? "shops" : g.Key == 1 ? "industry" : "offices") + ":");
+                foreach (var x in g.OrderBy(x => x.State).ThenByDescending(x => x.Away))
+                    Console.WriteLine("  " + x.Name.PadRight(26) + " " + x.Kind.ToString().PadRight(20) + " here " + x.Here + "  away " + Town.Money(x.Away).PadLeft(8) + "  " + x.State
+                        + (x.State == Outlook.Thin ? " need " + Town.Money(x.Need) : x.State == Outlook.NoStaff ? " " + x.Have + "/" + x.Need : x.State == Outlook.Promising ? " " + x.Have + "/" + x.Of : x.State == Outlook.TooSmall ? " " + x.MinPop : x.State == Outlook.Enough ? " per " + x.Per : x.State == Outlook.Failed ? " until " + Town.DateOf(x.Until) : ""));
+            }
         int nans = t.Households.Count(h => double.IsNaN(h.Cash) || double.IsInfinity(h.Cash) || double.IsNaN(h.FunMoney)) + t.Buildings.Count(b => double.IsNaN(b.Cash) || double.IsNaN(b.Price) || double.IsNaN(b.Value) || b.Stock.Any(x => float.IsNaN(x))) +
                    t.People.Count(c => float.IsNaN(c.Age) || float.IsNaN(c.Happiness) || float.IsNaN(c.Health) || double.IsNaN(c.Wage)) + t.Loans.Count(l => double.IsNaN(l.Principal)) + (double.IsNaN(t.Treasury) ? 1 : 0);
         Console.WriteLine(nans == 0 ? "No NaNs (save-safe)." : "NaN values: " + nans);

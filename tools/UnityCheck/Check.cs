@@ -13,6 +13,7 @@ static class Check
         if (args.Length > 0 && args[0] == "parking") return Parking(args.Length > 1 ? int.Parse(args[1]) : 2);
         if (args.Length > 1 && args[0] == "topview") return TopView((BuildingType)Enum.Parse(typeof(BuildingType), args[1]), args.Length > 2 ? args[2] : "top.txt");
         if (args.Length > 1 && args[0] == "dump") return Dump(args[1], args.Length > 2 ? args[2] : "dump");
+        if (args.Length > 1 && args[0] == "market") return Market(args[1], args.Length > 2 ? int.Parse(args[2]) : 1, args.Length > 3 && args[3] == "all");
         int bad = Primitives();
         foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
         {
@@ -351,5 +352,34 @@ static class Check
         if (vv < 0 || u + vv > 1) return false;
         float dist = Vector3.Dot(e2, q) * inv;
         return dist > 1e-4f;
+    }
+
+    /// <summary>Loads a save, runs it a few months and prints the Market panel as it would read, with its tooltips.</summary>
+    static int Market(string path, int months, bool all)
+    {
+        var opts = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        var t = System.Text.Json.JsonSerializer.Deserialize<Town>(System.IO.File.ReadAllText(path), opts);
+        t.Index(); t.Migrate();
+        for (int d = 0; d < months * Balance.DaysPerMonth; d++) t.Advance(1f);
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var standing = typeof(RealLife.Game.Hud).GetMethod("Standing", flags);
+        var notable = typeof(RealLife.Game.Hud).GetMethod("Notable", flags);
+        Console.WriteLine(t.Name + ", " + Town.DateOf(t.Day) + ", " + t.Population + " people. Spent out of town last month " + Town.Money(t.LastOutOfTown));
+        string[] titles = { "Shops and services", "Industry and farms", "Offices" };
+        for (int g = 0; g < 3; g++)
+        {
+            Console.WriteLine("== " + titles[g]);
+            var rows = t.Prospects.Where(p => p.Group == g && p.State != Outlook.TooSmall && (all || (bool)notable.Invoke(null, new object[] { p })))
+                                  .OrderBy(p => p.State == Outlook.Opening || p.State == Outlook.Building ? 0 : 1).ThenByDescending(p => p.Away);
+            foreach (var p in rows)
+            {
+                var a = new object[] { p, null, null };
+                string st = (string)standing.Invoke(null, a);
+                Console.WriteLine("  " + (p.Name + (p.Here > 0 ? " x" + p.Here : "")).PadRight(28) + (g == 2 ? "" : (p.Away >= 1 && !p.Estimate ? Town.Money(p.Away) : "-").PadLeft(9)) + "  " + st.PadRight(26) + " | " + a[1]);
+            }
+            var later = t.Prospects.Where(p => p.Group == g && p.State == Outlook.TooSmall && (all || p.Away >= 100)).OrderBy(p => p.MinPop);
+            Console.WriteLine("  With more people: " + string.Join(" · ", later.Select(p => Defs.Get(p.Kind).Name + " " + p.MinPop)));
+        }
+        return 0;
     }
 }

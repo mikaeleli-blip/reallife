@@ -516,6 +516,7 @@ namespace RealLife.Simulation
         {
             for (int i = 0; i < LotShort.Length; i++) LotShort[i] = false;
             NoInvestor = BuildingType.FreightTerminal;
+            pros = new List<Prospect>();
             for (int i = 0; i < WantAvg.Length; i++) WantAvg[i] = WantAvg[i] * 0.55f + LastWants[i] * 0.45f;
             int pop = Population;
             int building = Buildings.Count(b => !b.Built && b.Owner != Owner.Town);   // public works don't hold up private building
@@ -581,43 +582,55 @@ namespace RealLife.Simulation
             foreach (var t in new[] { BuildingType.CarDealer, BuildingType.AutoRepair, BuildingType.Bank })
             {
                 var d = Defs.Get(t);
-                if (pop < d.MinPop) continue;
                 var same = Buildings.Where(b => b.Type == t).ToList();
-                if (same.Any(b => !b.Built)) continue;
                 var open = same.Where(b => b.Open).ToList();
+                double away = t == BuildingType.Bank ? 0 : SpendAway[(int)t];
+                if (pop < d.MinPop) { Pro(d.Name, t, 0, open.Count, away, Outlook.TooSmall).MinPop = d.MinPop; continue; }
+                if (same.Any(b => !b.Built)) { Pro(d.Name, t, 0, open.Count, away, Outlook.Building).Site = same.First(b => !b.Built).Id; continue; }
                 bool strong = false, caseHolds;
-                if (t == BuildingType.Bank) caseHolds = open.Count == 0;
-                else caseHolds = TradeCase(t, t, open, pop, out strong, null);
+                Prospect p;
+                if (t == BuildingType.Bank) { caseHolds = open.Count == 0; p = Pro(d.Name, t, 0, open.Count, 0, caseHolds ? Outlook.Promising : Outlook.Enough); }
+                else { caseHolds = TradeCase(t, t, open, pop, out strong, null); p = Pro(d.Name, t, 0, open.Count, caseAway, caseState); p.Need = caseNeed; p.Per = casePer; }
                 if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
-                if (!ReadyToOpen(t, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
-                if (building >= buildCap) continue;
+                if (!Ready(p, t, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
+                if (building >= buildCap) { p.State = Outlook.BuildersBusy; continue; }
                 var founder = Founder(t);
-                if (founder == null) { NoInvestor = t; DevNote("no founder for " + t); continue; }
-                if (Expand(t, founder) != null) { building++; EntryMonths[(int)t] = 0; }
+                if (founder == null) { p.State = Outlook.NoBacker; NoInvestor = t; DevNote("no founder for " + t); continue; }
+                var nb = Expand(t, founder);
+                if (nb != null) { building++; EntryMonths[(int)t] = 0; p.State = Outlook.Opening; p.Site = nb.Id; }
+                else p.State = Outlook.NoLot;
             }
             // everything else by trade: meals out might be a pizzeria, a diner or a sushi bar; clothes a boutique or a thrift store.
             // The town gets what it hasn't got before more of the same.
             foreach (var m in Defs.Markets)
             {
                 var kinds = m.Kinds.Where(t => pop >= Defs.Get(t).MinPop).ToList();
-                if (kinds.Count == 0) continue;
                 var same = Buildings.Where(b => Array.IndexOf(m.Kinds, b.Type) >= 0).ToList();
-                if (same.Any(b => !b.Built)) continue;
                 var open = same.Where(b => b.Open).ToList();
+                if (kinds.Count == 0)
+                {
+                    var first = m.Kinds.OrderBy(k => Defs.Get(k).MinPop).First();
+                    Pro(m.Name, first, 0, open.Count, MarketAway(m), Outlook.TooSmall).MinPop = Defs.Get(first).MinPop;
+                    continue;
+                }
+                if (same.Any(b => !b.Built)) { var site = same.First(b => !b.Built); Pro(m.Name, site.Type, 0, open.Count, MarketAway(m), Outlook.Building).Site = site.Id; continue; }
                 var t0 = m.Primary;
                 bool strong;
                 BuildingType pick;
                 bool caseHolds = TradeCase(t0, BuildingType.FreightTerminal, open, pop, out strong, kinds, m, out pick);
+                var p = Pro(m.Name, pick, 0, open.Count, caseAway, caseState); p.Need = caseNeed; p.Per = casePer;
                 if (caseHolds) comDemand += open.Count == 0 ? 0.3f : 0.2f;
-                if (!ReadyToOpen(t0, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
-                if (building >= buildCap) continue;
+                if (!Ready(p, t0, caseHolds, open.Count == 0 ? 2 : 3, strong)) continue;
+                if (building >= buildCap) { p.State = Outlook.BuildersBusy; continue; }
                 // an empty shop of the trade the bank holds goes first, as it was; otherwise the kind picked
                 var shut = Buildings.FirstOrDefault(b => Array.IndexOf(m.Kinds, b.Type) >= 0 && b.Closed && b.Built && Connected(b) && pop >= b.Def.MinPop);
                 var kind = shut != null ? shut.Type : pick;
+                p.Kind = kind;
                 var founder = Founder(kind);
-                if (founder == null) { NoInvestor = kind; DevNote("no founder for " + kind); continue; }
+                if (founder == null) { p.State = Outlook.NoBacker; NoInvestor = kind; DevNote("no founder for " + kind); continue; }
                 var nb = shut != null ? Reopen(shut, founder) : Develop(kind, founder, null);
-                if (nb != null) { building++; EntryMonths[(int)t0] = 0; }
+                if (nb != null) { building++; EntryMonths[(int)t0] = 0; p.State = Outlook.Opening; p.Site = nb.Id; }
+                else p.State = Outlook.NoLot;
             }
             Chains(ref building, buildCap);
             ZoneDemand[(int)Zone.Commercial] = Math.Min(1, comDemand);
@@ -632,49 +645,79 @@ namespace RealLife.Simulation
             // a law firm for graduates), what the town hasn't got first
             bool officePending = Buildings.Any(b => (b.Def.Bills || b.Type == BuildingType.Office) && !b.Built);
             BuildingType officeKind = BuildingType.Office; int officeFit = -1;
-            if (!officePending)
-                foreach (var t in Defs.All)
-                {
-                    var d = Defs.Get(t);
-                    if (!(d.Bills || t == BuildingType.Office) || pop < d.MinPop) continue;
-                    if (!Buildings.Where(b => b.Type == t && b.Open).All(b => b.LastProfit > 0)) continue;
-                    int have = Buildings.Count(b => b.Type == t && (b.Open || !b.Built));
-                    if (have >= 1 + pop / (t == BuildingType.Office ? 700 : 1000)) continue;
-                    int fit = Qualified(looking, t, grads);
-                    int need = (int)Math.Ceiling(d.TotalJobs * (t == BuildingType.Office ? 0.3 : 0.5));
-                    if (fit < need) continue;
-                    int score = Math.Min(fit, 8) * 2 - have * 12 + (int)(Fancy(t) * 4);
-                    if (score > officeFit) { officeFit = score; officeKind = t; }
-                }
-            bool officeCase = officeFit >= 0;
-            if (ReadyToOpen(BuildingType.Office, officeCase, 2, grads >= 10) && building < buildCap)
+            var officeRows = new Dictionary<BuildingType, Prospect>();
+            foreach (var t in Defs.All)
             {
-                var founder = Founder(officeKind);
-                if (founder == null) NoInvestor = officeKind;
-                else if (Expand(officeKind, founder) != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; }
+                var d = Defs.Get(t);
+                if (!(d.Bills || t == BuildingType.Office)) continue;
+                var p = Pro(d.Name, t, 2, Buildings.Count(b => b.Type == t && b.Open), 0, Outlook.Promising);
+                officeRows[t] = p;
+                if (pop < d.MinPop) { p.State = Outlook.TooSmall; p.MinPop = d.MinPop; continue; }
+                var site = Buildings.FirstOrDefault(b => b.Type == t && !b.Built);
+                if (site != null) { p.State = Outlook.Building; p.Site = site.Id; continue; }
+                if (!Buildings.Where(b => b.Type == t && b.Open).All(b => b.LastProfit > 0)) { p.State = Outlook.Struggling; continue; }
+                int have = Buildings.Count(b => b.Type == t && (b.Open || !b.Built));
+                int per = t == BuildingType.Office ? 700 : 1000;
+                if (have >= 1 + pop / per) { p.State = Outlook.Enough; p.Per = per; continue; }
+                int fit = Qualified(looking, t, grads);
+                int need = (int)Math.Ceiling(d.TotalJobs * (t == BuildingType.Office ? 0.3 : 0.5));
+                if (fit < need) { p.State = Outlook.NoStaff; p.Have = fit; p.Need = need; continue; }
+                if (officePending) { p.State = Outlook.Queued; continue; }
+                int score = Math.Min(fit, 8) * 2 - have * 12 + (int)(Fancy(t) * 4);
+                if (score > officeFit) { officeFit = score; officeKind = t; }
+            }
+            bool officeCase = officeFit >= 0;
+            var op = officeRows[officeKind];
+            if (Ready(op, BuildingType.Office, officeCase, 2, grads >= 10))
+            {
+                if (building >= buildCap) op.State = Outlook.BuildersBusy;
+                else
+                {
+                    var founder = Founder(officeKind);
+                    if (founder == null) { NoInvestor = officeKind; op.State = Outlook.NoBacker; }
+                    else
+                    {
+                        var nb = Expand(officeKind, founder);
+                        if (nb != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; op.State = Outlook.Opening; op.Site = nb.Id; }
+                        else op.State = Outlook.NoLot;
+                    }
+                }
             }
             // industry: a plant of whatever kind would hire the people who are looking and pay its way, leaving out any that
             // failed here this past year; first what the town's businesses now import, then what the town doesn't make yet
             bool factoryPending = Buildings.Any(b => !b.Built && b.Def.Cat == Category.Industrial);
             bool factoryCase = !factoryPending && looking.Count >= 7 + pop / 40;
             FactoryMonths = factoryCase ? FactoryMonths + 1 : 0;
+            bool fstrong = looking.Count >= 20 + pop / 20;
+            // a line for every kind of plant and farm: what's in the way of one, or that it could open
+            var plantRows = new Dictionary<BuildingType, Prospect>();
+            var candidates = new List<BuildingType>();
+            foreach (var k in Defs.All)
+            {
+                var d = Defs.Get(k);
+                if (d.Cat != Category.Industrial || !d.Makes.HasValue) continue;
+                var p = Pro(d.Name, k, 1, Buildings.Count(b => b.Type == k && b.Open), LastImports[(int)d.Makes.Value], Outlook.Promising);
+                plantRows[k] = p;
+                var site = Buildings.FirstOrDefault(b => b.Type == k && !b.Built);
+                if (site != null) { p.State = Outlook.Building; p.Site = site.Id; continue; }
+                if (PlantHeld(k, pop, fstrong, looking, grads, p)) continue;
+                if (factoryPending) p.State = Outlook.Queued;
+                else if (FactoryMonths < 2)
+                {
+                    if (factoryCase) { p.Have = FactoryMonths; p.Of = 2; }
+                    else { p.State = Outlook.NoStaff; p.Have = looking.Count; p.Need = 7 + pop / 40; p.Of = -1; }
+                }
+                else if (building >= buildCap) p.State = Outlook.BuildersBusy;
+                else candidates.Add(k);
+            }
             if (FactoryMonths >= 2 && building < buildCap)
             {
-                bool strong = looking.Count >= 20 + pop / 20;
                 BuildingType best = BuildingType.FreightTerminal; double bestScore = double.MinValue;
                 var notes = new List<string>();
-                foreach (var k in Defs.All)
+                foreach (var k in candidates)
                 {
                     var d = Defs.Get(k);
-                    if (d.Cat != Category.Industrial || !d.Makes.HasValue || pop < Math.Max(150, d.MinPop)) continue;
-                    if (Cooling(k, strong) || Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 1 + pop / 600) continue;
-                    if (Buildings.Count(b => b.Def.Makes == d.Makes && (b.Open || !b.Built)) >= 2 + pop / 500) continue;
-                    if (looking.Count < d.TotalJobs * 0.7f || Qualified(looking, k, grads) < d.TotalJobs * 0.6f) continue;
-                    if (ZonedFree(d.Zone) < d.W * d.H) continue;
-                    // any of its kind here already struggling, short-handed or only scraping by
-                    if (Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04))) continue;
                     double pays = PlantCase(k);
-                    if (pays < 1.1) continue;
                     int g = (int)d.Makes.Value;
                     double score = Math.Min(2, pays) + (LastImports[g] > 5000 ? 1.5 : 0) + (Buildings.Any(b => b.Def.Makes == d.Makes && b.Open) ? 0 : 0.8) + Rand() * 0.6;
                     notes.Add(k + " " + pays.ToString("0.00"));
@@ -683,9 +726,15 @@ namespace RealLife.Simulation
                 DevNote("factory: looking " + looking.Count + " basic " + basic + " school " + school + " trade " + trade + " grads " + grads + " -> " + string.Join(",", notes));
                 if (best != BuildingType.FreightTerminal)
                 {
+                    var bp = plantRows[best];
                     var founder = Founder(best);
-                    if (founder == null) { NoInvestor = best; DevNote("no founder for " + best); }
-                    else if (Expand(best, founder) != null) { building++; FactoryMonths = 0; }
+                    if (founder == null) { NoInvestor = best; bp.State = Outlook.NoBacker; DevNote("no founder for " + best); }
+                    else
+                    {
+                        var nb = Expand(best, founder);
+                        if (nb != null) { building++; FactoryMonths = 0; bp.State = Outlook.Opening; bp.Site = nb.Id; }
+                        else bp.State = Outlook.NoLot;
+                    }
                 }
             }
             // supply: a plant or farm when the town's businesses import a lot of what one would make, and the ones here are busy
@@ -718,10 +767,13 @@ namespace RealLife.Simulation
                         if (p > kp) { kp = p; kind = k; }
                     }
                     bool supplyCase = busy && kind != BuildingType.FreightTerminal && imports > Math.Max(12000, 0.25 * Defs.Get(kind).TotalJobs * Defs.Get(kind).Output * Balance.DaysPerMonth * gd.Wholesale);
-                    if (!ReadyToOpen(key, supplyCase, IsFarm(kind) ? 2 : 3, imports > 60000)) continue;
+                    var sp = plantRows[supplyCase ? kind : key];
+                    if (!Ready(sp, key, supplyCase, IsFarm(kind) ? 2 : 3, imports > 60000)) continue;
                     var founder = Founder(kind);
-                    if (founder == null) { NoInvestor = kind; continue; }
-                    if (Expand(kind, founder) != null) { building++; EntryMonths[(int)key] = 0; if (building >= buildCap) break; }
+                    if (founder == null) { NoInvestor = kind; sp.State = Outlook.NoBacker; continue; }
+                    var nb = Expand(kind, founder);
+                    if (nb != null) { building++; EntryMonths[(int)key] = 0; sp.State = Outlook.Opening; sp.Site = nb.Id; if (building >= buildCap) break; }
+                    else sp.State = Outlook.NoLot;
                 }
             // builders: one if there's none; another only when the ones here are flat out with months of work queued
             var builders = Buildings.Where(b => b.Type == BuildingType.Construction && b.Open).ToList();
@@ -755,6 +807,26 @@ namespace RealLife.Simulation
                 if (founder == null) NoInvestor = BuildingType.Trucking;
                 else if (Expand(BuildingType.Trucking, founder) != null) EntryMonths[(int)BuildingType.Trucking] = 0;
             }
+            Prospects = pros; pros = null;
+        }
+
+        /// <summary>Is something in the way of a new plant or farm of this kind, as the town sees it this month? Notes what on
+        /// the prospect.</summary>
+        bool PlantHeld(BuildingType k, int pop, bool strong, List<Citizen> looking, int grads, Prospect p)
+        {
+            var d = Defs.Get(k);
+            int minPop = Math.Max(150, d.MinPop);
+            if (pop < minPop) { p.State = Outlook.TooSmall; p.MinPop = minPop; return true; }
+            if (Cooling(k, strong)) { p.State = Outlook.Failed; p.Until = RetryDay(k, strong); return true; }
+            if (Buildings.Count(b => b.Type == k && (b.Open || !b.Built)) >= 1 + pop / 600) { p.State = Outlook.Enough; p.Per = 600; return true; }
+            if (Buildings.Count(b => b.Def.Makes == d.Makes && (b.Open || !b.Built)) >= 2 + pop / 500) { p.State = Outlook.Enough; p.Per = 500; return true; }
+            int fit = Qualified(looking, k, grads);
+            if (looking.Count < d.TotalJobs * 0.7f || fit < d.TotalJobs * 0.6f) { p.State = Outlook.NoStaff; p.Have = fit; p.Need = Math.Ceiling(d.TotalJobs * 0.7f); return true; }
+            if (ZonedFree(d.Zone) < d.W * d.H) { p.State = Outlook.NoLot; return true; }
+            // any of its kind here already struggling, short-handed or only scraping by
+            if (Buildings.Any(b => b.Type == k && b.Open && (b.LossMonths > 0 || b.Staffing < 0.9f || b.LastProfit < b.LastRevenue * 0.04))) { p.State = Outlook.Struggling; return true; }
+            if (PlantCase(k) < 1.1) { p.State = Outlook.WontPay; return true; }
+            return false;
         }
         public int FactoryMonths;            // months in a row there have been enough people looking for work to staff a plant
         public float WorkStarted, WorkRate;  // labour-days of private building started this month, and the running average
@@ -775,6 +847,7 @@ namespace RealLife.Simulation
         {
             strong = false;
             pick = t0;
+            caseNeed = 0; casePer = 0;
             var d0 = Defs.Get(t0);
             bool goods = d0.Sells.HasValue || t0 == BuildingType.AutoRepair;
             // the kinds in the order this town would try them: what it hasn't got first
@@ -791,14 +864,21 @@ namespace RealLife.Simulation
                 double rev = goods ? away : WantAvg[(int)t0] * SpendPerWant(t0);
                 // thin retail margins need a clearer case, except for the everyday things people buy every week
                 bool everyday = t0 == BuildingType.GroceryStore || t0 == BuildingType.GasStation;
+                double spare = everyday ? 1.0 : goods ? 1.25 : 1.08;
+                caseAway = rev; caseState = Outlook.Promising;
                 foreach (var k in order)
                 {
-                    if (!PaysItsWay(k, rev, everyday ? 1.0 : goods ? 1.25 : 1.08)) continue;
+                    if (!PaysItsWay(k, rev, spare)) continue;
                     pick = k;
                     DevNote(k + " est rev " + Money(rev) + " margin " + Margin(k).ToString("0.00") + " cost " + Money(RunningCost(k, rev)));
                     strong = PaysItsWay(k, rev, 1.8);
                     return true;
                 }
+                // not enough yet: what the one it would try first would need
+                var first = order[0];
+                pick = first;
+                caseState = Outlook.Thin;
+                caseNeed = LeastThatPays(r => PaysItsWay(first, r, spare));
                 return false;
             }
             // the ones here are full, all making money and still turning people away: room for one more
@@ -808,8 +888,15 @@ namespace RealLife.Simulation
             bool room = open.Count < 1 + pop / PopPer(t0);
             double price = open.Average(b => b.Price) * (t0 == BuildingType.GroceryStore ? 4 : TicketSize(t0));
             double rev2 = lost * price;
+            caseAway = rev2;
+            casePer = PopPer(t0);
+            caseState = !room ? Outlook.Enough : !earning ? Outlook.Struggling : !full || lost <= Math.Max(8, served * 0.15f) ? Outlook.HaveRoom : Outlook.Promising;
             if (!(full && earning && room && lost > Math.Max(8, served * 0.15f))) return false;
             foreach (var k in order) if (PaysItsWay(k, rev2)) { pick = k; return true; }
+            var next = order[0];
+            pick = next;
+            caseState = Outlook.Thin;
+            caseNeed = LeastThatPays(r => PaysItsWay(next, r));
             return false;
         }
 
