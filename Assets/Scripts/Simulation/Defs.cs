@@ -199,7 +199,7 @@ namespace RealLife.Simulation
         public const double UtilitiesHome = 190;            // monthly power, water and internet per household
         public const double Insurance = 380, InsuranceAdult = 140;   // monthly health, car and home insurance, phones: paid out of town
         public const double UtilitiesJob = 60;              // monthly utilities per job slot for a business
-        public const double OfficeOverhead = 0.25;
+        public const double OfficeOverhead = 0.12;   // share of an office's takings spent on software, travel and leases, out of town
         public const double Maintenance = 0.01;             // a year, of a building's value: repairs done by the local builder
         public const double BankFee = 9;                    // monthly account fee per household          // share of an office's billing spent on software, travel, leases
         public const double CarPrice = 29000;
@@ -382,7 +382,7 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.Hairdresser, 3); d.Serves = Service.Haircut; d.ServicePrice = 48; d.Output = 28; d.MinPop = 200; d.Value = 140000; d.Floors = 2;
             d = D(BuildingType.Gym, "Gym", 2, 1, Category.Commercial, Zone.Commercial, 130000, 55, "Keeps people healthy and happier.");
             d.Jobs = J(Role.Trainer, 3, Role.Receptionist, 1); d.Serves = Service.Fitness; d.ServicePrice = 15; d.Output = 110; d.MinPop = 260; d.Value = 260000;
-            d = D(BuildingType.Office, "Office building", 2, 2, Category.Commercial, Zone.Commercial, 900000, 360, "Accountants, clerks and software developers billing clients outside town. Needs educated people.");
+            d = D(BuildingType.Office, "Office building", 2, 2, Category.Commercial, Zone.Commercial, 900000, 360, "A big firm: accountants and clerks doing the town's books, developers doing its IT. Needs educated people.");
             d.Jobs = J(Role.OfficeClerk, 6, Role.Accountant, 4, Role.Developer, 6); d.MinPop = 0; d.Value = 2000000; d.Floors = 6;
             d = D(BuildingType.Bank, "Bank", 2, 1, Category.Commercial, Zone.Commercial, 300000, 110, "Lends for homes, cars, college and businesses.");
             d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 150; d.Value = 600000; d.Floors = 2;

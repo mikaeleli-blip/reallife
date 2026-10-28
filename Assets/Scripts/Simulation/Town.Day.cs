@@ -39,6 +39,7 @@ namespace RealLife.Simulation
             HousingMonthly();
             BusFares();
             LoansMonthly();
+            OfficeWork();
             BusinessMonthly();
             Budgets();
             GovernmentMonthly();

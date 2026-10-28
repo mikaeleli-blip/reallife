@@ -375,7 +375,7 @@ static class Check
             {
                 var a = new object[] { p, null, null };
                 string st = (string)standing.Invoke(null, a);
-                Console.WriteLine("  " + (p.Name + (p.Here > 0 ? " x" + p.Here : "")).PadRight(28) + (g == 2 ? "" : (p.Away >= 1 && !p.Estimate ? Town.Money(p.Away) : "-").PadLeft(9)) + "  " + st.PadRight(26) + " | " + a[1]);
+                Console.WriteLine("  " + (p.Name + (p.Here > 0 ? " x" + p.Here : "")).PadRight(28) + (p.Away >= 1 && !p.Estimate ? Town.Money(p.Away) : "-").PadLeft(9) + "  " + st.PadRight(26) + " | " + a[1]);
             }
             var later = t.Prospects.Where(p => p.Group == g && p.State == Outlook.TooSmall && (all || p.Away >= 100)).OrderBy(p => p.MinPop);
             Console.WriteLine("  With more people: " + string.Join(" · ", later.Select(p => Defs.Get(p.Kind).Name + " " + p.MinPop)));

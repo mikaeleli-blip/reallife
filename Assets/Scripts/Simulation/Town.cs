@@ -121,6 +121,8 @@ namespace RealLife.Simulation
             if (SpendAway == null || SpendAway.Length != nt) SpendAway = new float[nt];
             if (AwayMonth == null || AwayMonth.Length != nt) AwayMonth = new double[nt];
             if (EntryMonths == null || EntryMonths.Length != nt) EntryMonths = new int[nt];
+            if (PracticeOwed == null || PracticeOwed.Length != PracticeCount) PracticeOwed = new double[PracticeCount];
+            if (PracticeAway == null || PracticeAway.Length != PracticeCount) PracticeAway = new float[PracticeCount];
             if (LastFailDay == null || LastFailDay.Length != nt) { LastFailDay = new int[nt]; for (int i = 0; i < nt; i++) LastFailDay[i] = -9999; }
             if (PrevFailDay == null || PrevFailDay.Length != nt) { PrevFailDay = new int[nt]; for (int i = 0; i < nt; i++) PrevFailDay[i] = -9999; }
             int nz = Enum.GetValues(typeof(Zone)).Length;

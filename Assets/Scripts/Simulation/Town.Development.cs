@@ -40,6 +40,8 @@ namespace RealLife.Simulation
         void PayBuilder(double amount)
         {
             Treasury -= amount; Book.Construction += amount;
+            // the engineers who lay it out
+            double eng = amount * 0.06; Fee(Practice.Engineering, eng); amount -= eng;
             var c = Buildings.FirstOrDefault(b => b.Type == BuildingType.Construction && b.Open);
             if (c != null) { double cost = amount * 0.55; c.Cash += amount - cost; c.Revenue += amount; c.Supplies += cost; Trade.Imports += cost; }
             else Trade.Imports += amount;
@@ -170,15 +172,16 @@ namespace RealLife.Simulation
                     // the client pays a deposit that covers the materials, and the builder orders them in
                     double first = d.Materials / d.StartupCost * b.ContractLeft;
                     ClientPays(b, first);
+                    double net = DesignCut(b, first);
                     if (con != null)
                     {
-                        con.Cash += first; con.Revenue += first;
+                        con.Cash += net; con.Revenue += net;
                         double mat = d.Materials;
                         double fee = Freight(mat, -1, con.Id, Good.Materials);
                         con.Cash -= mat + fee; con.Supplies += mat + fee;
                         Trade.Imports += mat; ImportsByGood[(int)Good.Materials] += mat;
                     }
-                    else Trade.Imports += first;
+                    else Trade.Imports += net;
                     b.ContractLeft -= first;
                     b.Started = true;
                 }
@@ -197,8 +200,9 @@ namespace RealLife.Simulation
                 double pay = d.Work > 0 ? b.ContractLeft * (work / Math.Max(0.01f, d.Work - before)) : b.ContractLeft;
                 pay = Math.Min(pay, b.ContractLeft);
                 ClientPays(b, pay);
-                if (con != null) { con.Cash += pay; con.Revenue += pay; con.Customers++; }
-                else Trade.Imports += pay;
+                double paid = DesignCut(b, pay);
+                if (con != null) { con.Cash += paid; con.Revenue += paid; con.Customers++; }
+                else Trade.Imports += paid;
                 b.ContractLeft -= pay;
                 if (b.Progress >= d.Work - 0.01f) Finish(b);
             }
@@ -227,14 +231,15 @@ namespace RealLife.Simulation
         {
             var d = b.Def;
             // a builder starts with a small crew and takes on hands as work comes in
-            b.Closed = false; b.ClosedDays = 0; b.Staffing = b.Type == BuildingType.Construction ? 0.3f : d.Cat == Category.Industrial ? 0.75f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
+            // (an office starts small and takes people on as its clients keep it busy)
+            b.Closed = false; b.ClosedDays = 0; b.Staffing = b.Type == BuildingType.Construction ? 0.3f : d.Cat == Category.Industrial ? 0.75f : IsOffice(b.Type) ? 0.25f : 0.5f; b.WageMult = 1; b.LossMonths = 0; b.BuiltDay = Day;
             if (d.Sells.HasValue) b.Price = d.Chain != null ? ChainPrice(b.Type) : Defs.Retail[(int)d.Sells.Value] * d.PriceFactor;
             else if (d.Serves != Service.None) b.Price = d.ServicePrice;
             else if (d.Makes.HasValue) b.Price = Defs.Wholesale[(int)d.Makes.Value];
             // enough to see it through to the first sales: longer for a property firm waiting on its first houses
             // and its first stock: a shop's shelves, or a month of a plant's materials
             double stock = d.Sells.HasValue ? d.StockCap * Defs.Wholesale[(int)d.Sells.Value] * 0.4 : SuppliesPerMonth(b);
-            double working = PayAndBills(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5) + stock;
+            double working = PayAndBills(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5) + stock + OpeningLegal + OpeningDesign;
             if (b.Owner == Owner.Household)
             {
                 var h = GetHousehold(b.OwnerId);
@@ -255,9 +260,26 @@ namespace RealLife.Simulation
                 b.Cash += working;
                 AddLog(Title(b) + " opened and is hiring.", LogKind.Good, b.Id);
             }
+            // the lawyer who draws up the papers, and the sign and the logo
+            b.Cash -= OpeningLegal + OpeningDesign; b.OtherCosts += OpeningLegal + OpeningDesign;
+            Fee(Practice.Legal, OpeningLegal); Fee(Practice.Design, OpeningDesign);
             if (b.Type == BuildingType.Realty) PlanFirmStaff(b);
             MapVersion++;
         }
+
+        /// <summary>The architect's and the engineer's fees come out of each payment for a building as the work goes on; the
+        /// builder gets the rest.</summary>
+        double DesignCut(Building b, double amount)
+        {
+            double arch = amount * ArchitectShare(b), eng = amount * EngineerShare(b);
+            Fee(Practice.Architecture, arch); Fee(Practice.Engineering, eng);
+            return amount - arch - eng;
+        }
+
+        /// <summary>The architect's share of what a building costs: less for a house or a block of flats built to a plan.</summary>
+        static double ArchitectShare(Building b) { return b.Def.Homes > 0 ? 0.02 : 0.05; }
+        /// <summary>The engineer's: most for plants and public works.</summary>
+        static double EngineerShare(Building b) { var c = b.Def.Cat; return c == Category.Industrial || c == Category.Public ? 0.03 : 0.005; }
 
         // ================================================================== developers
         /// <summary>Where a building of this type could go on land zoned for it: the most central free spot.</summary>
@@ -437,7 +459,7 @@ namespace RealLife.Simulation
             double wage = 0; int n = 0;
             foreach (var j in d.Jobs) for (int k = 0; k < j.Count && n < crew; k++, n++) wage += Math.Max(Policy.MinWage, Defs.Get(j.Role).Wage * 1.12);   // with a few years' experience
             return wage + d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
-                   + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
+                   + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths) + OfficeBills(t, revenue, crew);
         }
 
         /// <summary>Would a new plant pay its way fully staffed: what it makes, sold to the shops and plants here that now import
@@ -465,7 +487,7 @@ namespace RealLife.Simulation
             double going = plants.Count > 0 ? Math.Max(1, plants.Average(b => b.WageMult)) : 1;
             double cost = 0; foreach (var j in d.Jobs) cost += j.Count * Math.Max(Policy.MinWage, Defs.Get(j.Role).Wage * going);
             cost += d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
-                    + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths);
+                    + Annuity(d.StartupCost * (1 - FoundersShare(t)), Balance.PropertyRate, Balance.PropertyMonths) + OfficeBills(t, revenue, d.TotalJobs);
             return margin / Math.Max(1, cost);
         }
 
@@ -641,48 +663,9 @@ namespace RealLife.Simulation
             int school = looking.Count(c => c.Edu == Edu.HighSchool), trade = looking.Count(c => c.Edu == Edu.Trade), basic = looking.Count(c => c.Edu == Edu.None);
             float indDemand = (looking.Count - pop * 0.04f) / Math.Max(6f, pop / 20f);
             ZoneDemand[(int)Zone.Industrial] = Math.Max(-1, Math.Min(1, indDemand));
-            // offices: a firm of whatever kind would hire the people who are looking (a call center for those without a diploma,
-            // a law firm for graduates), what the town hasn't got first
-            bool officePending = Buildings.Any(b => (b.Def.Bills || b.Type == BuildingType.Office) && !b.Built);
-            BuildingType officeKind = BuildingType.Office; int officeFit = -1;
-            var officeRows = new Dictionary<BuildingType, Prospect>();
-            foreach (var t in Defs.All)
-            {
-                var d = Defs.Get(t);
-                if (!(d.Bills || t == BuildingType.Office)) continue;
-                var p = Pro(d.Name, t, 2, Buildings.Count(b => b.Type == t && b.Open), 0, Outlook.Promising);
-                officeRows[t] = p;
-                if (pop < d.MinPop) { p.State = Outlook.TooSmall; p.MinPop = d.MinPop; continue; }
-                var site = Buildings.FirstOrDefault(b => b.Type == t && !b.Built);
-                if (site != null) { p.State = Outlook.Building; p.Site = site.Id; continue; }
-                if (!Buildings.Where(b => b.Type == t && b.Open).All(b => b.LastProfit > 0)) { p.State = Outlook.Struggling; continue; }
-                int have = Buildings.Count(b => b.Type == t && (b.Open || !b.Built));
-                int per = t == BuildingType.Office ? 700 : 1000;
-                if (have >= 1 + pop / per) { p.State = Outlook.Enough; p.Per = per; continue; }
-                int fit = Qualified(looking, t, grads);
-                int need = (int)Math.Ceiling(d.TotalJobs * (t == BuildingType.Office ? 0.3 : 0.5));
-                if (fit < need) { p.State = Outlook.NoStaff; p.Have = fit; p.Need = need; continue; }
-                if (officePending) { p.State = Outlook.Queued; continue; }
-                int score = Math.Min(fit, 8) * 2 - have * 12 + (int)(Fancy(t) * 4);
-                if (score > officeFit) { officeFit = score; officeKind = t; }
-            }
-            bool officeCase = officeFit >= 0;
-            var op = officeRows[officeKind];
-            if (Ready(op, BuildingType.Office, officeCase, 2, grads >= 10))
-            {
-                if (building >= buildCap) op.State = Outlook.BuildersBusy;
-                else
-                {
-                    var founder = Founder(officeKind);
-                    if (founder == null) { NoInvestor = officeKind; op.State = Outlook.NoBacker; }
-                    else
-                    {
-                        var nb = Expand(officeKind, founder);
-                        if (nb != null) { building++; EntryMonths[(int)BuildingType.Office] = 0; op.State = Outlook.Opening; op.Site = nb.Id; }
-                        else op.State = Outlook.NoLot;
-                    }
-                }
-            }
+            // offices: where the town's own work (its books, its ads, its house sales, its new buildings) goes to firms out
+            // of town for want of one here
+            Offices(pop, ref building, buildCap);
             // industry: a plant of whatever kind would hire the people who are looking and pay its way, leaving out any that
             // failed here this past year; first what the town's businesses now import, then what the town doesn't make yet
             bool factoryPending = Buildings.Any(b => !b.Built && b.Def.Cat == Category.Industrial);
@@ -1055,7 +1038,10 @@ namespace RealLife.Simulation
             {
                 if (b.Def.Cat != Category.Public || !b.Built) continue;
                 double u = b.Def.Upkeep;
-                Treasury -= u; Book.Upkeep += u; Trade.Imports += u;
+                Treasury -= u; Book.Upkeep += u; Trade.Imports += u * 0.95; Fee(Practice.Engineering, u * 0.05);
+                // IT for its staff
+                double it = 40 * b.Employees.Count;
+                Treasury -= it; Book.Upkeep += it; Fee(Practice.Software, it);
             }
             int roads = 0; for (int i = 0; i < Tiles.Length; i++) if ((Tiles[i] & TileBits.Road) != 0) roads++;
             double ru = roads * 50;

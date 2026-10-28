@@ -88,6 +88,12 @@ static class Program
                         Console.WriteLine($"        broken car {c.Id} {c.Class} age {t.CarAge(c):0.0} value {Town.Money(t.CarValue(c))} hours {c.JobHours} parts {c.JobParts:0.0} | hh cash {Town.Money(h.Cash)} income {Town.Money(t.MonthlyIncome(h))} cars {t.CarCount(h)} members {h.Members.Count}");
                     }
             }
+            if (Environment.GetEnvironmentVariable("OFFICES") == "1" && m % 12 == 11)
+            {
+                Console.WriteLine("      office work (owed / done here / outside): " + string.Join("  ", Enumerable.Range(0, Town.PracticeCount).Select(i => ((Practice)i) + " " + Town.Money(t.LastPracticeOwed[i]) + "/" + Town.Money(t.LastPracticeLocal[i]) + "/" + Town.Money(t.LastPracticeOutside[i]))));
+                foreach (var b in t.Buildings.Where(x => Town.IsOffice(x.Type) && x.Built && !x.Closed))
+                    Console.WriteLine("        " + t.Title(b) + " (" + b.Type + ") staff " + b.Employees.Count + " st " + b.Staffing.ToString("0.00") + " use " + b.LastUse.ToString("0.00") + " rev " + Town.Money(b.LastRevenue) + " (here " + Town.Money(b.LastLocalWork) + ", outside " + Town.Money(b.LastOutsideWork) + ") wages " + Town.Money(b.LastWages) + " profit " + Town.Money(b.LastProfit) + " loss " + b.LossMonths);
+            }
             if (bot != null && m % 12 == 11) Console.WriteLine("      commuters " + t.Commuters() + "/" + t.CommuteCap() + " pay in " + Town.Money(t.LastTrade.Commuting) + "  advice: " + string.Join(" | ", t.Advice()));
             if (t.DevNotes != null) { if (t.DevNotes.Count > 0) Console.WriteLine("      dev: " + string.Join(" | ", t.DevNotes)); t.DevNotes.Clear(); }
             if (verbose) foreach (var e in t.Log.Where(e => e.Day > t.Day - 4)) Console.WriteLine("      " + e.Text);

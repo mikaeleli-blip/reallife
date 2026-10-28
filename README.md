@@ -88,7 +88,7 @@ of their parents' place; singles pair up and move in together; couples have chil
 **Businesses.** Shops buy stock from makers in town (a food plant for groceries, factories for clothes, electronics,
 furniture) when that's cheaper than importing it, and sell to households with sales tax on top. Restaurants, cafés, bars,
 gyms, salons and garages sell services. Farms grow crops for the food plant on Farmland you zone (well away from the
-factories, if you like); factories export what the town can't buy at world prices. Offices bill clients outside town and are the best-paid jobs, if the town has the graduates to staff them.
+factories, if you like); factories export what the town can't buy at world prices. Offices work mostly for the town itself (see below) and are the best-paid jobs, if the town has the graduates to staff them.
 Construction companies build everything and do repair work (when the ones here are booked up for months, contractors from
 out of town take the overflow at a higher price, which is what brings another builder to town); trucking depots haul goods (without one, outside hauliers charge
 more). The bank lends for homes, cars, college and businesses. Every month each business pays wages, utilities, upkeep and
@@ -149,11 +149,23 @@ homewares), and families buy them as they wear out or when they have money to sp
 bars, steakhouses and two dozen other places to eat and drink; yoga studios, climbing gyms and a swim club; barbers, nail
 salons and a day spa; a cinema, bowling, an arcade, mini golf, a skating rink and a theater; dentists, opticians, vets and
 physios; laundromats, dry cleaners, tailors and phone repair; daycare and lessons for kids; law, accounting, software and
-other offices that bill clients out of town; motels and hotels for visitors; a funeral home and a taxi company. Each needs
+other offices; motels and hotels for visitors; a funeral home and a taxi company. Each needs
 enough people round it (the bigger and fancier, the bigger the town), and no kind gets built over and over: one plant of a
 kind per 600 people or so, and only two or three making the same thing until the town is much bigger, so a growing town
 gets more kinds of business rather than more of the same. Most of the new industry wants Industrial land and the shops
 Commercial land, so zone some of each.
+
+**Offices.** Offices earn their money from the town's own work. Every business pays for its books, IT for its staff,
+ads (most of all the shops, restaurants and services), a lawyer, design and, for the big ones, a phone line; families pay
+for their tax returns and a lawyer now and then, and their insurance carries an agent's commission; every house sold
+carries an agent's and a lawyer's fee, homes let by families an agent's cut, every new building an architect's and an
+engineer's fee as it goes up, plants and public buildings an engineer's upkeep. That work is paid for whether or not
+there's an office here: without one, or when the ones here are full, it goes to firms out of town (the Market panel shows
+how much). The offices here share it by how much their staff can take on, take people on while they have more work than
+they can do and let them go when it's short. Clients from out of town fill a little of their spare time, never much: a
+software studio or a call center gets the most. So an accountant and an insurance agent come early, a law firm and an
+estate agent with a few hundred more people, architects in a building boom (and they go quiet after it), and the rest as
+the town and its businesses grow.
 
 **Property firms.** Rented homes belong to the town's property companies, each run from an office downtown by a local family
 with property managers and handymen on staff. They build houses to sell on land zoned for houses, and blocks of twelve flats to let on land zoned for apartments; buy

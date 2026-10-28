@@ -471,16 +471,16 @@ namespace RealLife.Simulation
             d.In(Good.Fuel, 0.2f);
 
             // ---------------------------------------------------------------- offices
-            Firm(BuildingType.LawFirm, "Law firm", 1, 1, 180000, 70, 400000, 2, " Law", "Lawyers billing clients out of town. Needs graduates.", Role.Lawyer, 2, Role.Paralegal, 2, Role.Receptionist, 1);
-            Firm(BuildingType.AccountingFirm, "Accounting firm", 1, 1, 160000, 60, 360000, 2, " & Partners", "Books and taxes for clients out of town. Needs graduates.", Role.Accountant, 3, Role.OfficeClerk, 2);
-            Firm(BuildingType.InsuranceAgency, "Insurance agency", 1, 1, 120000, 50, 260000, 2, " Insurance", "Agents selling policies across the county.", Role.Agent, 3, Role.OfficeClerk, 1);
-            Firm(BuildingType.RealEstateAgency, "Real estate agency", 1, 1, 120000, 50, 260000, 2, " Realtors", "Agents selling homes across the county.", Role.Agent, 3, Role.Receptionist, 1);
-            Firm(BuildingType.ArchitectureFirm, "Architecture firm", 1, 1, 170000, 65, 380000, 2, " Architects", "Designs buildings for clients out of town. Needs graduates.", Role.Architect, 3, Role.Designer, 1);
-            Firm(BuildingType.MarketingAgency, "Marketing agency", 1, 1, 160000, 60, 360000, 2, " Media", "Ads and websites for clients out of town.", Role.Designer, 3, Role.OfficeClerk, 1, Role.Developer, 1);
-            Firm(BuildingType.SoftwareStudio, "Software studio", 2, 1, 260000, 100, 560000, 3, " Labs", "Developers writing apps for clients out of town. Needs graduates.", Role.Developer, 5, Role.Designer, 1);
-            Firm(BuildingType.CallCenter, "Call center", 2, 1, 240000, 90, 500000, 2, " Contact Center", "Answers the phones for companies out of town. Work for people without a diploma.", Role.CallAgent, 10, Role.OfficeClerk, 1);
-            Firm(BuildingType.EngineeringFirm, "Engineering firm", 2, 1, 260000, 100, 560000, 3, " Engineering", "Engineers designing for clients out of town.", Role.Engineer, 4, Role.Technician, 2, Role.Designer, 1);
-            Firm(BuildingType.DesignStudio, "Design studio", 1, 1, 120000, 50, 260000, 2, " Design", "Graphic and product design for clients out of town.", Role.Designer, 3);
+            Firm(BuildingType.LawFirm, "Law firm", 1, 1, 180000, 70, 400000, 2, " Law", "Lawyers for the town: house sales, new businesses, wills and disputes, contracts for the bigger firms. Needs graduates.", Role.Lawyer, 2, Role.Paralegal, 2, Role.Receptionist, 1);
+            Firm(BuildingType.AccountingFirm, "Accounting firm", 1, 1, 160000, 60, 360000, 2, " & Partners", "Does the books for the town's businesses and families' tax returns. Needs graduates.", Role.Accountant, 3, Role.OfficeClerk, 2);
+            Firm(BuildingType.InsuranceAgency, "Insurance agency", 1, 1, 120000, 50, 260000, 2, " Insurance", "Sells the town's families and businesses their insurance, on commission.", Role.Agent, 3, Role.OfficeClerk, 1);
+            Firm(BuildingType.RealEstateAgency, "Real estate agency", 1, 1, 120000, 50, 260000, 2, " Realtors", "Agents taking a cut of every house sold in town, and letting homes for families and the property firms.", Role.Agent, 3, Role.Receptionist, 1);
+            Firm(BuildingType.ArchitectureFirm, "Architecture firm", 1, 1, 170000, 65, 380000, 2, " Architects", "Designs what gets built in town, for a share of each job: busy in a building boom, quiet after. Needs graduates.", Role.Architect, 3, Role.Designer, 1);
+            Firm(BuildingType.MarketingAgency, "Marketing agency", 1, 1, 160000, 60, 360000, 2, " Media", "Ads for the town's shops, restaurants and firms.", Role.Designer, 3, Role.OfficeClerk, 1, Role.Developer, 1);
+            Firm(BuildingType.SoftwareStudio, "Software studio", 2, 1, 260000, 100, 560000, 3, " Labs", "IT and software for the town's businesses and the town hall, and a few contracts from out of town. Needs graduates.", Role.Developer, 5, Role.Designer, 1);
+            Firm(BuildingType.CallCenter, "Call center", 2, 1, 240000, 90, 500000, 2, " Contact Center", "Answers the phones for the bigger businesses here, and for some companies out of town. Work for people without a diploma.", Role.CallAgent, 10, Role.OfficeClerk, 1);
+            Firm(BuildingType.EngineeringFirm, "Engineering firm", 2, 1, 260000, 100, 560000, 3, " Engineering", "Engineering for the plants, the roads and the public buildings.", Role.Engineer, 4, Role.Technician, 2, Role.Designer, 1);
+            Firm(BuildingType.DesignStudio, "Design studio", 1, 1, 120000, 50, 260000, 2, " Design", "Signs and logos for new businesses, packaging for the plants.", Role.Designer, 3);
 
             // ---------------------------------------------------------------- visitors and the rest
             d = Fun(BuildingType.Motel, "Motel", 2, 1, 220000, 90, 420000, Service.Lodging, 75, 25, 250, 1500, " Motel", "Rooms off the highway for people passing through and visiting the town's businesses.", -0.05f, Role.Housekeeper, 2, Role.Receptionist, 1);

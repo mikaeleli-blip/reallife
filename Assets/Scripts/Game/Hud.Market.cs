@@ -30,7 +30,7 @@ namespace RealLife.Game
             }
             MarketGroup(rows, list, 0, "Shops and services", "goes elsewhere");
             MarketGroup(rows, list, 1, "Industry and farms", "brought in");
-            MarketGroup(rows, list, 2, "Offices", null);
+            MarketGroup(rows, list, 2, "Offices", "goes out of town");
             EndPanel(rows);
         }
 
@@ -40,7 +40,7 @@ namespace RealLife.Game
             var later = all.Where(p => p.State == Outlook.TooSmall && (marketAll || p.Away >= 100 || Defs.Get(p.Kind).Chain != null)).OrderBy(p => p.MinPop).ToList();
             var rest = all.Where(p => p.State != Outlook.TooSmall).ToList();
             var shown = rest.Where(p => marketAll || Notable(p)).OrderBy(p => p.State == Outlook.Opening || p.State == Outlook.Building ? 0 : 1)
-                            .ThenBy(p => g == 2 ? Rank(p.State) : 0).ThenByDescending(p => p.Away).ToList();
+                            .ThenByDescending(p => p.Away).ToList();
             rows.Header(title);
             if (shown.Count > 0)
             {
@@ -71,19 +71,6 @@ namespace RealLife.Game
             return p.Group == 2 || p.Away >= 100;
         }
 
-        static int Rank(Outlook o)
-        {
-            switch (o)
-            {
-                case Outlook.Opening: return 0;
-                case Outlook.Building: return 1;
-                case Outlook.Promising: return 2;
-                case Outlook.NoLot: case Outlook.NoBacker: case Outlook.BuildersBusy: return 3;
-                case Outlook.Queued: return 4;
-                default: return 5;
-            }
-        }
-
         static string KindLabel(Prospect p)
         {
             var n = Defs.Get(p.Kind).Name;
@@ -99,7 +86,7 @@ namespace RealLife.Game
             var site = p.Site >= 0 ? T.GetBuilding(p.Site) : null;
             if (site != null) { if (Ui.Link(nameR, label)) gc.FocusBuilding(site); }
             else Ui.Small(nameR, label);
-            if (p.Group != 2) Ui.Right(new Rect(r.x, r.y, w * 0.62f, r.height), p.Away >= 1 && !p.Estimate ? Town.Money(p.Away) : "–", Ui.Dim);
+            Ui.Right(new Rect(r.x, r.y, w * 0.62f, r.height), p.Away >= 1 && !p.Estimate ? Town.Money(p.Away) : "–", Ui.Dim);
             string tip; Color c;
             string st = Standing(p, out tip, out c);
             Ui.Right(r, st, c);
@@ -126,7 +113,10 @@ namespace RealLife.Game
             string One = char.ToUpper(one[0]) + one.Substring(1);
             bool says = p.State == Outlook.Thin || p.State == Outlook.Promising || p.State == Outlook.NoLot || p.State == Outlook.NoBacker || p.State == Outlook.BuildersBusy || p.State == Outlook.Failed;
             string next = says && p.Group == 0 && p.Name != d.Name && d.Chain == null ? "Next would be " + A(kind) + ". " : "";
-            string away = p.Away < 1 ? "" : p.Estimate ? "It would take about " + Town.Money(p.Away) + " a month of the town's grocery shopping. " : p.Group == 1 ? Town.Money(p.Away) + " a month of what it makes is brought in from outside. "
+            string away = p.Away < 1 ? "" : p.Estimate ? "It would take about " + Town.Money(p.Away) + " a month of the town's grocery shopping. "
+                        : p.Group == 2 ? (p.Here == 0 ? Town.Money(p.Away) + " a month of the town's office work goes to firms out of town. "
+                                                      : Town.Money(p.Away) + " a month of work the office" + (p.Here > 1 ? "s" : "") + " here couldn't take on went out of town. ")
+                        : p.Group == 1 ? Town.Money(p.Away) + " a month of what it makes is brought in from outside. "
                         : p.Here == 0 ? Town.Money(p.Away) + " a month goes out of town, or unspent, for want of one. "
                         : Town.Money(p.Away) + " a month of custom was turned away at the one" + (p.Here > 1 ? "s" : "") + " here. ";
             string here = p.Here == 1 ? "the one" : "the " + p.Here;
@@ -144,7 +134,7 @@ namespace RealLife.Game
                         tip = next + away + "The numbers for " + one + " have added up " + p.Have + (p.Have == 1 ? " month" : " months") + " running; someone starts one if they still do after " + p.Of + ".";
                         return "promising " + p.Have + "/" + p.Of;
                     }
-                    tip = next + away + (p.Group == 2 ? "There are people looking for work who could staff " + one + ". One new office goes up at a time." : One + " would pay its way.");
+                    tip = next + away + One + " would pay its way.";
                     return "could open";
                 case Outlook.NoLot:
                     c = Ui.Warn;
@@ -171,7 +161,8 @@ namespace RealLife.Game
                     tip = next + away + (p.Need > 0 ? One + " would need about " + Approx(p.Need) + " a month to pay its way." : "Not enough for " + one + " to pay its way.");
                     return p.Need > 0 ? "needs ~" + Approx(p.Need) : "not enough yet";
                 case Outlook.HaveRoom:
-                    tip = next + away + (p.Here == 1 ? "The one here isn't" : "The ones here aren't") + " full or turning many people away yet.";
+                    tip = next + away + (p.Group == 2 ? (p.Here == 1 ? "The one here" : "The ones here") + " can still take on more staff and work."
+                                                      : (p.Here == 1 ? "The one here isn't" : "The ones here aren't") + " full or turning many people away yet.");
                     return "room at " + here + " here";
                 case Outlook.Struggling:
                     tip = next + away + "Nobody opens " + one + " while one here is losing money" + (p.Group == 1 ? ", short of staff or barely breaking even." : ".");

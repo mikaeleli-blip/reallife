@@ -103,16 +103,7 @@ namespace RealLife.Simulation
                 var d = b.Def;
                 if (!b.Open || !IsBusiness(b) || !Connected(b)) continue;
                 int present = PresentStaff(b);
-                if (d.Bills || b.Type == BuildingType.Office)
-                {
-                    double bill = 0;
-                    foreach (var id in b.Employees) { var c = GetCitizen(id); if (c != null && c.AtWork) bill += Defs.Get(c.Role).Billing * (1 + Math.Min(0.4, c.Experience * 0.015)); }
-                    double overhead = bill * Balance.OfficeOverhead;
-                    b.Cash += bill - overhead; b.Revenue += bill; b.OtherCosts += overhead;
-                    Trade.Services += bill; Trade.Imports += overhead;
-                    b.CapUsed += present; b.CapTotal += present;
-                    continue;
-                }
+                if (d.Bills || b.Type == BuildingType.Office) continue;   // offices earn their fees at the start of the month (OfficeWork)
                 if (!d.Makes.HasValue) continue;
                 var g = d.Makes.Value;
                 float potential = present * d.Output * (b.Type == BuildingType.Farm ? season : 1f);
@@ -325,7 +316,11 @@ namespace RealLife.Simulation
                 double util = d.TotalJobs * Balance.UtilitiesJob;
                 b.Cash -= util; b.OtherCosts += util; Trade.Utilities += util;
                 double fix = b.Value * Balance.Maintenance / 12;
-                b.Cash -= fix; b.OtherCosts += fix; if (b.Type != BuildingType.Construction) Repairs(fix); else Trade.Imports += fix;
+                b.Cash -= fix; b.OtherCosts += fix;
+                // a plant's upkeep needs an engineer as well as a builder
+                if (d.Makes.HasValue && !IsFarm(b.Type)) { Fee(Practice.Engineering, fix * 0.2); fix *= 0.8; }
+                if (b.Type != BuildingType.Construction) Repairs(fix); else Trade.Imports += fix;
+                PayOfficeBills(b);
                 double ptax = b.Value * Policy.PropertyTax / 12;
                 b.Cash -= ptax; b.TaxPaid += ptax; Treasury += ptax; Book.PropertyTax += ptax;
                 double profit = b.Revenue - b.WageBill - b.Supplies - b.TaxPaid - b.OtherCosts;
@@ -442,7 +437,9 @@ namespace RealLife.Simulation
             var d = b.Def;
             float s = b.Staffing;
             float lostShare = b.LastLost / (float)Math.Max(1, b.LastCustomers + b.LastLost);
-            if (d.Bills || b.Type == BuildingType.Office) s += b.LastProfit > 0 ? 0.15f : b.LossMonths >= 2 ? -0.15f : 0;
+            // an office takes people on while it has more work than it can do, and lets them go when work is short (or when
+            // it's losing money without being busy)
+            if (d.Bills || b.Type == BuildingType.Office) s += b.LastUse > 0.92f ? 0.15f : b.LastUse < 0.7f || (b.LossMonths >= 2 && b.LastUse < 0.85f) ? -0.15f : 0;
             else if (b.Type == BuildingType.Construction)
             {
                 // a crew sized to the work on the books: what's left on its sites, over the next few months

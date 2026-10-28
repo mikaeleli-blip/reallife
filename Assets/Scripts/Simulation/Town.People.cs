@@ -183,6 +183,8 @@ namespace RealLife.Simulation
             DeathsMonth++;
             var h = HouseholdOf(c);
             if (h != null) Funeral(h, HomeOf(h));
+            // the will, for a family with something to leave
+            if (h != null && !c.IsChild && h.Cash > 15000) HouseholdFee(h, Practice.Legal, Math.Min(4000, 1000 + h.Cash * 0.01), HouseholdBook.Goods);
             RemovePerson(c);
         }
 

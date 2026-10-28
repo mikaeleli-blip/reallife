@@ -137,7 +137,12 @@ namespace RealLife.Game
                 rows.Pair("Made today", b.Produced.ToString("0.#") + " " + Defs.GoodUnits[(int)g]);
             }
             foreach (var i in d.Inputs) rows.Pair("Has " + Defs.Name(i.Good).ToLower(), b.Stock[(int)i.Good].ToString("#,0.#") + " " + Defs.GoodUnits[(int)i.Good]);
-            if (d.Bills || b.Type == BuildingType.Office) rows.Pair("Clients", "billed out of town");
+            if (d.Bills || b.Type == BuildingType.Office)
+            {
+                rows.Pair("Work for clients here", Town.Money(b.LastLocalWork));
+                rows.Pair("Work from out of town", Town.Money(b.LastOutsideWork), Ui.Dim);
+                rows.Pair("Kept busy", Town.Pct(b.LastUse), b.LastUse < 0.6f ? Ui.Warn : Ui.Text);
+            }
             if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
             if (d.Chain != null)
             {
@@ -344,7 +349,7 @@ namespace RealLife.Game
             var tr = T.LastTrade;
             rows.Pair("Pay from jobs out of town", Town.Money(tr.Commuting), Ui.Good);
             rows.Pair("Goods sold out of town", Town.Money(tr.Exports), Ui.Good);
-            rows.Pair("Office work billed outside", Town.Money(tr.Services), Ui.Good);
+            rows.Pair("Office work and hotel stays", Town.Money(tr.Services), Ui.Good);
             rows.Pair("Pensions paid in", Town.Money(tr.Pensions), Ui.Good);
             rows.Pair("Outside investment", Town.Money(tr.Investment), Ui.Good);
             rows.Pair("Imports", "-" + Town.Money(tr.Imports), Ui.Bad);

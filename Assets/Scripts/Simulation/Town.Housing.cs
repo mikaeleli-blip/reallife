@@ -59,7 +59,12 @@ namespace RealLife.Simulation
                 HouseholdPays(h, util, HouseholdBook.Utilities); Trade.Utilities += util;
                 double ins = Balance.Insurance + Balance.InsuranceAdult * ms.Count(m => !m.IsChild);
                 ins = Math.Min(ins, Math.Max(0, h.Cash));
-                HouseholdPays(h, ins, HouseholdBook.Utilities); Trade.Utilities += ins;
+                HouseholdPays(h, ins, HouseholdBook.Utilities); Trade.Utilities += ins * (1 - InsuranceCommission);
+                Fee(Practice.Insurance, ins * InsuranceCommission);   // the agent's commission
+                // tax returns, for a family with earnings
+                if (ms.Any(m => m.WorkId >= 0) || h.LastIn[HouseholdBook.Business] > 0) HouseholdFee(h, Practice.Accounting, 25, HouseholdBook.Utilities);
+                // a lawyer now and then: a will, a dispute, a divorce
+                HouseholdFee(h, Practice.Legal, 8, HouseholdBook.Utilities);
                 // benefits and pensions
                 foreach (var c in ms)
                 {
@@ -128,7 +133,12 @@ namespace RealLife.Simulation
             }
         }
 
-        void PayLandlord(Building home, double amount) { PayOwner(home, amount, true); }
+        void PayLandlord(Building home, double amount)
+        {
+            // a family or the bank letting a home pays an agent to find tenants and collect the rent
+            if (home.Owner != Owner.Firm && home.Owner != Owner.Town) { double fee = amount * 0.08; Fee(Practice.Realty, fee); amount -= fee; }
+            PayOwner(home, amount, true);
+        }
 
         /// <summary>Rental buildings: tax, upkeep, and next month's rent. Firms' handymen do their upkeep; families and the bank
         /// pay the local builder.</summary>
@@ -217,7 +227,7 @@ namespace RealLife.Simulation
                 var b = market.OrderBy(x => x.Value).First();
                 if (h.Cash < b.Value * 1.05 + 30000) continue;
                 SellerGets(b, b.Value, false);
-                HouseholdPays(h, b.Value * 1.03, HouseholdBook.Housing); Trade.Imports += b.Value * 0.03;
+                HouseholdPays(h, b.Value * 1.03, HouseholdBook.Housing); Fee(Practice.Realty, b.Value * AgentShare); Fee(Practice.Legal, b.Value * LawyerShare);
                 FamilyOwns(b, h); b.ForSale = false; b.Rent = b.Def.Rent * HousingIndex; b.VacantDays = 0; b.Cost = b.Value;
                 market.Remove(b);
                 AddLog("The " + h.Name + " family bought a house to rent out.", LogKind.Money);
@@ -229,7 +239,7 @@ namespace RealLife.Simulation
             double price = b.Value, down = price * 0.1, fees = price * 0.03;
             SellerGets(b, price, false);
             b.Cost = price;
-            HouseholdPays(h, down + fees, HouseholdBook.Housing); Trade.Imports += fees;
+            HouseholdPays(h, down + fees, HouseholdBook.Housing); Fee(Practice.Realty, price * AgentShare); Fee(Practice.Legal, price * LawyerShare);
             NewLoan(LoanKind.Mortgage, h, b, price - down, Balance.MortgageRate, Balance.MortgageMonths);
             MoveIn(h, b, true);
             h.Furniture = Math.Max(0, h.Furniture - 0.15f);

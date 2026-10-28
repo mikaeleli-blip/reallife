@@ -197,7 +197,7 @@ namespace RealLife.Simulation
             Starter(BuildingType.Police, 45, 41);
             foreach (var p in Buildings) if (p.Def.Cat == Category.Public) { var d = p.Def; for (int y = p.Y; y < p.Y + d.H; y++) for (int x = p.X; x < p.X + d.W; x++) SetZoneBits(x, y, Zone.None); }
             // downtown
-            foreach (var t in new[] { BuildingType.Office, BuildingType.Office, BuildingType.GroceryStore, BuildingType.Bank, BuildingType.Restaurant, BuildingType.Gym,
+            foreach (var t in new[] { BuildingType.AccountingFirm, BuildingType.InsuranceAgency, BuildingType.GroceryStore, BuildingType.Bank, BuildingType.Restaurant, BuildingType.Gym,
                                       BuildingType.GasStation, BuildingType.Cafe, BuildingType.Bar, BuildingType.ClothingStore, BuildingType.AutoRepair, BuildingType.HairSalon,
                                       BuildingType.Realty, BuildingType.Realty })
                 StarterLot(t);

@@ -136,6 +136,7 @@ namespace RealLife.Simulation
         public int LossMonths;
         public float CapUsed, CapTotal;   // this month: customers served or units made, against what the staff could have done
         public float LastUse;             // last month's share of capacity used
+        [NonSerialized] public double LastLocalWork, LastOutsideWork;   // an office's takings last month: from clients here, from out of town
         public double UnitCost;           // what it last paid for a unit of what it sells or works
         // Homes
         public List<int> Households = new List<int>();

@@ -304,6 +304,7 @@ namespace RealLife.Simulation
             if (seller != null) foreach (var m in Members(seller)) if (m.WorkId == b.Id) m.Owner = false;
             double down = Math.Min(price, Math.Max(0, buyer.Cash - 5000) * 0.6);
             HouseholdPays(buyer, down, HouseholdBook.Goods);
+            HouseholdFee(buyer, Practice.Legal, Math.Max(1500, price * 0.01), HouseholdBook.Goods);
             if (price > down) PropertyLoan(b, buyer, b, price - down, false);
             SellerGets(b, price, true);
             string was = Title(b);
