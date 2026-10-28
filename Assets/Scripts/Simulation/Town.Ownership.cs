@@ -69,6 +69,7 @@ namespace RealLife.Simulation
             var t = b.Type;
             if (t == BuildingType.Bank) return BankName;
             if (b.Def.Chain != null) return b.Def.Chain;   // every store of a chain goes by its name
+            if (b.Def.HeadOf.HasValue) return Defs.Get(b.Def.HeadOf.Value).Chain + " head office";
             if (!Branded(t))
             {
                 bool namesake = b.Owner == Owner.Household && Buildings.Any(o => o != b && o.Type == t && !(o.Closed && o.Built) && string.IsNullOrEmpty(o.Brand)
@@ -112,6 +113,7 @@ namespace RealLife.Simulation
                 c += Defs.Get(BuildingType.Apartments).StartupCost * 0.12;   // put by toward the next block
             }
             if (b.Type == BuildingType.CarDealer) c += Balance.CarPrice * 0.9 * 2;   // to order in the next cars
+            if (b.Def.HeadOf.HasValue) c += Defs.Get(b.Def.HeadOf.Value).StartupCost * FoundersShare(b.Def.HeadOf.Value);   // put by toward the next store
             return c;
         }
 
@@ -372,7 +374,8 @@ namespace RealLife.Simulation
             if (SaveVersion >= 2)
             {
                 if (SaveVersion < 3) MigrateCars();
-                MigrateFlats();
+                if (SaveVersion < 4) MigrateFlats();
+                if (SaveVersion < 5) WindDownContracts();
                 SaveVersion = CurrentVersion; return;
             }
             foreach (var b in Buildings)
@@ -426,6 +429,7 @@ namespace RealLife.Simulation
             }
             MigrateCars();
             MigrateFlats();
+            WindDownContracts();
             SaveVersion = CurrentVersion;
             MapVersion++;
         }

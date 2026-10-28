@@ -21,6 +21,7 @@ namespace RealLife.Simulation
         Enough,         // as many as a town this size keeps (about one per Per people)
         NoStaff,        // not enough people looking for work who could do the jobs (Have of Need)
         WontPay,        // it wouldn't cover its costs
+        Served,         // the town's other shops of its trade can take the custom (a chain thinking about another store)
     }
 
     /// <summary>One line of the market report: a trade or a kind of business, what the town spends elsewhere for want of

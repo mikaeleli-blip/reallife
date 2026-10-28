@@ -26,6 +26,9 @@ namespace RealLife.Game.Art
                 case BuildingType.BedAndBreakfast: BedAndBreakfast(k, w, d, ref s, closed, season); break;
                 case BuildingType.FuneralHome: FuneralHome(k, w, d, ref s, closed, season); break;
                 case BuildingType.TaxiCompany: Taxi(k, w, d, ref s, closed, season); break;
+                case BuildingType.ValleyValueOffice:
+                case BuildingType.RedwoodOffice:
+                case BuildingType.BulkworksOffice: ChainOffice(k, w, d, ref s, closed, season, t); break;
                 default:
                     // anything still without a model of its own: a plain shop with its sign
                     Sidewalk(k, w, d);
@@ -290,6 +293,37 @@ namespace RealLife.Game.Art
                     float depth = 0.05f + (Next(ref s) % 3) * 0.08f;
                     Ledge(k, f, c * pw + 0.04f, (c + 1) * pw - 0.04f, 4.1f + r * ph + 0.04f, 4.1f + (r + 1) * ph - 0.04f, depth, m);
                 }
+        }
+
+        /// <summary>A grocery chain's head office: three floors in the chain's colours, its name on the roof, its flags out
+        /// front.</summary>
+        static void ChainOffice(MeshKit k, float w, float d, ref uint s, bool closed, int season, BuildingType t)
+        {
+            Sidewalk(k, w, d);
+            string upper; Color32 band, accent; int sign;
+            if (t == BuildingType.RedwoodOffice) { upper = "fac_apt_cream"; band = H("#b3202a"); accent = H("#f5f6fa"); sign = SignRow.Redwood; }
+            else if (t == BuildingType.BulkworksOffice) { upper = "fac_metal_grey"; band = H("#1f2a44"); accent = H("#ff7a1a"); sign = SignRow.Bulkworks; }
+            else { upper = "fac_glass_blue"; band = H("#1d4f91"); accent = H("#ffd23f"); sign = SignRow.ValleyValue; }
+            var skin = new Skin { Upper = upper, Floor = 3.4f, Bay = 3f, Ground = "gf_lobby", GroundH = 4.2f, Wall = "wall_stucco", Coping = band, Glow = 1.4f };
+            float x0 = -w / 2 + 0.5f, x1 = w / 2 - 0.5f, z0 = -d / 2 + 2.4f, z1 = d / 2 - 0.5f;
+            float top = Block(k, x0, x1, z0, z1, skin, 2, (int)(Next(ref s) % 4), 0, true, true, "roof_membrane", season, closed);
+            var f = Faces(x0, x1, z0, z1)[South];
+            var bandM = C(band, 0.4f); var accentM = C(accent, 0.4f);
+            Ledge(k, f, -0.1f, f.Width + 0.1f, 3.95f, 4.35f, 0.3f, bandM, accentM);
+            Ledge(k, f, -0.1f, f.Width + 0.1f, 3.8f, 3.95f, 0.32f, accentM);
+            Canopy(k, f, f.Width / 2 - 1.5f, f.Width / 2 + 1.5f, 3.3f, 1.5f, bandM, false);
+            RoofSign(k, 0, z0 + 0.5f, top, 7.6f, sign, closed);
+            // flags in the chain's colours either side of the door
+            var pole = C(H("#cfd8dc"), 0.7f, 0.8f);
+            foreach (float x in new[] { -w / 2 + 1.0f, w / 2 - 1.0f })
+            {
+                float z = -d / 2 + 0.9f;
+                k.Box(new Vector3(x - 0.04f, 0.02f, z - 0.04f), new Vector3(x + 0.04f, 6.5f, z + 0.04f), pole, pole);
+                float dir = x < 0 ? 1 : -1;
+                TwoQuad(k, new Vector3(x, 5.3f, z), new Vector3(x, 6.4f, z), new Vector3(x + dir * 1.5f, 6.4f, z), new Vector3(x + dir * 1.5f, 5.3f, z), bandM);
+                TwoQuad(k, new Vector3(x, 5.62f, z - 0.01f), new Vector3(x, 6.08f, z - 0.01f), new Vector3(x + dir * 1.5f, 6.08f, z - 0.01f), new Vector3(x + dir * 1.5f, 5.62f, z - 0.01f), accentM);
+            }
+            Planter(k, -2.6f, -d / 2 + 1.3f, season); Planter(k, 2.6f, -d / 2 + 1.3f, season);
         }
 
         // ================================================================== places to stay and the rest

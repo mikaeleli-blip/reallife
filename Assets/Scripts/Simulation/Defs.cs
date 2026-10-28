@@ -90,7 +90,9 @@ namespace RealLife.Simulation
         LawFirm, AccountingFirm, InsuranceAgency, RealEstateAgency, ArchitectureFirm, MarketingAgency, SoftwareStudio, CallCenter,
         EngineeringFirm, DesignStudio,
         // Visitors and the rest
-        Motel, Hotel, BedAndBreakfast, FuneralHome, TaxiCompany
+        Motel, Hotel, BedAndBreakfast, FuneralHome, TaxiCompany,
+        // the grocery chains' head offices
+        ValleyValueOffice, RedwoodOffice, BulkworksOffice
     }
 
     public enum Role
@@ -105,7 +107,8 @@ namespace RealLife.Simulation
         // added later (Catalog.cs)
         Machinist, Chemist, LabTech, Craftsman, Butcher, Baker, Brewer, Printer, Pharmacist, Dentist, DentalHygienist, Optometrist,
         Veterinarian, VetTech, Physiotherapist, Lawyer, Paralegal, Architect, Designer, Agent, CallAgent, Instructor, CareWorker,
-        Beautician, TattooArtist, Usher, Performer, Housekeeper, Driver, Mortician, Tailor, Florist
+        Beautician, TattooArtist, Usher, Performer, Housekeeper, Driver, Mortician, Tailor, Florist,
+        Executive
     }
 
     public sealed class RoleDef
@@ -162,6 +165,8 @@ namespace RealLife.Simulation
         // how much better (or worse) a place to shop it is for those who can afford to care, the people it takes to fill
         // another store, and whether you need a car to shop there (a warehouse club)
         public string Chain;
+        public BuildingType? Office;     // a chain store: its company's head office
+        public BuildingType? HeadOf;     // a head office: the chain it runs
         public float PriceFactor = 1, BulkBuy = 1, Appeal;
         public int PopPerStore;
         public bool NeedsCar;

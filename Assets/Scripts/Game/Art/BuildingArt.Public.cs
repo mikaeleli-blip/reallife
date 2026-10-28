@@ -785,6 +785,9 @@ namespace RealLife.Game.Art
                 case BuildingType.Trucking:
                 case BuildingType.BusDepot: return 9.2f;
                 case BuildingType.Hotel: return 26;
+                case BuildingType.ValleyValueOffice:
+                case BuildingType.RedwoodOffice:
+                case BuildingType.BulkworksOffice: return 12;
                 case BuildingType.Cinema:
                 case BuildingType.ClimbingGym:
                 case BuildingType.EngineeringFirm:

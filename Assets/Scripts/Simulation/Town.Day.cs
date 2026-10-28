@@ -179,6 +179,12 @@ namespace RealLife.Simulation
                         ? d.Chain + " wants to open another store: it needs a free " + d.W + " x " + d.H + " commercial lot by a road in a part of town its store is far from."
                         : d.Chain + " wants to open here: it needs a free " + d.W + " x " + d.H + " commercial lot by a road.");
                 }
+            foreach (var t in ChainTypes)
+            {
+                var o = Defs.Get(t).Office;
+                if (o.HasValue && LastWants != null && LastWants[(int)o.Value] > 0)
+                    l.Add(Defs.Get(t).Chain + " wants to set up a head office to run its stores: it needs a free 1 x 1 commercial lot by a road that isn't part of one big enough for a store.");
+            }
             if (LotShort != null && LotShort[(int)Zone.Industrial]) l.Add("A firm wanted to build but found no industrial land by a road.");
             if (LotShort != null && LotShort.Length > (int)Zone.Farmland && LotShort[(int)Zone.Farmland]) l.Add("Someone wanted to start a farm but there's no farmland by a road. Zone some with the Farms tool.");
             if (NoInvestor != BuildingType.FreightTerminal) l.Add("The town could use " + (Defs.Get(NoInvestor).Name.StartsWith("O") || Defs.Get(NoInvestor).Name.StartsWith("E") || Defs.Get(NoInvestor).Name.StartsWith("A") ? "an " : "a ") + Defs.Get(NoInvestor).Name.ToLower() + ", but no family here has the savings to start one.");

@@ -35,6 +35,7 @@ namespace RealLife.Simulation
         public const double BusinessInsurance = 0.0005;              // a month, of a business's building's value
         public const double OpeningLegal = 2000, OpeningDesign = 2500;
 
+        public int ContractsEnd = -1;   // a town saved before offices worked for the town: the day its offices' old clients out of town are all gone
         public double[] PracticeOwed;   // fees owed so far this month, by practice, to be earned at the start of the next
         public float[] PracticeAway;    // by practice: work that went to firms out of town, averaged over the last half year or so
         [NonSerialized] public double[] LastPracticeOwed = new double[PracticeCount], LastPracticeLocal = new double[PracticeCount], LastPracticeOutside = new double[PracticeCount];
@@ -56,6 +57,7 @@ namespace RealLife.Simulation
         public static bool Does(BuildingType t, Practice p)
         {
             if (t == BuildingType.Office) return p == Practice.Accounting || p == Practice.Software;
+            if (Defs.Get(t).HeadOf.HasValue) return p == Practice.Accounting || p == Practice.Marketing || p == Practice.Design;   // a chain's head office does its own
             return PracticeOf(t) == p;
         }
 
@@ -105,11 +107,17 @@ namespace RealLife.Simulation
         void PayOfficeBills(Building b)
         {
             double rev = b.Revenue; int staff = b.Employees.Count;
+            // a chain's head office does its stores' books, ads and design
+            var office = OwnerFirm(b);
+            bool inHouse = office != null && office.Def.HeadOf.HasValue && office.Open;
             for (int i = 0; i < PracticeCount; i++)
             {
-                double v = OfficeBill(b.Type, (Practice)i, rev, staff);
+                var p = (Practice)i;
+                double v = OfficeBill(b.Type, p, rev, staff);
                 if (v <= 0) continue;
-                b.Cash -= v; b.OtherCosts += v; Fee((Practice)i, v);
+                b.Cash -= v; b.OtherCosts += v;
+                if (inHouse && Does(office.Type, p)) { office.Cash += v; office.Revenue += v; }
+                else Fee(p, v);
             }
             double prem = b.Value * BusinessInsurance;
             b.Cash -= prem; b.OtherCosts += prem;
@@ -163,7 +171,36 @@ namespace RealLife.Simulation
                 Trade.Services += outside * OutsideRate;
                 LastPracticeOwed[i] = owed; LastPracticeLocal[i] = local; LastPracticeOutside[i] = outside * OutsideRate;
             }
+            // an office from before keeps some of its old clients out of town for a while, fewer each month
+            double f = OldClients();
+            foreach (var b in offices)
+            {
+                if (b.OldWork <= 0) continue;
+                if (f <= 0) { b.OldWork = 0; continue; }
+                double old = Math.Min(b.OldWork * f, Math.Max(0, b.CapTotal - b.CapUsed));
+                if (old <= 0) continue;
+                OfficeEarns(b, 0, old);
+                Trade.Services += old;
+                b.CapUsed += (float)old;
+            }
         }
+
+        /// <summary>A town saved before offices worked for the town: its offices' old clients out of town go over three years,
+        /// so the town has time to find its offices other work, and its people other jobs.</summary>
+        void WindDownContracts()
+        {
+            ContractsEnd = Day + 36 * Balance.DaysPerMonth;
+            foreach (var b in Buildings)
+            {
+                if (!IsOffice(b.Type) || !b.Built || b.Closed) continue;
+                double cap = 0;
+                for (int i = 0; i < PracticeCount; i++) cap += OfficeCapacity(b, (Practice)i);
+                b.OldWork = cap * 0.85;
+            }
+        }
+
+        /// <summary>How much of an old office's work its old clients still bring: all of it at first, none after three years.</summary>
+        double OldClients() { return ContractsEnd < 0 ? 0 : Math.Max(0, Math.Min(1, (ContractsEnd - Day) / (36.0 * Balance.DaysPerMonth))); }
 
         void OfficeEarns(Building b, double local, double outside)
         {

@@ -253,6 +253,15 @@ namespace RealLife.Simulation
                 if (founder != null) { founder.Owner = true; Hire(b, founder, QualifiesFor(founder, b), false); Note(founder, "Opened " + PlaceName(b) + "."); }
                 AddLog((founder != null ? founder.Name : "The " + (h != null ? h.Name : "") + " family") + " opened " + PlaceName(b) + ".", LogKind.Good, b.Id);
             }
+            else if (OwnerFirm(b) != null && OwnerFirm(b).Def.HeadOf.HasValue)
+            {
+                // a chain's head office puts in what it can spare, the bank lends the rest
+                var office = OwnerFirm(b);
+                double put = Math.Min(working, Math.Max(0, office.Cash - Cushion(office) * 0.5));
+                office.Cash -= put; b.Cash += put;
+                if (put < working) { NewLoan(LoanKind.Business, null, b, working - put, Balance.BusinessRate, Balance.BusinessMonths); b.Cash += working - put; }
+                AddLog("A new " + b.Def.Chain + " store opened and is hiring.", LogKind.Good, b.Id);
+            }
             else
             {
                 // nobody's savings behind it: the bank lends the working capital
@@ -264,6 +273,7 @@ namespace RealLife.Simulation
             b.Cash -= OpeningLegal + OpeningDesign; b.OtherCosts += OpeningLegal + OpeningDesign;
             Fee(Practice.Legal, OpeningLegal); Fee(Practice.Design, OpeningDesign);
             if (b.Type == BuildingType.Realty) PlanFirmStaff(b);
+            if (d.HeadOf.HasValue) OfficeTakesOver(b);
             MapVersion++;
         }
 
@@ -300,6 +310,8 @@ namespace RealLife.Simulation
                     bool ok = true;
                     for (int ty = y; ty < y + d.H && ok; ty++) for (int tx = x; tx < x + d.W && ok; tx++) if (ZoneAt(tx, ty) != d.Zone) ok = false;
                     if (!ok || !FootprintFree(x, y, d.W, d.H)) continue;
+                    // a head office doesn't take a corner of a lot big enough for a store
+                    if (d.HeadOf.HasValue && InBigLot(x, y, d.Zone)) continue;
                     int f = FindFacing(x, y, d.W, d.H);
                     if (f < 0) continue;
                     var tmp = new Building { Type = t, X = x, Y = y, Facing = f };
@@ -307,6 +319,7 @@ namespace RealLife.Simulation
                     float score = Math.Abs(x + d.W / 2f - cx) + Math.Abs(y + d.H / 2f - cy) + Rand() * 4;
                     if (sister != null)
                     {
+                        if (TooNear(sister, x + d.W / 2f, y + d.H / 2f)) continue;
                         int near = Catchment(homes, sister, x + d.W / 2f, y + d.H / 2f);
                         if (near < homes.Count * ChainCatchment) continue;
                         score -= near * 0.3f;
@@ -316,13 +329,35 @@ namespace RealLife.Simulation
             return bx >= 0;
         }
 
-        const float ChainCatchment = 0.2f;   // the share of the town's families a chain's next store must be nearest for
+        const float ChainCatchment = 0.25f;   // the share of the town's families a chain's next store must be nearest for
+
+        /// <summary>Is a spot within a few streets of one of these stores.</summary>
+        static bool TooNear(List<Building> stores, float x, float y)
+        {
+            foreach (var o in stores) if (Math.Abs(o.CenterX - x) + Math.Abs(o.CenterY - y) < ChainSpacing) return true;
+            return false;
+        }
+
+        /// <summary>Is this tile part of a free, zoned lot big enough for a store (3 x 3).</summary>
+        bool InBigLot(int x, int y, Zone z)
+        {
+            for (int oy = y - 2; oy <= y; oy++)
+                for (int ox = x - 2; ox <= x; ox++)
+                {
+                    if (ox < 0 || oy < 0 || ox + 3 > Cols || oy + 3 > Rows) continue;
+                    bool free = true;
+                    for (int ty = oy; ty < oy + 3 && free; ty++) for (int tx = ox; tx < ox + 3 && free; tx++) if (ZoneAt(tx, ty) != z || buildingAt[Idx(tx, ty)] != 0) free = false;
+                    if (free) return true;
+                }
+            return false;
+        }
 
         /// <summary>Would a chain store here be the nearest of the chain's stores for enough of the town's families.</summary>
         bool GoodChainSpot(BuildingType t, float x, float y)
         {
             var sister = Buildings.Where(b => b.Type == t && (b.Open || !b.Built)).ToList();
             if (sister.Count == 0) return true;
+            if (TooNear(sister, x, y)) return false;
             var homes = Households.Select(HomeOf).Where(h => h != null).ToList();
             return Catchment(homes, sister, x, y) >= homes.Count * ChainCatchment;
         }
@@ -400,8 +435,9 @@ namespace RealLife.Simulation
             if (firm != null)
             {
                 FirmOwns(b, firm);
-                b.EquityLeft = d.StartupCost * (t == BuildingType.House ? 0.05 : 0.15);
+                b.EquityLeft = d.StartupCost * (t == BuildingType.House ? 0.05 : d.Chain != null ? FoundersShare(t) : 0.15);
                 if (t == BuildingType.House) b.ForSale = true;
+                if (d.Chain != null) b.Brand = d.Chain;
             }
             else
             {
@@ -997,7 +1033,7 @@ namespace RealLife.Simulation
                 if (h.Cash < need + 10000) break;
                 int owned = Buildings.Count(b => b.Owner == Owner.Household && b.OwnerId == h.Id && IsBusiness(b));
                 // a family with one grocery chain (or their grown children) doesn't start a rival one
-                if (d.Chain != null && Buildings.Any(b => b.Owner == Owner.Household && b.Def.Chain != null && b.Type != t && (b.OwnerId == h.Id || SameFamily(GetHousehold(b.OwnerId), h)))) continue;
+                if (d.Chain != null && Buildings.Any(b => b.Owner == Owner.Household && ChainOf(b) != null && ChainOf(b) != t && (b.OwnerId == h.Id || SameFamily(GetHousehold(b.OwnerId), h)))) continue;
                 bool runs = owned == 0 && Members(h).Any(m => !m.IsChild && !m.Retired && m.Age <= 60 && !m.Owner && m.Ambition >= 0.55f &&
                                                            d.Jobs.Any(j => Defs.Qualifies(m.Edu, Defs.Get(j.Role).Needs)));
                 bool invests = owned < 3 && h.Cash >= need * 2 + 30000 && (big || owned > 0) && CanStaff(t);

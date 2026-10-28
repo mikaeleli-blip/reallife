@@ -108,8 +108,8 @@ namespace RealLife.Game
         static string Standing(Prospect p, out string tip, out Color c)
         {
             var d = Defs.Get(p.Kind);
-            string kind = d.Chain ?? d.Name.ToLower() + (d.Name.EndsWith("repair") ? " shop" : "");
-            string one = d.Chain != null ? (p.Here > 0 ? "another " + d.Chain + " store" : d.Chain) : (p.Here > 0 ? "another " + kind : A(kind));
+            string kind = d.Chain ?? (d.HeadOf.HasValue ? d.Name : d.Name.ToLower() + (d.Name.EndsWith("repair") ? " shop" : ""));
+            string one = d.HeadOf.HasValue ? "its head office" : d.Chain != null ? (p.Here > 0 ? "another " + d.Chain + " store" : d.Chain) : (p.Here > 0 ? "another " + kind : A(kind));
             string One = char.ToUpper(one[0]) + one.Substring(1);
             bool says = p.State == Outlook.Thin || p.State == Outlook.Promising || p.State == Outlook.NoLot || p.State == Outlook.NoBacker || p.State == Outlook.BuildersBusy || p.State == Outlook.Failed;
             string next = says && p.Group == 0 && p.Name != d.Name && d.Chain == null ? "Next would be " + A(kind) + ". " : "";
@@ -138,11 +138,17 @@ namespace RealLife.Game
                     return "could open";
                 case Outlook.NoLot:
                     c = Ui.Warn;
-                    tip = next + away + One + " would open, but there's no free " + d.W + "×" + d.H + " lot zoned " + GameController.ZoneName(d.Zone) + " by a road on the highway's network.";
+                    if (d.HeadOf.HasValue)
+                        tip = away + Defs.Get(d.HeadOf.Value).Chain + " needs a head office to run its stores before it opens another, and there's no free 1×1 lot zoned Shops by a road for one (that isn't part of a lot big enough for a store).";
+                    else if (d.Chain != null && p.Here > 0)
+                        tip = away + One + " would open, but there's no free " + d.W + "×" + d.H + " lot zoned Shops by a road in a part of town its stores are far from.";
+                    else tip = next + away + One + " would open, but there's no free " + d.W + "×" + d.H + " lot zoned " + GameController.ZoneName(d.Zone) + " by a road on the highway's network.";
                     return "no " + d.W + "×" + d.H + " " + GameController.ZoneName(d.Zone).ToLower() + " lot";
                 case Outlook.NoBacker:
                     c = Ui.Warn;
-                    tip = next + away + One + " would pay its way, but no family here has the " + Town.Money(Town.FoundersStake(p.Kind)) + " or so it takes to start one.";
+                    if (d.HeadOf.HasValue) tip = away + "The family behind " + Defs.Get(d.HeadOf.Value).Chain + " hasn't the " + Town.Money(Town.FoundersStake(p.Kind)) + " or so it takes to set up a head office yet.";
+                    else if (d.Chain != null && p.Here > 0) tip = away + "The town could do with " + one + ", but its head office hasn't the money for it yet.";
+                    else tip = next + away + One + " would pay its way, but no family here has the " + Town.Money(Town.FoundersStake(p.Kind)) + " or so it takes to start one.";
                     return "nobody can fund it";
                 case Outlook.BuildersBusy:
                     c = Ui.Warn;
@@ -175,6 +181,9 @@ namespace RealLife.Game
                         ? "A new plant opens when about " + p.Need.ToString("0") + " people have been looking for work (or driving out of town for low pay) for a couple of months; " + p.Have + " now."
                         : "It takes about " + p.Need.ToString("0") + " people looking for work who could do the jobs (or driving out of town for low pay); " + p.Have + " now.");
                     return "short of workers " + p.Have + "/" + p.Need.ToString("0");
+                case Outlook.Served:
+                    tip = away + "Nobody opens " + one + " while the town's other grocers can still take everyone in.";
+                    return "town's served";
                 case Outlook.WontPay:
                     tip = next + away + "At today's prices, wages and what its inputs cost, " + one + " wouldn't cover its costs.";
                     return "wouldn't pay";

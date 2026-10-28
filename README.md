@@ -130,10 +130,14 @@ only for those with a car, and worth a longer drive (from about 1,800). A chain 
 keep a store going (sooner if the grocers here are dear) and there's a free commercial lot big enough: 3 x 3 for the first
 two, 4 x 4 for the club; the advice tells you when one is waiting for a lot. They buy by the truckload for less, keep to
 their place on price (all of a chain's stores charge the same), and fight the corner shops and each other for customers;
-the small grocers keep the people who walk to the shops, and some close. A chain whose store is full and earning opens
-another as the town grows (Valley Value about every 1,100 people, Redwood every 1,600, Bulkworks every 3,000), in a part of
-town its first store is far from. Each store has its own car park, and a store that keeps losing money closes like any
-other. The inspector shows a store's chain and how many stores it has in town.
+the small grocers keep the people who walk to the shops, and some close. To grow past one store a chain sets up a **head
+office** downtown (a 1 x 1 commercial lot that isn't part of one big enough for a store), with an executive, accountants,
+clerks and a designer: it owns the stores, takes their profits, does their books and ads, and decides when the town needs
+another. It opens one only when its stores are full and turning people away, the town's other grocers can't take them
+either, the town has grown into it (Valley Value about every 1,100 people, Redwood every 1,600, Bulkworks every 3,000), and
+there's a lot well away from its other stores, in a part of town they're far from. Each store has its own car park, and a
+store that keeps losing money closes like any other. The inspector shows a store's chain and who runs it, and a head
+office's stores.
 
 **What gets made and sold.** Besides the basics there are about 150 kinds of business, each with a building of its own,
 and what opens depends on what the town buys and has the people for. Farmland can carry dairy farms, cattle ranches,

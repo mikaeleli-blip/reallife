@@ -324,9 +324,11 @@ namespace RealLife.Simulation
                 double ptax = b.Value * Policy.PropertyTax / 12;
                 b.Cash -= ptax; b.TaxPaid += ptax; Treasury += ptax; Book.PropertyTax += ptax;
                 double profit = b.Revenue - b.WageBill - b.Supplies - b.TaxPaid - b.OtherCosts;
-                if (profit > 0)
+                // a head office's share of its stores' profits was taxed at the stores
+                double taxable = profit - b.StoreDraws;
+                if (taxable > 0)
                 {
-                    double t = profit * Policy.BusinessTax;
+                    double t = taxable * Policy.BusinessTax;
                     b.Cash -= t; b.TaxPaid += t; Treasury += t; Book.BusinessTax += t; profit -= t;
                 }
                 b.LastUse = b.CapTotal > 0 ? Math.Min(1, b.CapUsed / b.CapTotal) : 0;
@@ -336,13 +338,22 @@ namespace RealLife.Simulation
                 if (profit >= -Math.Max(300, b.LastRevenue * 0.015)) b.LossMonths = 0; else b.LossMonths++;
                 Succession(b);
                 if (b.Closed) continue;
+                // a chain's store sends most of its month's profit up to its head office
+                var hq = OwnerFirm(b);
+                if (hq != null && hq.Def.HeadOf.HasValue && hq.Open && profit > 0)
+                {
+                    double up = Math.Min(profit * 0.9, Math.Max(0, b.Cash - MonthlyCosts(b) * 0.5));
+                    b.Cash -= up; hq.Cash += up; hq.Revenue += up; hq.StoreDraws += up;
+                }
                 // owner's draw: what's above a cushion of two months' costs and loan payments
                 double cushion = Cushion(b);
                 if (b.Cash > cushion)
                 {
                     double draw = (b.Cash - cushion) * 0.75;
                     var oh = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
+                    var office = OwnerFirm(b);
                     if (oh != null) { b.Cash -= draw; HouseholdEarns(oh, draw, HouseholdBook.Business); }
+                    else if (office != null && office.Def.HeadOf.HasValue && office.Open) { b.Cash -= draw; office.Cash += draw; office.Revenue += draw; office.StoreDraws += draw; }
                 }
                 if (b.Cash < 0 && !OwnersPutIn(b, -b.Cash + MonthlyCosts(b)) && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
                 // a farm loses money every winter; give it the year
@@ -361,6 +372,7 @@ namespace RealLife.Simulation
         {
             b.LastRevenue = b.Revenue; b.LastWages = b.WageBill; b.LastSupplies = b.Supplies; b.LastTax = b.TaxPaid; b.LastOther = b.OtherCosts;
             b.LastCustomers = b.Customers; b.LastLost = b.Lost;
+            b.LastStoreDraws = b.StoreDraws; b.StoreDraws = 0;
             b.Revenue = b.WageBill = b.Supplies = b.TaxPaid = b.OtherCosts = 0; b.Customers = b.Lost = 0;
             b.CapUsed = b.CapTotal = 0;
         }
@@ -401,8 +413,11 @@ namespace RealLife.Simulation
                 Note(c, "Lost their job when " + Ref(b) + " closed.");
                 c.Owner = false; LeaveJob(c, null);
             }
-            // the bank writes off what it lent the business and takes the building; a property firm's homes go with it
-            foreach (var l in Loans.ToList()) if (PaidBy(l, b)) Loans.Remove(l);
+            // a chain's head office: its stores go back to the family, or are sold
+            if (b.Def.HeadOf.HasValue) OfficeCloses(b);
+            // the bank writes off what it lent the business and takes the building; a property firm's homes go with it (and
+            // the loan on a chain's store its head office was paying)
+            foreach (var l in Loans.ToList()) if (PaidBy(l, b) || (l.Kind == LoanKind.Business && l.BuildingId == b.Id && OwnerFirm(b) != null && OwnerFirm(b).Def.HeadOf.HasValue)) Loans.Remove(l);
             if (b.Type == BuildingType.Realty)
                 foreach (var o in Portfolio(b).ToList()) BankTakes(o);
             if (b.Cash > 0)
@@ -440,6 +455,7 @@ namespace RealLife.Simulation
             // an office takes people on while it has more work than it can do, and lets them go when work is short (or when
             // it's losing money without being busy)
             if (d.Bills || b.Type == BuildingType.Office) s += b.LastUse > 0.92f ? 0.15f : b.LastUse < 0.7f || (b.LossMonths >= 2 && b.LastUse < 0.85f) ? -0.15f : 0;
+            else if (d.HeadOf.HasValue) s = Math.Min(1f, 0.2f + 0.15f * (StoresOf(b).Count - 1));   // a head office grows with the chain
             else if (b.Type == BuildingType.Construction)
             {
                 // a crew sized to the work on the books: what's left on its sites, over the next few months

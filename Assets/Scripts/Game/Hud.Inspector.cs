@@ -100,6 +100,23 @@ namespace RealLife.Game
             rows.Pair("Owes the bank", Town.Money(T.Debt(b)) + " · " + Town.Money(T.LoanPayments(b)) + "/mo");
         }
 
+        /// <summary>A grocery chain's head office: its stores and what they earn it.</summary>
+        void HeadOfficeInfo(Building b, Rows rows)
+        {
+            var stores = T.Portfolio(b).ToList();
+            rows.Header("Stores");
+            int i = 0;
+            foreach (var s in stores)
+            {
+                var r = rows.Next(22, 1);
+                string name = "Store " + (++i) + (!s.Built ? " (going up)" : s.Closed ? " (closed)" : " · " + s.Employees.Count + " staff");
+                if (Ui.Link(new Rect(r.x, r.y, r.width * 0.62f, r.height), name, s.Closed ? Ui.Dim : Ui.Text)) gc.FocusBuilding(s);
+                if (s.Built && !s.Closed) Ui.Right(r, Town.Money(s.LastProfit), s.LastProfit >= 0 ? Ui.Good : Ui.Bad);
+            }
+            if (stores.Count == 0) Ui.Small(rows.Next(20), "None yet.", Ui.Dim);
+            rows.Pair("Profits paid up last month", Town.Money(b.LastStoreDraws), Ui.Good);
+        }
+
         void Blurb(BuildingDef d, Rows rows)
         {
             rows.Space(8);
@@ -144,10 +161,13 @@ namespace RealLife.Game
                 rows.Pair("Kept busy", Town.Pct(b.LastUse), b.LastUse < 0.6f ? Ui.Warn : Ui.Text);
             }
             if (b.Type == BuildingType.Realty) PropertyFirm(b, rows);
+            if (d.HeadOf.HasValue) HeadOfficeInfo(b, rows);
             if (d.Chain != null)
             {
                 int n = T.Buildings.Count(o => o.Type == b.Type && o.Built && o.Open);
                 rows.Pair("Chain", d.Chain + ": " + n + (n == 1 ? " store" : " stores") + " in town");
+                var office = T.OwnerFirm(b);
+                if (office != null && office.Def.HeadOf.HasValue) { var r = rows.Next(20, 2); Ui.Small(r, "Run by"); if (Ui.Link(new Rect(r.x + r.width * 0.4f, r.y, r.width * 0.6f, r.height), T.Title(office))) gc.FocusBuilding(office); }
             }
             if (b.Type == BuildingType.CarDealer) Dealer(b, rows);
             if (b.Type == BuildingType.AutoRepair) Garage(b, rows);

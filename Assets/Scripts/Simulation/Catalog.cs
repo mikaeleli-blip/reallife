@@ -193,6 +193,7 @@ namespace RealLife.Simulation
             R(Role.Mortician, "Funeral director", Edu.Trade, 4200);
             R(Role.Tailor, "Tailor", Edu.Trade, 3100);
             R(Role.Florist, "Florist", Edu.None, 2400);
+            R(Role.Executive, "Executive", Edu.Degree, 9500);
             // engineers in an engineering firm bill clients out of town
             roles[Role.Engineer].Billing = 3100;
         }
@@ -490,6 +491,11 @@ namespace RealLife.Simulation
             d = Fun(BuildingType.BedAndBreakfast, "Bed and breakfast", 1, 1, 120000, 45, 240000, Service.Lodging, 110, 20, 600, 2000, " Inn", "A few cosy rooms and breakfast.", 0.15f, Role.Housekeeper, 1, Role.Cook, 1);
             d.In(Good.Toiletries, 0.4f).In(Good.Groceries, 0.12f); d.Floors = 2;
             Fun(BuildingType.FuneralHome, "Funeral home", 1, 1, 150000, 60, 300000, Service.Funeral, 8500, 2, 1500, 4000, " Funeral Home", "Funerals for the town's dead. Families pay, here or in the next town.", 0, Role.Mortician, 1);
+            // ---------------------------------------------------------------- the grocery chains' head offices
+            HeadOffice(BuildingType.ValleyValueOffice, BuildingType.DiscountStore);
+            HeadOffice(BuildingType.RedwoodOffice, BuildingType.Supermarket);
+            HeadOffice(BuildingType.BulkworksOffice, BuildingType.WarehouseClub);
+
             d = Fun(BuildingType.TaxiCompany, "Taxi company", 1, 1, 80000, 30, 170000, Service.Rides, 20, 60, 400, 1500, " Taxi", "Rides for people without a car.", 0, Role.Driver, 3);
             d.In(Good.Fuel, 0.25f);
         }
@@ -499,6 +505,17 @@ namespace RealLife.Simulation
             var d = Place(t, name, w, h, materials, work, value, Service.Meals, price, output, minPop, popPer, suffix, blurb, jobs);
             d.In(Good.Groceries, food); d.Appeal = appeal;
             return d;
+        }
+
+        /// <summary>A grocery chain's head office: the company that owns its stores.</summary>
+        static void HeadOffice(BuildingType t, BuildingType chain)
+        {
+            var c = defs[chain];
+            var d = D(t, c.Chain + " head office", 1, 1, Category.Commercial, Zone.Commercial, 220000, 80,
+                      "The company behind " + c.Chain + ": it owns the stores and takes their profits, does their books and their ads, and decides when the town needs another one and where it should go.");
+            d.Jobs = J(Role.Executive, 1, Role.Accountant, 2, Role.OfficeClerk, 2, Role.Designer, 1);
+            d.Value = 480000; d.Floors = 3; d.HeadOf = chain; d.Branded = true;
+            c.Office = t;
         }
 
         static BuildingDef Fun(BuildingType t, string name, int w, int h, double materials, float work, double value, Service s, double price, float output, int minPop, int popPer, string suffix, string blurb, float appeal, params object[] jobs)
