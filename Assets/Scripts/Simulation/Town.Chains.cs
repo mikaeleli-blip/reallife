@@ -5,7 +5,7 @@ using System.Linq;
 namespace RealLife.Simulation
 {
     /// <summary>
-    /// The grocery chains: Valley Value (the discounter), Redwood Market (the nicer supermarket) and Bulkworks Club (the
+    /// The grocery chains: Buymore (the discounter), Megamart (the nicer supermarket) and Bulkworks Club (the
     /// warehouse club, for drivers). Each is a company here: a local family opens the first store when the town's grocery
     /// shopping would keep one going (sooner if the grocers here are dear), and the chain opens another as the town grows and
     /// its stores fill up. They buy in bulk and sell cheaper than a corner grocery; the small grocers keep the people who walk

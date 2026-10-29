@@ -124,7 +124,7 @@ where they're going, or, if there's none or it's full, at the kerb outside, wher
 Parked cars stay in their spots until their drivers come back for them. Given the choice, drivers shop where they can park.
 
 **Grocery chains.** Besides the corner grocery stores there are three chains, each a local company: a family here opens the
-first store and runs it. Valley Value is the discounter (from about 500 people), Redwood Market the nicer supermarket that
+first store and runs it. Buymore is the discounter (from about 500 people), Megamart the nicer supermarket that
 better-off families prefer even at a bit more (from about 950), and Bulkworks Club the warehouse club, cheapest of all but
 only for those with a car, and worth a longer drive (from about 1,800). A chain comes when the town's grocery shopping would
 keep a store going (sooner if the grocers here are dear) and there's a free commercial lot big enough: 3 x 3 for the first
@@ -134,7 +134,7 @@ the small grocers keep the people who walk to the shops, and some close. To grow
 office** downtown (a 1 x 1 commercial lot that isn't part of one big enough for a store), with an executive, accountants,
 clerks and a designer: it owns the stores, takes their profits, does their books and ads, and decides when the town needs
 another. It opens one only when its stores are full and turning people away, the town's other grocers can't take them
-either, the town has grown into it (Valley Value about every 1,100 people, Redwood every 1,600, Bulkworks every 3,000), and
+either, the town has grown into it (Buymore about every 1,100 people, Megamart every 1,600, Bulkworks every 3,000), and
 there's a lot well away from its other stores, in a part of town they're far from. Each store has its own car park, and a
 store that keeps losing money closes like any other. The inspector shows a store's chain and who runs it, and a head
 office's stores.

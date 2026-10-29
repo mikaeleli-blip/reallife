@@ -558,8 +558,8 @@ namespace RealLife.Game.Art
             Material wall, band, accent;
             int sign;
             if (club) { wall = T("metal_panel", new Color(0.72f, 0.75f, 0.78f)); band = C(H("#1f2a44"), 0.35f); accent = C(H("#ff7a1a"), 0.35f); sign = SignRow.Bulkworks; }
-            else if (nice) { wall = T("wall_stucco", new Color(0.93f, 0.88f, 0.8f)); band = C(H("#b3202a"), 0.4f); accent = C(H("#f5f6fa"), 0.35f); sign = SignRow.Redwood; }
-            else { wall = T("metal_panel", new Color(0.9f, 0.91f, 0.93f)); band = C(H("#1d4f91"), 0.35f); accent = C(H("#ffd23f"), 0.35f); sign = SignRow.ValleyValue; }
+            else if (nice) { wall = T("wall_stucco", new Color(0.93f, 0.88f, 0.8f)); band = C(H("#b3202a"), 0.4f); accent = C(H("#f5f6fa"), 0.35f); sign = SignRow.Megamart; }
+            else { wall = T("metal_panel", new Color(0.9f, 0.91f, 0.93f)); band = C(H("#1d4f91"), 0.35f); accent = C(H("#ffd23f"), 0.35f); sign = SignRow.Buymore; }
             var faces = Faces(x0, x1, z0, z1);
             var front = faces[South];
             float W = front.Width, g0 = W * 0.38f, g1 = W * 0.62f;
@@ -785,8 +785,8 @@ namespace RealLife.Game.Art
                 case BuildingType.Trucking:
                 case BuildingType.BusDepot: return 9.2f;
                 case BuildingType.Hotel: return 26;
-                case BuildingType.ValleyValueOffice:
-                case BuildingType.RedwoodOffice:
+                case BuildingType.BuymoreOffice:
+                case BuildingType.MegamartOffice:
                 case BuildingType.BulkworksOffice: return 12;
                 case BuildingType.Cinema:
                 case BuildingType.ClimbingGym:

@@ -366,6 +366,16 @@ namespace RealLife.Simulation
             MapVersion++;
         }
 
+        /// <summary>Valley Value became Buymore, and Redwood Market Megamart: the stores and head offices change their signs.</summary>
+        void RenameChains()
+        {
+            foreach (var b in Buildings)
+            {
+                if (b.Brand != null) b.Brand = b.Brand.Replace("Valley Value", "Buymore").Replace("Redwood Market", "Megamart");
+                if (b.OwnerName != null) b.OwnerName = b.OwnerName.Replace("Valley Value", "Buymore").Replace("Redwood Market", "Megamart");
+            }
+        }
+
         /// <summary>Brings a game saved before everything was locally owned up to date: firms out of town sell to families and
         /// property firms here, and farms get farmland.</summary>
         public void Migrate()
@@ -376,6 +386,7 @@ namespace RealLife.Simulation
                 if (SaveVersion < 3) MigrateCars();
                 if (SaveVersion < 4) MigrateFlats();
                 if (SaveVersion < 5) WindDownContracts();
+                if (SaveVersion < 6) RenameChains();
                 SaveVersion = CurrentVersion; return;
             }
             foreach (var b in Buildings)

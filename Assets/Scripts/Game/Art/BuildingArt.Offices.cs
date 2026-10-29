@@ -26,8 +26,8 @@ namespace RealLife.Game.Art
                 case BuildingType.BedAndBreakfast: BedAndBreakfast(k, w, d, ref s, closed, season); break;
                 case BuildingType.FuneralHome: FuneralHome(k, w, d, ref s, closed, season); break;
                 case BuildingType.TaxiCompany: Taxi(k, w, d, ref s, closed, season); break;
-                case BuildingType.ValleyValueOffice:
-                case BuildingType.RedwoodOffice:
+                case BuildingType.BuymoreOffice:
+                case BuildingType.MegamartOffice:
                 case BuildingType.BulkworksOffice: ChainOffice(k, w, d, ref s, closed, season, t); break;
                 default:
                     // anything still without a model of its own: a plain shop with its sign
@@ -301,9 +301,9 @@ namespace RealLife.Game.Art
         {
             Sidewalk(k, w, d);
             string upper; Color32 band, accent; int sign;
-            if (t == BuildingType.RedwoodOffice) { upper = "fac_apt_cream"; band = H("#b3202a"); accent = H("#f5f6fa"); sign = SignRow.Redwood; }
+            if (t == BuildingType.MegamartOffice) { upper = "fac_apt_cream"; band = H("#b3202a"); accent = H("#f5f6fa"); sign = SignRow.Megamart; }
             else if (t == BuildingType.BulkworksOffice) { upper = "fac_metal_grey"; band = H("#1f2a44"); accent = H("#ff7a1a"); sign = SignRow.Bulkworks; }
-            else { upper = "fac_glass_blue"; band = H("#1d4f91"); accent = H("#ffd23f"); sign = SignRow.ValleyValue; }
+            else { upper = "fac_glass_blue"; band = H("#1d4f91"); accent = H("#ffd23f"); sign = SignRow.Buymore; }
             var skin = new Skin { Upper = upper, Floor = 3.4f, Bay = 3f, Ground = "gf_lobby", GroundH = 4.2f, Wall = "wall_stucco", Coping = band, Glow = 1.4f };
             float x0 = -w / 2 + 0.5f, x1 = w / 2 - 0.5f, z0 = -d / 2 + 2.4f, z1 = d / 2 - 0.5f;
             float top = Block(k, x0, x1, z0, z1, skin, 2, (int)(Next(ref s) % 4), 0, true, true, "roof_membrane", season, closed);

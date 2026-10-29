@@ -57,6 +57,8 @@ static class Program
             for (int y = 64; y < 75; y++) for (int x = 38; x < 56; x++) t.SetZone(x, y, Zone.Residential);
             for (int x = 38; x <= 56; x++) t.PlaceRoad(x, 70);
         }
+        if (Environment.GetEnvironmentVariable("BRANDS") == "1")
+            foreach (var b in t.Buildings.Where(x => !string.IsNullOrEmpty(x.Brand) && Town.ChainOf(x) != null)) Console.WriteLine("  brand " + b.Type + " " + b.Brand + " / " + b.OwnerName);
         Header();
         Row(t);
         int firstDay = t.Day;

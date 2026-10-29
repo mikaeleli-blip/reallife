@@ -49,8 +49,8 @@ SIGNS = [
 
 # the second atlas (signs2.png): the grocery chains. Its rows are SignRow 32 onwards.
 SIGNS2 = [
-    ('VALLEY VALUE', '#1d4f91', '#ffd23f', '#ffe27a', FONT_BOLD),
-    ('REDWOOD MARKET', '#b3202a', '#ffffff', '#ffe5e5', FONT_SERIF),
+    ('BUYMORE', '#1d4f91', '#ffd23f', '#ffe27a', FONT_BOLD),
+    ('MEGAMART', '#b3202a', '#ffffff', '#ffe5e5', FONT_BOLD),
     ('BULKWORKS CLUB', '#1f2a44', '#ff7a1a', '#ff9a4a', FONT_BOLD),
 ]
 

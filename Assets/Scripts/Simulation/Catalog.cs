@@ -492,8 +492,8 @@ namespace RealLife.Simulation
             d.In(Good.Toiletries, 0.4f).In(Good.Groceries, 0.12f); d.Floors = 2;
             Fun(BuildingType.FuneralHome, "Funeral home", 1, 1, 150000, 60, 300000, Service.Funeral, 8500, 2, 1500, 4000, " Funeral Home", "Funerals for the town's dead. Families pay, here or in the next town.", 0, Role.Mortician, 1);
             // ---------------------------------------------------------------- the grocery chains' head offices
-            HeadOffice(BuildingType.ValleyValueOffice, BuildingType.DiscountStore);
-            HeadOffice(BuildingType.RedwoodOffice, BuildingType.Supermarket);
+            HeadOffice(BuildingType.BuymoreOffice, BuildingType.DiscountStore);
+            HeadOffice(BuildingType.MegamartOffice, BuildingType.Supermarket);
             HeadOffice(BuildingType.BulkworksOffice, BuildingType.WarehouseClub);
 
             d = Fun(BuildingType.TaxiCompany, "Taxi company", 1, 1, 80000, 30, 170000, Service.Rides, 20, 60, 400, 1500, " Taxi", "Rides for people without a car.", 0, Role.Driver, 3);

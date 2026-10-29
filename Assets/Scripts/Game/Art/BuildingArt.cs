@@ -13,7 +13,7 @@ namespace RealLife.Game.Art
             Elementary = 19, HighSchool = 20, College = 21, BusDepot = 22, Logistics = 23, Builders = 24, Foods = 25, ApparelCo = 26, Tech = 27,
             Workshop = 28, Apartments = 29, RealEstate = 30, Open = 31,
             // the second atlas (signs2): the grocery chains
-            ValleyValue = 32, Redwood = 33, Bulkworks = 34;
+            Buymore = 32, Megamart = 33, Bulkworks = 34;
     }
 
     /// <summary>
