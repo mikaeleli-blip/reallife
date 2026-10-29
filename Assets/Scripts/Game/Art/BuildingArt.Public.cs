@@ -264,6 +264,7 @@ namespace RealLife.Game.Art
             var copper = T("roof_metal", new Color(0.45f, 0.62f, 0.52f));   // too steep to hold snow
             Vector3 lb = f.At(c - 5.2f, 8.2f), rb = f.At(c + 5.2f, 8.2f), ab = f.At(c, 10.4f);
             k.Quad(lb, ab, apex, l, copper); k.Quad(r, apex, ab, rb, copper);
+            k.Tri(rb, ab, lb, stone);   // its back, seen over the roof from behind
             Sign(k, Out(f, 3.2f), c, 5f, 7.32f, 0.62f, SignRow.TownHall, false);
             Rect(k, f, c - 1.6f, c + 1.6f, 0.7f, 3.6f, S("gf_lobby", 1.3f), new Vector2(0.25f, 0), new Vector2(0.75f, 0.75f), 0.05f);
             // the clock tower and its dome
@@ -479,9 +480,7 @@ namespace RealLife.Game.Art
                     Rect(k, f, a, a + 4.0f, 0, 4.4f, door, new Vector2(0, 0), new Vector2(1, 1), 0.08f);
                 }
                 k.Push(new Vector3(x0 + 3.5f, 0.06f, -d / 2 + 1.35f), 90, new Vector3(0.9f, 0.9f, 0.9f));
-                PropArt.Truck(k, H("#c0392b"), H("#e74c3c"));
-                var bar = MaterialLibrary.Glow(new Color(0.8f, 0.2f, 0.2f), new Color(1f, 0.1f, 0.05f), 3f);
-                k.Box(new Vector3(-0.9f, 2.4f, 2.2f), new Vector3(0.9f, 2.6f, 2.6f), bar, bar);
+                PropArt.FireEngine(k);
                 k.Pop();
                 Flag(k, x1 - 2.2f, -d / 2 + 0.6f, 8f, H("#2e86de"));
             }

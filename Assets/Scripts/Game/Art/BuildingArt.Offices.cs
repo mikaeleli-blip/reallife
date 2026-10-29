@@ -48,7 +48,7 @@ namespace RealLife.Game.Art
             Lot(k, w, d, S("pavers"), 0.05f, 3f);
             float x0 = -w / 2 + 0.6f, x1 = w / 2 - 0.6f, z0 = -d / 2 + 3.4f, z1 = d / 2 - 0.6f;
             var stone = T("wall_stone", new Color(0.88f, 0.85f, 0.78f));
-            var f = FlatBox(k, x0, x1, z0, z1, 7.6f, stone, Paint("#e8e0cc", 0.3f), season, 0.7f)[South];
+            var f = FlatBox(k, x0, x1, z0, z1, 7.6f, stone, Paint("#e8e0cc", 0.3f), season, 0.7f, true, 3)[South];
             WindowRow(k, f, 0.4f, 2.9f, 1.0f, 1.0f, 2.0f, 1.5f, ref s, closed);
             WindowRow(k, f, f.Width - 2.9f, f.Width - 0.4f, 1.0f, 1.0f, 2.0f, 1.5f, ref s, closed);
             WindowRow(k, f, 0.4f, f.Width - 0.4f, 4.6f, 1.0f, 2.0f, 1.5f, ref s, closed);
@@ -278,7 +278,7 @@ namespace RealLife.Game.Art
         {
             Sidewalk(k, w, d);
             float x0 = -w / 2 + 0.4f, x1 = w / 2 - 0.4f, z0 = -d / 2 + 2.4f, z1 = d / 2 - 0.4f;
-            var faces = FlatBox(k, x0, x1, z0, z1, 7.4f, T("wall_stucco", new Color(0.97f, 0.97f, 0.97f)), Paint("#212121"), season, 0.4f);
+            var faces = FlatBox(k, x0, x1, z0, z1, 7.4f, T("wall_stucco", new Color(0.97f, 0.97f, 0.97f)), Paint("#212121"), season, 0.4f, true, 3);
             var f = faces[South];
             Rect(k, f, 0.4f, f.Width - 0.4f, 0, 3.2f, Glass(closed), Vector2.zero, new Vector2(0.75f, 1), 0.03f);
             Sign(k, f, f.Width / 2, 4.5f, 3.35f, 0.5f, Row(BuildingType.DesignStudio), closed);

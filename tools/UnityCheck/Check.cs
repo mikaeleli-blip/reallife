@@ -53,14 +53,20 @@ static class Check
     static int Dump(string which, string dir)
     {
         System.IO.Directory.CreateDirectory(dir);
-        var types = which == "new" ? Defs.All.Where(t => t > BuildingType.WarehouseClub).ToList()
-                  : which == "all" ? Defs.All.ToList()
-                  : which.Split(',').Select(x => (BuildingType)Enum.Parse(typeof(BuildingType), x)).ToList();
-        foreach (var t in types)
+        // Type, or Type@seed to see another of its looks
+        var items = which == "new" ? Defs.All.Where(t => t > BuildingType.WarehouseClub).Select(t => t.ToString()).ToList()
+                  : which == "all" ? Defs.All.Select(t => t.ToString()).ToList()
+                  : which.Split(',').ToList();
+        int season = Environment.GetEnvironmentVariable("SEASON") is string se ? int.Parse(se) : 2;
+        bool shut = Environment.GetEnvironmentVariable("CLOSED") == "1";
+        foreach (var item in items)
         {
+            var parts = item.Split('@');
+            var t = (BuildingType)Enum.Parse(typeof(BuildingType), parts[0]);
+            uint seed = parts.Length > 1 ? uint.Parse(parts[1]) : 12345u;
             var d = Defs.Get(t);
             float w = d.W * 10, dep = d.H * 10;
-            var model = BuildingArt.Build(t, w, dep, 12345u, d.Floors, false, 2);
+            var model = BuildingArt.Build(t, w, dep, seed, d.Floors, shut, season);
             var sb = new System.Text.StringBuilder();
             sb.Append("S ").Append(w).Append(' ').Append(dep).Append('\n');
             var m = model.Mesh; var v = m.vertices;
@@ -71,16 +77,19 @@ static class Check
                 string nm = mat != null && !string.IsNullOrEmpty(mat.name) ? mat.name.Replace(' ', '_') : "?";
                 sb.Append("M ").Append(nm).Append(' ').Append(c.r.ToString("0.###")).Append(' ').Append(c.g.ToString("0.###")).Append(' ').Append(c.b.ToString("0.###")).Append('\n');
                 var idx = m.GetTriangles(sm);
+                var uv = m.uv;
                 for (int i = 0; i + 2 < idx.Length; i += 3)
                 {
                     sb.Append('T');
-                    for (int j = 0; j < 3; j++) { var p = v[idx[i + j]]; sb.Append(' ').Append(p.x.ToString("0.##")).Append(' ').Append(p.y.ToString("0.##")).Append(' ').Append(p.z.ToString("0.##")); }
+                    for (int j = 0; j < 3; j++) { var p = v[idx[i + j]]; sb.Append(' ').Append(p.x.ToString("0.###")).Append(' ').Append(p.y.ToString("0.###")).Append(' ').Append(p.z.ToString("0.###")); }
+                    // and each corner's texture coordinates, for the textured preview
+                    for (int j = 0; j < 3; j++) { var q = idx[i + j] < uv.Length ? uv[idx[i + j]] : Vector2.zero; sb.Append(' ').Append(q.x.ToString("0.####")).Append(' ').Append(q.y.ToString("0.####")); }
                     sb.Append('\n');
                 }
             }
-            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, t + ".txt"), sb.ToString());
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, item.Replace('@', '_') + ".txt"), sb.ToString());
         }
-        Console.WriteLine("dumped " + types.Count + " to " + dir);
+        Console.WriteLine("dumped " + items.Count + " to " + dir);
         return 0;
     }
 
@@ -254,6 +263,26 @@ static class Check
         bad += Convex("Cone", k => k.Cylinder(Vector3.zero, 1, 0, 2, 8, c, c), new Vector3(0, 0.5f, 0));
         bad += Convex("Blob", k => k.Blob(new Vector3(0, 2, 0), new Vector3(1, 1, 1), c), new Vector3(0, 2, 0));
         bad += Convex("Flat", k => k.Flat(-1, -1, 1, 1, 0, c), new Vector3(0, -1, 0));
+        bad += Convex("Ball", k => k.Ball(new Vector3(0, 2, 0), new Vector3(1, 0.7f, 1.3f), c), new Vector3(0, 2, 0));
+        // a ring isn't convex: each face must point away from the tube's own centre line
+        {
+            var k = new MeshKit(); k.Torus(new Vector3(0, 3, 0), 2f, 0.6f, MaterialLibrary.Get(c), MaterialLibrary.Get(c)); var m = k.ToModel("ring").Mesh;
+            var v = m.vertices; int wrong = 0, n = 0;
+            for (int sm = 0; sm < m.subMeshCount; sm++)
+            {
+                var idx = m.GetTriangles(sm);
+                for (int i = 0; i < idx.Length; i += 3)
+                {
+                    Vector3 a = v[idx[i]], b = v[idx[i + 1]], cc = v[idx[i + 2]];
+                    var nn = Vector3.Cross(b - a, cc - a); if (nn.sqrMagnitude < 1e-10f) continue;
+                    var mid = (a + b + cc) / 3f - new Vector3(0, 3, 0);
+                    var axis = new Vector3(mid.x, mid.y, 0).normalized * 2f;
+                    n++; if (Vector3.Dot(nn, mid - axis) <= 0) wrong++;
+                }
+            }
+            Console.WriteLine($"{"Torus",-16} {n,4} faces" + (wrong > 0 ? $"  POINTING IN: {wrong}" : "  ok"));
+            bad += wrong;
+        }
         // window frames are little boxes; the panes and frame fronts must face out
         bad += Convex("Windows", k => k.WindowsFront(-2, 2, 0, 2, -1, 2, 1, 1, 1, 5, 1f), new Vector3(0, 1, 0), n => n.z < -0.5f);
         bad += Convex("Turned box", k => { k.Push(new Vector3(5, 0, 5), 90); k.Box(new Vector3(-1, 0, -2), new Vector3(3, 2, 1), c, c, false); k.Pop(); }, new Vector3(5 - 0.5f, 1, 5 - 1));

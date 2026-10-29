@@ -20,7 +20,7 @@ namespace RealLife.Game.Art
         /// <summary>A one-storey shop: a shopfront of glass across most of the street side, a sign over it, plain walls round
         /// the rest and a flat roof with a coping in the trim colour. Returns the street face.</summary>
         static Face Storefront(MeshKit k, float x0, float x1, float z0, float z1, float h, Material wall, string ground, bool closed, int season, int signRow,
-                               Material trim = null, float g0 = 0.08f, float g1 = 0.92f, float signW = -1f, float glassH = 3.6f)
+                               Material trim = null, float g0 = 0.08f, float g1 = 0.92f, float signW = -1f, float glassH = 3.6f, bool backside = true)
         {
             var faces = Faces(x0, x1, z0, z1);
             var front = faces[South];
@@ -31,6 +31,14 @@ namespace RealLife.Game.Art
             if (a1 < W - 0.01f) k.Quad(front.At(a1, 0), front.At(a1, h), front.At(W, h), front.At(W, 0), wall, 3f);
             k.Quad(front.At(a0, glassH), front.At(a0, h), front.At(a1, h), front.At(a1, glassH), wall, 3f);
             for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, h, wall, 2.5f);
+            // a cornice band round the top and pilasters at the front corners give the box a face
+            if (backside && h > 3.8f)
+            {
+                var band = C(H("#d9d3c7"), 0.3f);
+                for (int i = 0; i < 4; i++) Ledge(k, faces[i], -0.06f, faces[i].Width + 0.06f, h - 0.5f, h - 0.22f, 0.1f, band);
+                if (a0 > 0.45f) Ledge(k, front, 0, 0.38f, 0, h - 0.5f, 0.08f, wall);
+                if (a1 < W - 0.45f) Ledge(k, front, W - 0.38f, W, 0, h - 0.5f, 0.08f, wall);
+            }
             trim = trim ?? C(H("#d8d4ca"), 0.3f);
             FlatRoof(k, x0, x1, z0, z1, h, Snowy(S("roof_membrane"), season), wall, trim, 0.5f);
             float sw = signW > 0 ? signW : Mathf.Min(W - 1.2f, 7.5f);
@@ -40,20 +48,135 @@ namespace RealLife.Game.Art
                 var boards = T("wood", new Color(0.75f, 0.65f, 0.52f));
                 for (float a = a0 + 0.4f; a < a1 - 1f; a += 2.6f) Ledge(k, front, a, a + 2.0f, 0.5f, glassH - 0.4f, 0.06f, boards);
             }
+            if (backside)
+            {
+                uint ls = Seed(x0, z1, h);
+                Backside(k, faces, h, ref ls, closed);
+                BackRoof(k, x0, x1, z1, h, ref ls);
+            }
             return front;
         }
 
+        static uint Seed(float a, float b, float c) { return (uint)(Mathf.Abs(a * 73.1f + b * 131.7f + c * 977.3f) * 16f) | 1u; }
+
+        // ================================================================== backs, sides and roofs
+        /// <summary>What goes round the back of a plain-walled building, so it isn't a blank box from behind: on the back
+        /// wall a service door with a lamp over it, a window or two, a vent and downspouts at the corners; small windows
+        /// along the sides, clear of the front corners. A tall building (a plant hall) gets a roller door and a strip of
+        /// high windows instead.</summary>
+        static void Backside(MeshKit k, Face[] faces, float h, ref uint s, bool closed, bool sides = true, int style = 0)
+        {
+            var back = faces[North];
+            float W = back.Width;
+            if (W < 3 || h < 2.6f) return;
+            // style: 0 judged by height, 1 a shop, 2 a plant hall, 3 a building of storeys (offices)
+            bool big = style == 2 || (style == 0 && h > 6.5f);
+            if (style == 3)
+            {
+                OfficeBack(k, faces, h, ref s, closed, sides);
+                return;
+            }
+            var steel = C(H("#5f666e"), 0.35f, 0.4f);
+            var pipe = C(H("#8d949b"), 0.35f, 0.5f);
+            // downspouts at the back corners
+            Ledge(k, back, 0.15f, 0.3f, 0, h, 0.14f, pipe);
+            Ledge(k, back, W - 0.3f, W - 0.15f, 0, h, 0.14f, pipe);
+            // the service door with a lamp over it
+            float da = Mathf.Clamp(W * Range(ref s, 0.16f, 0.3f), 1.2f, W - 1.2f);
+            Door(k, back, da, H("#6b7178"), 1.0f, 2.2f);
+            Ledge(k, back, da - 0.2f, da + 0.2f, 2.55f, 2.72f, 0.24f, steel);
+            Ledge(k, back, da - 0.12f, da + 0.12f, 2.49f, 2.55f, 0.2f, closed ? C(H("#55585c")) : Lit(H("#ffe2a8"), 2.4f));
+            if (big)
+            {
+                if (W > 11)
+                {
+                    float ra = Mathf.Min(W - 3f, da + Range(ref s, 4.5f, 7f));
+                    var roll = closed ? MaterialLibrary.Dark("gf_rollup", new Color(0.75f, 0.75f, 0.75f)) : S("gf_rollup", 1.2f);
+                    Rect(k, back, ra - 1.7f, ra + 1.7f, 0, 4.2f, roll, new Vector2(0.5f, 0), new Vector2(1f, 1), 0.03f);
+                    Ledge(k, back, ra - 1.85f, ra + 1.85f, 4.2f, 4.4f, 0.12f, steel);
+                }
+                WindowRow(k, back, 1.2f, W - 1.2f, Mathf.Min(h - 1.8f, 5.2f), 2.2f, 0.9f, 3.6f, ref s, closed);
+            }
+            else
+            {
+                if (W - da > 4.2f) WindowRow(k, back, da + 1.6f, Mathf.Min(W - 1.0f, da + 1.6f + 2.6f * 2), 1.2f, 1.0f, 1.2f, 2.6f, ref s, closed);
+                // an exhaust vent up by the roof
+                float va = Mathf.Lerp(da + 1.5f, W - 1.0f, R(ref s));
+                if (h > 3.8f && va < W - 0.8f)
+                {
+                    Ledge(k, back, va - 0.4f, va + 0.4f, h - 1.3f, h - 0.6f, 0.08f, steel);
+                    for (float y = h - 1.2f; y < h - 0.65f; y += 0.15f) Ledge(k, back, va - 0.34f, va + 0.34f, y, y + 0.05f, 0.11f, pipe);
+                }
+            }
+            if (!sides) return;
+            for (int i = 2; i < 4; i++)
+            {
+                var f = faces[i];
+                // east runs back from the street corner, west toward it: keep the windows off the front corner
+                float a0 = i == East ? 3.2f : 1.2f, a1 = i == East ? f.Width - 1.2f : f.Width - 3.2f;
+                if (a1 - a0 < 2.2f) continue;
+                if (big) WindowRow(k, f, a0, a1, Mathf.Min(h - 1.8f, 5.2f), 2.2f, 0.9f, 3.6f, ref s, closed);
+                else WindowRow(k, f, a0, a1, 1.3f, 1.0f, 1.2f, Mathf.Max(2.6f, (a1 - a0) / 2), ref s, closed);
+            }
+        }
+
+        /// <summary>The back and sides of a building of storeys: a window to each bay on every floor, a back door, downspouts.</summary>
+        static void OfficeBack(MeshKit k, Face[] faces, float h, ref uint s, bool closed, bool sides)
+        {
+            var pipe = C(H("#8d949b"), 0.35f, 0.5f);
+            int floors = Mathf.Max(1, Mathf.RoundToInt(h / 3.6f));
+            float fh = h / floors;
+            for (int i = 0; i < 4; i++)
+            {
+                if (i == South || (!sides && i != North)) continue;
+                var f = faces[i];
+                if (f.Width < 3) continue;
+                for (int fl = 0; fl < floors; fl++)
+                {
+                    float y = fl * fh + Mathf.Min(1.0f, fh * 0.3f);
+                    if (i == North && fl == 0) WindowRow(k, f, 2.6f, f.Width - 0.6f, y, 1.1f, Mathf.Min(1.6f, fh - 1.5f), 2.4f, ref s, closed);
+                    else WindowRow(k, f, 0.6f, f.Width - 0.6f, y, 1.1f, Mathf.Min(1.6f, fh - 1.5f), 2.4f, ref s, closed);
+                }
+            }
+            Door(k, faces[North], 1.4f, H("#6b7178"), 1.0f, 2.2f);
+            Ledge(k, faces[North], 0.15f, 0.3f, 0, h, 0.14f, pipe);
+            Ledge(k, faces[North], faces[North].Width - 0.3f, faces[North].Width - 0.15f, 0, h, 0.14f, pipe);
+        }
+
+        /// <summary>A small flat roof's plant, kept to the back so it clears anything stood on the front of the roof: a
+        /// condenser or two, a vent pipe and a roof hatch.</summary>
+        static void BackRoof(MeshKit k, float x0, float x1, float z1, float y, ref uint s)
+        {
+            float span = x1 - x0;
+            if (span < 4) return;
+            var metal = C(H("#babec2"), 0.45f, 0.6f); var dark = C(H("#34373c"), 0.3f, 0.4f);
+            float zc = z1 - 1.25f;
+            int n = span > 12 ? 2 : 1;
+            for (int i = 0; i < n; i++)
+            {
+                float x = Mathf.Lerp(x0 + 1.4f, x1 - 1.4f, n == 1 ? Range(ref s, 0.55f, 0.85f) : (i + 0.5f) / n);
+                k.Box(new Vector3(x - 0.75f, y, zc - 0.5f), new Vector3(x + 0.75f, y + 0.85f, zc + 0.5f), metal, metal);
+                k.Cylinder(new Vector3(x + 0.32f, y + 0.85f, zc), 0.34f, 0.34f, 0.05f, 10, dark, dark);
+                k.Box(new Vector3(x - 0.7f, y + 0.2f, zc - 0.52f), new Vector3(x - 0.08f, y + 0.72f, zc - 0.5f), dark, dark);
+            }
+            float vx = Mathf.Lerp(x0 + 1.0f, x0 + span * 0.35f, R(ref s));
+            k.Cylinder(new Vector3(vx, y, zc + 0.2f), 0.12f, 0.12f, 0.9f, 8, metal, metal);
+            k.Cylinder(new Vector3(vx, y + 0.9f, zc + 0.2f), 0.2f, 0.0f, 0.18f, 8, metal, metal);
+            k.Box(new Vector3(vx + 0.6f, y, zc - 0.4f), new Vector3(vx + 1.5f, y + 0.35f, zc + 0.5f), C(H("#9aa0a6"), 0.3f), C(H("#7d838a"), 0.3f));
+        }
+
         /// <summary>Walls and a gable roof (ridge along x). Returns the faces.</summary>
-        static Face[] GableBox(MeshKit k, float x0, float x1, float z0, float z1, float h, float rise, Material wall, Material roof, int season, float overhang = 0.4f)
+        static Face[] GableBox(MeshKit k, float x0, float x1, float z0, float z1, float h, float rise, Material wall, Material roof, int season, float overhang = 0.4f, bool backside = true)
         {
             var faces = Faces(x0, x1, z0, z1);
             foreach (var f in faces) Plain(k, f, 0, h, wall, 2.5f);
             k.Gable(x0, z0, x1, z1, h, rise, Snowy(roof, season), wall, overhang);
+            if (backside) { uint ls = Seed(x0, z1, h); Backside(k, faces, h, ref ls, false); }
             return faces;
         }
 
         /// <summary>Walls and a gable roof with its ridge running back from the street (gable end to the street).</summary>
-        static Face[] GableFront(MeshKit k, float x0, float x1, float z0, float z1, float h, float rise, Material wall, Material roof, int season, float overhang = 0.4f)
+        static Face[] GableFront(MeshKit k, float x0, float x1, float z0, float z1, float h, float rise, Material wall, Material roof, int season, float overhang = 0.4f, bool backside = true)
         {
             var faces = Faces(x0, x1, z0, z1);
             foreach (var f in faces) Plain(k, f, 0, h, wall, 2.5f);
@@ -61,23 +184,32 @@ namespace RealLife.Game.Art
             k.Push(new Vector3(cx, 0, cz), 90);
             k.Gable(-(z1 - z0) / 2, -(x1 - x0) / 2, (z1 - z0) / 2, (x1 - x0) / 2, h, rise, Snowy(roof, season), wall, overhang);
             k.Pop();
+            if (backside) { uint ls = Seed(x0, z1, h); Backside(k, faces, h, ref ls, false); }
             return faces;
         }
 
         /// <summary>A box with a flat roof and a parapet. Returns the faces.</summary>
-        static Face[] FlatBox(MeshKit k, float x0, float x1, float z0, float z1, float h, Material wall, Material coping, int season, float parapet = 0.6f)
+        static Face[] FlatBox(MeshKit k, float x0, float x1, float z0, float z1, float h, Material wall, Material coping, int season, float parapet = 0.6f, bool backside = true, int backStyle = 0)
         {
             var faces = Faces(x0, x1, z0, z1);
             foreach (var f in faces) Plain(k, f, 0, h, wall, 2.5f);
             FlatRoof(k, x0, x1, z0, z1, h, Snowy(S("roof_membrane"), season), wall, coping ?? wall, parapet);
+            if (backside)
+            {
+                uint ls = Seed(x0, z1, h);
+                Backside(k, faces, h, ref ls, false, true, backStyle);
+                // plant on the back half of the roof, clear of anything stood on the front
+                if ((x1 - x0) * (z1 - z0) > 160) RoofClutter(k, x0 + 0.8f, x1 - 0.8f, (z0 + z1) / 2 + 0.5f, z1 - 0.8f, h, ref ls, 0.9f, wall);
+                else BackRoof(k, x0, x1, z1, h, ref ls);
+            }
             return faces;
         }
 
         /// <summary>A plant hall: metal walls, a roller door or two on the street side, a low-pitched roof.</summary>
-        static Face[] Hall(MeshKit k, float x0, float x1, float z0, float z1, float h, Color wallTint, Color roofTint, bool closed, int season, int doors = 2, float rise = 1.6f)
+        static Face[] Hall(MeshKit k, float x0, float x1, float z0, float z1, float h, Color wallTint, Color roofTint, bool closed, int season, int doors = 2, float rise = 1.6f, bool backside = true)
         {
             var wall = T("metal_panel", wallTint);
-            var faces = GableBox(k, x0, x1, z0, z1, h, rise, wall, T("roof_metal", roofTint), season, 0.3f);
+            var faces = GableBox(k, x0, x1, z0, z1, h, rise, wall, T("roof_metal", roofTint), season, 0.3f, backside);
             var door = closed ? MaterialLibrary.Dark("gf_rollup", new Color(0.75f, 0.75f, 0.75f)) : S("gf_rollup", 1.2f);
             var f = faces[South];
             for (int i = 0; i < doors; i++)

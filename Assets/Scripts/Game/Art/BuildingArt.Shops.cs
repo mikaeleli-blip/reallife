@@ -56,7 +56,7 @@ namespace RealLife.Game.Art
         static void ShoeStore(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
             Sidewalk(k, w, d);
-            var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 5.4f, T("wall_stucco", new Color(0.2f, 0.2f, 0.22f)), "gf_store_light", closed, season, Row(BuildingType.ShoeStore), C(H("#f4f4f2")));
+            var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 5.4f, T("wall_stucco", new Color(0.38f, 0.38f, 0.4f)), "gf_store_light", closed, season, Row(BuildingType.ShoeStore), C(H("#f4f4f2")));
             PlainAwning(k, f, 0.4f, f.Width - 0.4f, 3.8f, 1.2f, H("#212121"));
             // a giant sneaker on the roof
             var white = C(H("#f4f4f2"), 0.4f); var red = C(H("#e53935"), 0.4f);
@@ -175,7 +175,7 @@ namespace RealLife.Game.Art
             var p = f.At(2.2f, 0) + Vector3.back * 0.1f;
             Ledge(k, f, 1.2f, 3.2f, 4.4f, 5.6f, 0.08f, white);
             k.Cylinder(p + new Vector3(0, 4.5f, -0.6f), 0.35f, 0.35f, 0.05f, 10, orange, null);
-            k.Blob(p + new Vector3(0.4f, 0.3f, -0.8f), new Vector3(0.24f, 0.24f, 0.24f), H("#ff6f00"));
+            k.Ball(p + new Vector3(0.4f, 0.3f, -0.8f), new Vector3(0.24f, 0.24f, 0.24f), H("#ff6f00"));
         }
 
         static void Jeweler(MeshKit k, float w, float d, ref uint s, bool closed, int season)
@@ -217,7 +217,7 @@ namespace RealLife.Game.Art
             var p = f.At(f.Width - 1.6f, 0.06f) + Vector3.back * 1.3f;
             k.Box(p + new Vector3(-0.6f, 0, -0.5f), p + new Vector3(0.6f, 0.8f, 0.5f), red, red);
             k.Gable(p.x - 0.6f, p.z - 0.5f, p.x + 0.6f, p.z + 0.5f, 0.86f, 0.4f, C(H("#3a3e44")), C(H("#a83224")), 0.08f);
-            for (int i = 0; i < 4; i++) k.Blob(f.At(0.6f + i * 0.5f, 4.0f + i * 0.35f) + Vector3.back * 0.05f, new Vector3(0.12f, 0.12f, 0.03f), H("#5b3a1a"));
+            for (int i = 0; i < 4; i++) k.Ball(f.At(0.6f + i * 0.5f, 4.0f + i * 0.35f) + Vector3.back * 0.05f, new Vector3(0.12f, 0.12f, 0.03f), H("#5b3a1a"));
         }
 
         static void GardenCenter(MeshKit k, float w, float d, ref uint s, bool closed, int season)
@@ -278,7 +278,7 @@ namespace RealLife.Game.Art
         static void MusicStore(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
             Sidewalk(k, w, d);
-            var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 6f, T("wall_stucco", new Color(0.15f, 0.15f, 0.17f)), "gf_store_dark", closed, season, Row(BuildingType.MusicStore), C(H("#ff4081")));
+            var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 6f, T("wall_stucco", new Color(0.33f, 0.32f, 0.35f)), "gf_store_dark", closed, season, Row(BuildingType.MusicStore), C(H("#ff4081")));
             Neon(k, f, 0.2f, f.Width - 0.2f, 3.5f, H("#ff4081"), closed);
             // a giant guitar up the side of the front
             var body = C(H("#c0392b"), 0.6f); var neck = C(H("#5d4037"), 0.4f); var black = C(H("#1b1b1b"), 0.5f);
@@ -334,7 +334,7 @@ namespace RealLife.Game.Art
                 var p = f.At(1.5f + i * 2.6f, 0) + Vector3.forward * 0.6f;
                 k.Cylinder(p, 0.2f, 0.05f, 1.0f, 6, form, null);
                 k.Cylinder(p + Vector3.up * 1.0f, 0.2f, 0.32f, 0.7f, 8, C(i == 1 ? H("#ad1457") : H("#111111"), 0.3f), null);
-                k.Blob(p + Vector3.up * 1.95f, new Vector3(0.13f, 0.16f, 0.13f), H("#e8e2d4"));
+                k.Ball(p + Vector3.up * 1.95f, new Vector3(0.13f, 0.16f, 0.13f), H("#e8e2d4"));
             }
             Planter(k, -w / 2 + 0.9f, -d / 2 + 1.3f, season); Planter(k, w / 2 - 0.9f, -d / 2 + 1.3f, season);
         }
@@ -371,6 +371,17 @@ namespace RealLife.Game.Art
             FlatRoof(k, x0, x1, z0, z1, h, Snowy(S("roof_membrane"), season), stone, C(H("#cfc6b4")), 0.8f);
             WindowRow(k, f, 0.6f, f.Width - 0.6f, 5.6f, 1.6f, 2.6f, 2.4f, ref s, closed);
             WindowRow(k, f, 0.6f, f.Width - 0.6f, 9.2f, 1.6f, 2.4f, 2.4f, ref s, closed);
+            // the upper floors' windows go round the sides and back too; a service door and a loading bay behind
+            for (int i = 0; i < 4; i++)
+            {
+                if (i == South) continue;
+                WindowRow(k, faces[i], 0.8f, faces[i].Width - 0.8f, 5.6f, 1.4f, 2.4f, 2.8f, ref s, closed);
+                WindowRow(k, faces[i], 0.8f, faces[i].Width - 0.8f, 9.2f, 1.4f, 2.2f, 2.8f, ref s, closed);
+                Ledge(k, faces[i], -0.2f, faces[i].Width + 0.2f, 4.4f, 4.8f, 0.3f, stone);
+            }
+            Door(k, faces[North], 2.2f, H("#6b7178"), 1.0f, 2.2f);
+            var bay = closed ? MaterialLibrary.Dark("gf_rollup", new Color(0.75f, 0.75f, 0.75f)) : S("gf_rollup", 1.2f);
+            Rect(k, faces[North], faces[North].Width - 5.5f, faces[North].Width - 2f, 0, 3.8f, bay, new Vector2(0.5f, 0), new Vector2(1f, 1), 0.03f);
             Ledge(k, f, -0.2f, f.Width + 0.2f, 4.4f, 4.8f, 0.4f, stone);
             Ledge(k, f, -0.3f, f.Width + 0.3f, h - 0.6f, h, 0.6f, stone);
             for (float a = 0.6f; a <= f.Width - 0.5f; a += (f.Width - 1.2f) / 6) k.Cylinder(f.At(a, 4.8f) + Vector3.back * 0.35f, 0.28f, 0.24f, h - 5.4f, 10, stone, stone);
@@ -383,7 +394,7 @@ namespace RealLife.Game.Art
         {
             Sidewalk(k, w, d);
             // all glass with a white frame, a purple light strip, a giant phone by the door
-            var white = C(H("#f4f4f2"), 0.5f);
+            var white = T("wall_stucco", new Color(0.99f, 0.99f, 1f));
             var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 5.4f, white, "gf_store_light", closed, season, Row(BuildingType.PhoneStore), C(H("#6200ea")), 0.03f, 0.97f, -1, 4.0f);
             Neon(k, f, 0, f.Width, 4.0f, H("#7c4dff"), closed, 0.15f);
             var p = f.At(0.9f, 0.06f) + Vector3.back * 1.2f;
@@ -445,7 +456,7 @@ namespace RealLife.Game.Art
             PlainAwning(k, f, 0.3f, f.Width - 0.3f, 3.55f, 1.2f, H("#2e6b8c"));
             // loaves in the window, a chimney for the oven, a bench
             var crust = C(H("#c8893f"), 0.3f);
-            for (int i = 0; i < 5; i++) k.Blob(f.At(1.4f + i * 1.6f, 1.2f) + Vector3.forward * 0.4f, new Vector3(0.45f, 0.22f, 0.25f), H("#c8893f"));
+            for (int i = 0; i < 5; i++) k.Ball(f.At(1.4f + i * 1.6f, 1.2f) + Vector3.forward * 0.4f, new Vector3(0.45f, 0.22f, 0.25f), H("#c8893f"));
             Stack(k, w / 2 - 1.5f, d / 2 - 1.8f, top, 0.35f, 2.2f, S("wall_brick_red"));
             PropArt.Bench(k, f.At(f.Width - 1.6f, 0.06f) + Vector3.back * 1.5f, 0);
         }

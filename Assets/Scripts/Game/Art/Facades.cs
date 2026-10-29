@@ -165,6 +165,14 @@ namespace RealLife.Game.Art
             {
                 var f = faces[i];
                 bool facade = i == South || i == North || facadeSides;
+                if (!facade && groundBand && floors > 0)
+                {
+                    // a shop's side: a plain wall along the shop, the flats' windows above it
+                    Plain(k, f, 0, gh, wall, skin.WallTile);
+                    Band(k, f, gh, H, upper, skin.Bay, skin.Floor, 4, (uOff + i + 1) % 4, (vOff + i) % 4);
+                    Ledge(k, f, -0.05f, f.Width + 0.05f, gh - 0.1f, gh + 0.12f, 0.12f, coping);
+                    continue;
+                }
                 if (!facade) { Plain(k, f, 0, H, wall, skin.WallTile); continue; }
                 if (i == South && groundBand)
                 {

@@ -187,7 +187,7 @@ namespace RealLife.Game.Art
             var red = C(H("#c62828"), 0.4f); var whiteC = C(H("#f4f4f2"), 0.3f);
             k.Cylinder(new Vector3(0, 4.4f, 1), 1.2f, 1.6f, 2.4f, 12, red, null);
             k.Cylinder(new Vector3(0, 5.6f, 1), 1.42f, 1.48f, 0.3f, 12, whiteC, null);
-            k.Blob(new Vector3(0, 6.9f, 1), new Vector3(1.3f, 0.6f, 1.3f), H("#c8893f"));
+            k.Ball(new Vector3(0, 6.9f, 1), new Vector3(1.3f, 0.6f, 1.3f), H("#c8893f"));
         }
 
         static void SandwichShop(MeshKit k, float w, float d, ref uint s, bool closed, int season)
@@ -199,7 +199,7 @@ namespace RealLife.Game.Art
             PropArt.Bench(k, f.At(1.6f, 0.06f) + Vector3.back * 1.6f, 0);
             PropArt.Bench(k, f.At(f.Width - 1.6f, 0.06f) + Vector3.back * 1.6f, 0);
             // a sub roll on the parapet
-            k.Blob(new Vector3(0, 5.1f, -d / 2 + 2.9f), new Vector3(2.2f, 0.45f, 0.45f), H("#d9a85a"));
+            k.Ball(new Vector3(0, 5.1f, -d / 2 + 2.9f), new Vector3(2.2f, 0.45f, 0.45f), H("#d9a85a"));
             k.Box(new Vector3(-2f, 5.0f, -d / 2 + 2.45f), new Vector3(2f, 5.15f, -d / 2 + 3.35f), C(H("#43a047")), C(H("#43a047")));
         }
 
@@ -305,8 +305,9 @@ namespace RealLife.Game.Art
             var roof = Snowy(T("roof_shingle", new Color(0.42f, 0.2f, 0.55f)), season);
             var gold = C(H("#d4a24c"), 0.6f, 0.6f);
             k.Push(new Vector3(0, 0, (z0 + z1) / 2), 90);
-            k.Gable(-(z1 - z0) / 2, -(x1 - x0) / 2, (z1 - z0) / 2, (x1 - x0) / 2, 3.8f, 1.6f, roof, gold, 0.7f);
-            k.Gable(-(z1 - z0) / 2 + 0.8f, -(x1 - x0) / 2 + 1.6f, (z1 - z0) / 2 - 0.8f, (x1 - x0) / 2 - 1.6f, 4.8f, 1.9f, roof, gold, 0.5f);
+            var gableRed = C(H("#7b1e1e"), 0.35f);
+            k.Gable(-(z1 - z0) / 2, -(x1 - x0) / 2, (z1 - z0) / 2, (x1 - x0) / 2, 3.8f, 1.6f, roof, gableRed, 0.7f);
+            k.Gable(-(z1 - z0) / 2 + 0.8f, -(x1 - x0) / 2 + 1.6f, (z1 - z0) / 2 - 0.8f, (x1 - x0) / 2 - 1.6f, 4.8f, 1.9f, roof, gableRed, 0.5f);
             k.Pop();
             Sign(k, f, f.Width / 2, 5f, 3.25f, 0.5f, Row(BuildingType.ThaiRestaurant), closed);
             Planter(k, -w / 2 + 1, -d / 2 + 1.6f, season); Planter(k, w / 2 - 1, -d / 2 + 1.6f, season);
@@ -343,10 +344,33 @@ namespace RealLife.Game.Art
             var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 4.6f, T("wall_stucco", new Color(0.98f, 0.98f, 0.95f)), "gf_store_light", closed, season, Row(BuildingType.JuiceBar), C(H("#76ff03")));
             Ledge(k, f, 0, f.Width, 0, 0.6f, 0.05f, C(H("#76ff03"), 0.4f));
             // fruit on the parapet: an orange, a lemon, a watermelon slice
-            k.Blob(new Vector3(-2.2f, 5.5f, -d / 2 + 3), new Vector3(0.8f, 0.8f, 0.8f), H("#ff9800"));
-            k.Blob(new Vector3(0, 5.3f, -d / 2 + 3), new Vector3(0.7f, 0.55f, 0.55f), H("#ffeb3b"));
-            k.Cylinder(new Vector3(2.2f, 4.7f, -d / 2 + 3), 0.9f, 0f, 1.6f, 3, C(H("#e53935"), 0.4f), C(H("#43a047"), 0.4f));
+            k.Ball(new Vector3(-2.2f, 5.5f, -d / 2 + 3), new Vector3(0.8f, 0.8f, 0.8f), H("#ff9800"));
+            k.Ball(new Vector3(0, 5.3f, -d / 2 + 3), new Vector3(0.7f, 0.55f, 0.55f), H("#ffeb3b"));
+            Wedge(k, new Vector3(2.4f, 4.7f, -d / 2 + 3), 1.1f, 0.35f, H("#e53935"), H("#43a047"));
             for (int i = 0; i < 3; i++) k.Cylinder(f.At(1.5f + i * 3f, 0.06f) + Vector3.back * 1.4f, 0.25f, 0.25f, 0.75f, 8, C(H("#76ff03"), 0.4f), C(H("#76ff03"), 0.4f));
+        }
+
+        /// <summary>A slice of watermelon standing on its rind, facing the street: red flesh, a green rind, seeds.</summary>
+        static void Wedge(MeshKit k, Vector3 c, float r, float t, Color32 flesh, Color32 rind)
+        {
+            var red = C(flesh, 0.4f); var green = C(rind, 0.4f); var seed = C(H("#1b1b1b"), 0.4f);
+            const int n = 10;
+            for (int i = 0; i < n; i++)
+            {
+                float a0 = Mathf.PI * i / n, a1 = Mathf.PI * (i + 1) / n;
+                // the arc runs along the bottom (a hanging half-moon): flesh faces front and back, the rind round the edge
+                Vector3 p0 = c + new Vector3(Mathf.Cos(a0) * r, r - Mathf.Sin(a0) * r, 0), p1 = c + new Vector3(Mathf.Cos(a1) * r, r - Mathf.Sin(a1) * r, 0);
+                Vector3 top = c + new Vector3(0, r, 0);
+                k.Tri(top + Vector3.back * t / 2, p0 + Vector3.back * t / 2, p1 + Vector3.back * t / 2, red);
+                k.Tri(top + Vector3.forward * t / 2, p1 + Vector3.forward * t / 2, p0 + Vector3.forward * t / 2, red);
+                k.Quad(p0 + Vector3.back * t / 2, p0 + Vector3.forward * t / 2, p1 + Vector3.forward * t / 2, p1 + Vector3.back * t / 2, green);
+            }
+            k.Quad(c + new Vector3(-r, r, -t / 2), c + new Vector3(-r, r, t / 2), c + new Vector3(r, r, t / 2), c + new Vector3(r, r, -t / 2), red);
+            for (int i = 0; i < 5; i++)
+            {
+                var p = c + new Vector3(-0.5f * r + i * 0.25f * r, r * (0.55f + 0.12f * (i % 2)), -t / 2 - 0.02f);
+                k.Box(p - new Vector3(0.05f, 0.08f, 0.01f), p + new Vector3(0.05f, 0.08f, 0.01f), seed, seed);
+            }
         }
 
         static void DonutShop(MeshKit k, float w, float d, ref uint s, bool closed, int season)
@@ -355,14 +379,15 @@ namespace RealLife.Game.Art
             var f = Storefront(k, -w / 2 + 0.5f, w / 2 - 0.5f, -d / 2 + 3, d / 2 - 0.5f, 4.2f, T("wall_stucco", new Color(1f, 0.85f, 0.9f)), "gf_store_light", closed, season, Row(BuildingType.DonutShop), C(H("#6d4c41")));
             // a giant donut standing on the roof: a ring of pink-glazed segments
             var dough = C(H("#d9a85a"), 0.3f); var glaze = C(H("#f48fb1"), 0.6f);
-            float cy = 6.8f, R0 = 2.0f, r0 = 0.65f;
-            for (int i = 0; i < 16; i++)
+            float cy = 6.8f, R0 = 2.0f, r0 = 0.75f;
+            k.Torus(new Vector3(0, cy, 1.2f), R0, r0, glaze, dough, 24, 10);
+            // sprinkles on the glaze
+            Color32[] spr = { H("#fdd835"), H("#4fc3f7"), H("#ffffff"), H("#81c784") };
+            for (int i = 0; i < 18; i++)
             {
-                float a0 = i * Mathf.PI * 2 / 16, a1 = (i + 1) * Mathf.PI * 2 / 16;
-                var p0 = new Vector3(Mathf.Cos(a0) * R0, cy + Mathf.Sin(a0) * R0, 1.2f);
-                var p1 = new Vector3(Mathf.Cos(a1) * R0, cy + Mathf.Sin(a1) * R0, 1.2f);
-                var mid = (p0 + p1) / 2;
-                k.Box(mid - new Vector3(r0, r0, r0) * 0.9f, mid + new Vector3(r0, r0, r0) * 0.9f, i < 8 ? glaze : dough, i < 8 ? glaze : dough);
+                float a = i * Mathf.PI * 2 / 18 + 0.2f, rr = R0 + ((i % 3) - 1) * 0.35f;
+                var p = new Vector3(Mathf.Cos(a) * rr, cy + Mathf.Sin(a) * rr, 1.2f - Mathf.Sqrt(Mathf.Max(0, r0 * r0 - (rr - R0) * (rr - R0))) - 0.02f);
+                k.Box(p - new Vector3(0.12f, 0.04f, 0.03f), p + new Vector3(0.12f, 0.04f, 0.03f), spr[i % 4], spr[i % 4]);
             }
             var post = C(H("#3a3e44"), 0.4f, 0.4f);
             k.Box(new Vector3(-0.15f, 4.2f, 1.05f), new Vector3(0.15f, 4.9f, 1.35f), post, post);
@@ -376,8 +401,8 @@ namespace RealLife.Game.Art
             // a giant cone on the roof
             var cone = C(H("#d9a85a"), 0.3f);
             k.Cylinder(new Vector3(0, 4.6f, -d / 2 + 4), 0.1f, 1.1f, 3f, 10, cone, null);
-            k.Blob(new Vector3(0, 8.1f, -d / 2 + 4), new Vector3(1.25f, 0.9f, 1.25f), H("#f8bbd0"));
-            k.Blob(new Vector3(0, 9.1f, -d / 2 + 4), new Vector3(0.9f, 0.7f, 0.9f), H("#fff3e0"));
+            k.Ball(new Vector3(0, 8.1f, -d / 2 + 4), new Vector3(1.25f, 0.9f, 1.25f), H("#f8bbd0"));
+            k.Ball(new Vector3(0, 9.1f, -d / 2 + 4), new Vector3(0.9f, 0.7f, 0.9f), H("#fff3e0"));
             Patio(k, f, 0.5f, f.Width - 0.5f, 1.8f, H("#4fc3f7"));
         }
 
@@ -484,7 +509,7 @@ namespace RealLife.Game.Art
         {
             Sidewalk(k, w, d);
             // art deco: black lacquer, gold fins, a vertical neon blade
-            var black = T("wall_stucco", new Color(0.1f, 0.1f, 0.12f)); var gold = C(H("#d4af37"), 0.7f, 0.9f);
+            var black = T("wall_stucco", new Color(0.33f, 0.31f, 0.33f)); var gold = C(H("#d4af37"), 0.7f, 0.9f);
             var f = Storefront(k, -w / 2 + 0.4f, w / 2 - 0.4f, -d / 2 + 2.4f, d / 2 - 0.4f, 7f, black, "gf_store_dark", closed, season, Row(BuildingType.CocktailLounge), gold, 0.3f, 0.7f, 4f, 3.2f);
             for (int i = 0; i < 5; i++) Ledge(k, f, f.Width / 2 - 2 + i, f.Width / 2 - 1.85f + i, 4.6f, 7.4f, 0.25f, gold);
             var blade = f.At(0.4f, 3.8f) + Vector3.back * 0.6f;
@@ -498,7 +523,7 @@ namespace RealLife.Game.Art
         {
             Lot(k, w, d, S("asphalt"), 0.05f, 8f);
             // a windowless black box banded in neon, searchlights on the roof, a velvet rope by the door
-            var black = T("metal_panel", new Color(0.12f, 0.12f, 0.14f));
+            var black = T("metal_panel", new Color(0.3f, 0.3f, 0.35f));
             var f = FlatBox(k, -w / 2 + 0.6f, w / 2 - 0.6f, -d / 2 + 3.5f, d / 2 - 0.6f, 7f, black, C(H("#00e5ff")), season)[South];
             Neon(k, f, 0, f.Width, 6.2f, H("#00e5ff"), closed, 0.2f);
             Neon(k, f, 0, f.Width, 0.4f, H("#ff00e5"), closed, 0.15f);
@@ -543,7 +568,7 @@ namespace RealLife.Game.Art
             k.Box(new Vector3(c.x - 0.06f, top, c.z + 0.02f), new Vector3(c.x + 0.06f, c.y, c.z + 0.14f), iron, iron);
             var mic = C(H("#2b2b2b"), 0.6f, 0.6f);
             k.Cylinder(new Vector3(2.4f, top, -d / 2 + 3.2f), 0.15f, 0.25f, 1.6f, 8, mic, null);
-            k.Blob(new Vector3(2.4f, top + 1.9f, -d / 2 + 3.2f), new Vector3(0.4f, 0.4f, 0.4f), H("#b0b8c0"));
+            k.Ball(new Vector3(2.4f, top + 1.9f, -d / 2 + 3.2f), new Vector3(0.4f, 0.4f, 0.4f), H("#b0b8c0"));
         }
     }
 }

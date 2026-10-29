@@ -393,7 +393,15 @@ namespace RealLife.Game.Art
 
         static string WallFor(string upper)
         {
-            return upper == "fac_apt_brick" ? "wall_brick_red" : upper == "fac_apt_tan" ? "wall_brick_tan" : "wall_stucco";
+            switch (upper)
+            {
+                case "fac_apt_brick": case "fac_civic_brick": return "wall_brick_red";
+                case "fac_civic_brown": return "wall_brick_brown";
+                case "fac_apt_tan": return "wall_brick_tan";
+                case "fac_metal_beige": case "fac_metal_blue": case "fac_metal_grey": return "metal_panel";
+                case "fac_precast": case "fac_tiltup": return "concrete";
+                default: return "wall_stucco";
+            }
         }
 
         static void Apartments(MeshKit k, float w, float d, ref uint s, int season)
@@ -490,6 +498,8 @@ namespace RealLife.Game.Art
                 Plain(k, front, 4.2f, top, wallMat, 2f);
                 for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, top, wallMat, 2f);
                 FlatRoof(k, x0, x1, z0, z1, top, season == 0 ? S("snow") : S("roof_membrane"), wallMat, C(skin.Coping, 0.3f));
+                uint ls = s;
+                Backside(k, faces, top, ref ls, closed);
             }
             // sign board over the shopfront
             float signW = Mathf.Min(front.Width - 1.2f, 7.5f);
@@ -563,6 +573,7 @@ namespace RealLife.Game.Art
             Ledge(k, front, front.Width / 2 - 4f, front.Width / 2 + 4f, 3.9f, 4.15f, 2.4f, green, C(H("#e9e9e4")));
             uint rs = s;
             RoofClutter(k, x0 + 0.5f, x1 - 0.5f, z0 + 0.5f, z1 - 0.5f, h, ref rs, 2f, wall);
+            Backside(k, faces, h, ref rs, closed);
             Parking(k, -w / 2 + 0.5f, -d / 2 + 0.5f, w / 2 - 0.5f, z0 - 3.2f, ref s, closed ? 0.05f : 0.55f);
             var steel = C(Metal, 0.5f, 0.7f);
             k.Box(new Vector3(x1 - 3.4f, 0.06f, z0 - 1.6f), new Vector3(x1 - 1.0f, 1.0f, z0 - 0.6f), steel, steel);
@@ -736,6 +747,7 @@ namespace RealLife.Game.Art
             k.Tri(l, apex, r, stone);
             Vector3 lb = f.At(-0.4f, h), rb = f.At(f.Width + 0.4f, h), ab = f.At(f.Width / 2, h + 2.2f);
             k.Quad(lb, ab, apex, l, roofTop); k.Quad(r, apex, ab, rb, roofTop);
+            k.Tri(rb, ab, lb, stone);   // its back, seen over the roof from behind
             Tree(k, -w / 2 + 0.9f, -d / 2 + 0.9f, 0.7f, season, s);
         }
     }

@@ -298,6 +298,46 @@ namespace RealLife.Game.Art
             }
         }
 
+        /// <summary>A smooth ball: bubbles, fruit, balls (Blob is the rough one, for trees and bushes).</summary>
+        public void Ball(Vector3 c, Vector3 r, Material mat, int seg = 12, int rings = 7)
+        {
+            for (int i = 0; i < rings; i++)
+            {
+                float t0 = Mathf.PI * i / rings - Mathf.PI / 2, t1 = Mathf.PI * (i + 1) / rings - Mathf.PI / 2;
+                for (int j = 0; j < seg; j++)
+                {
+                    float a0 = j * Mathf.PI * 2 / seg, a1 = (j + 1) * Mathf.PI * 2 / seg;
+                    Vector3 p00 = OnBall(c, r, t0, a0), p01 = OnBall(c, r, t0, a1), p10 = OnBall(c, r, t1, a0), p11 = OnBall(c, r, t1, a1);
+                    if (i == 0) Tri(p00, p10, p11, mat);
+                    else if (i == rings - 1) Tri(p00, p10, p01, mat);
+                    else Quad(p00, p10, p11, p01, mat, 2f);
+                }
+            }
+        }
+        public void Ball(Vector3 c, Vector3 r, Color32 col) { Ball(c, r, Paint(col)); }
+        static Vector3 OnBall(Vector3 c, Vector3 r, float t, float a)
+        {
+            return c + new Vector3(Mathf.Cos(t) * Mathf.Cos(a) * r.x, Mathf.Sin(t) * r.y, Mathf.Cos(t) * Mathf.Sin(a) * r.z);
+        }
+
+        /// <summary>A ring standing upright and facing -z (a donut, a tyre): the tube's front half in one material, its back
+        /// half in another.</summary>
+        public void Torus(Vector3 c, float R, float r, Material front, Material back, int seg = 20, int tube = 8)
+        {
+            for (int i = 0; i < seg; i++)
+                for (int j = 0; j < tube; j++)
+                {
+                    float p0 = i * Mathf.PI * 2 / seg, p1 = (i + 1) * Mathf.PI * 2 / seg, t0 = j * Mathf.PI * 2 / tube, t1 = (j + 1) * Mathf.PI * 2 / tube;
+                    var mat = Mathf.Sin((t0 + t1) / 2) < 0.15f ? front : back;
+                    Quad(OnRing(c, R, r, p0, t0), OnRing(c, R, r, p1, t0), OnRing(c, R, r, p1, t1), OnRing(c, R, r, p0, t1), mat, 2f);
+                }
+        }
+        static Vector3 OnRing(Vector3 c, float R, float r, float p, float t)
+        {
+            float rr = R + r * Mathf.Cos(t);
+            return c + new Vector3(Mathf.Cos(p) * rr, Mathf.Sin(p) * rr, r * Mathf.Sin(t));
+        }
+
         /// <summary>Window panes on a wall facing -z (local space), between x0..x1 and y0..y1; some lit at night.</summary>
         public void WindowsFront(float x0, float x1, float y0, float y1, float z, int columns, int rows, float paneW, float paneH, uint seed, float lit = 0.55f)
         {

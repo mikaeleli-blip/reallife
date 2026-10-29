@@ -369,12 +369,17 @@ namespace RealLife.Game.Art
         static void Glassworks(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
             Lot(k, w, d, S("concrete"), 0.05f, 4f);
-            var f = Hall(k, -w / 2 + 1, w / 2 - 1, -d / 2 + 6, d / 2 - 1, 6.5f, new Color(0.7f, 0.86f, 0.88f), new Color(0.35f, 0.42f, 0.46f), closed, season, 1, 1.8f);
-            Sign(k, f[South], f[South].Width * 0.7f, 5.6f, 4.8f, 0.7f, Row(BuildingType.Glassworks), closed);
-            // the furnace cone through the roof, glowing doors, sand
+            var f = Hall(k, -w / 2 + 1, w / 2 - 8.5f, -d / 2 + 6, d / 2 - 1, 6.5f, new Color(0.7f, 0.86f, 0.88f), new Color(0.35f, 0.42f, 0.46f), closed, season, 1, 1.8f);
+            Sign(k, f[South], f[South].Width * 0.62f, 5.2f, 4.8f, 0.7f, Row(BuildingType.Glassworks), closed);
+            // the brick furnace cone standing beside the hall, its arched mouth glowing; sand
             var brick = S("wall_brick_brown");
-            k.Cylinder(new Vector3(-2, 6.5f, 4), 3.2f, 1.2f, 7f, 12, brick, null);
-            k.Cylinder(new Vector3(-2, 13.5f, 4), 1.2f, 1.0f, 2f, 10, brick, C(H("#2b2b2b")));
+            float cx = w / 2 - 4.6f, cz = 4.5f;
+            k.Cylinder(new Vector3(cx, 0.06f, cz), 3.7f, 1.3f, 12f, 14, brick, null);
+            k.Cylinder(new Vector3(cx, 12.06f, cz), 1.3f, 1.1f, 2f, 12, brick, C(H("#2b2b2b")));
+            k.Cylinder(new Vector3(cx, 0.06f, cz), 3.85f, 3.75f, 0.5f, 14, S("concrete"), null);
+            var mouth = closed ? C(H("#2b2b2b")) : Lit(H("#ff8c2a"), 3.5f);
+            k.Box(new Vector3(cx - 0.8f, 0.06f, cz - 3.75f), new Vector3(cx + 0.8f, 2.2f, cz - 3.3f), mouth, mouth);
+            k.Box(new Vector3(cx - 1.0f, 2.2f, cz - 3.7f), new Vector3(cx + 1.0f, 2.5f, cz - 3.25f), brick, brick);
             if (!closed) for (int i = 0; i < 3; i++) Ledge(k, f[South], 2 + i * 1.6f, 3 + i * 1.6f, 0.6f, 1.6f, 0.05f, Lit(H("#ff8c2a"), 3.5f));
             Pile(k, w / 2 - 4, -d / 2 + 3, 2.6f, 2.4f, season == 0 ? S("snow") : S("sand"));
             var glass = MaterialLibrary.Pane(new Color32(120, 200, 210, 255));
@@ -384,14 +389,32 @@ namespace RealLife.Game.Art
         static void Quarry(MeshKit k, float w, float d, ref uint s, bool closed, int season)
         {
             Lot(k, w, d, season == 0 ? S("snow") : S("gravel"), 0.05f, 4f);
-            // the cut rock face in terraces at the back
+            // the hill at the back, its face cut in terraces toward the street and its back and ends left as grassy slopes
             var rock = T("wall_stone", new Color(0.85f, 0.83f, 0.8f));
             var bench = season == 0 ? S("snow") : S("gravel");
+            var turf = GrassMat(season);
+            float hx0 = -w / 2 + 3.5f, hx1 = w / 2 - 3.5f, zb = d / 2 - 4.5f, ztop = 12.06f;
             for (int i = 0; i < 4; i++)
             {
-                float z0 = 2 + i * 3.2f;
-                k.Box(new Vector3(-w / 2 + 1, 0.06f, z0), new Vector3(w / 2 - 1, 3f + i * 3f, d / 2 - 1), rock, bench, 3f);
+                float z0 = 2 + i * 3.2f, y = 3f + i * 3f;
+                k.Box(new Vector3(hx0, 0.06f, z0), new Vector3(hx1, y, zb), rock, i == 3 ? turf : bench, 3f);
             }
+            // the slopes: down the back to the lot's edge, and down each end
+            Vector3 bl = new Vector3(hx0, ztop, zb), br = new Vector3(hx1, ztop, zb);
+            Vector3 gl = new Vector3(hx0 - 2.5f, 0.06f, d / 2 - 0.5f), gr = new Vector3(hx1 + 2.5f, 0.06f, d / 2 - 0.5f);
+            k.Quad(gr, br, bl, gl, turf, 4f);
+            for (int i = 0; i < 4; i++)
+            {
+                float z0 = 2 + i * 3.2f, y = 3f + i * 3f;
+                // each terrace's ends slope out over 2.5 m
+                k.Quad(new Vector3(hx0 - 2.5f, 0.06f, zb), new Vector3(hx0, y, zb), new Vector3(hx0, y, z0), new Vector3(hx0 - 2.5f, 0.06f, z0), i == 3 ? turf : rock, 3f);
+                k.Quad(new Vector3(hx1 + 2.5f, 0.06f, z0), new Vector3(hx1, y, z0), new Vector3(hx1, y, zb), new Vector3(hx1 + 2.5f, 0.06f, zb), i == 3 ? turf : rock, 3f);
+                k.Tri(new Vector3(hx0, y, z0), new Vector3(hx0, 0.06f, z0), new Vector3(hx0 - 2.5f, 0.06f, z0), rock);
+                k.Tri(new Vector3(hx1, y, z0), new Vector3(hx1 + 2.5f, 0.06f, z0), new Vector3(hx1, 0.06f, z0), rock);
+            }
+            k.Tri(gl, bl, new Vector3(hx0 - 2.5f, 0.06f, zb), turf);
+            k.Tri(new Vector3(hx1 + 2.5f, 0.06f, zb), br, gr, turf);
+            for (int i = 0; i < 5; i++) PropArt.Pine(k, new Vector3(Mathf.Lerp(hx0 + 1.5f, hx1 - 1.5f, i / 4f), ztop, zb - 1.2f - (i % 2) * 1.0f), 0.9f, season);
             // the crusher on its legs, conveyors, heaps of stone
             var steel = C(H("#5d6670"), 0.4f, 0.5f); var yel = C(H("#f2b134"), 0.4f, 0.3f);
             for (int i = 0; i < 4; i++) k.Box(new Vector3(-6 + (i % 2) * 3.6f, 0.06f, -6 + (i / 2) * 3.6f), new Vector3(-5.6f + (i % 2) * 3.6f, 5f, -5.6f + (i / 2) * 3.6f), steel, steel);
@@ -406,10 +429,7 @@ namespace RealLife.Game.Art
             {
                 // a dump truck
                 k.Push(new Vector3(8, 0.06f, -1), 60);
-                k.Box(new Vector3(-1.4f, 0.6f, -2.8f), new Vector3(1.4f, 2.2f, 1.6f), yel, yel);
-                k.Box(new Vector3(-1.2f, 0.6f, 1.6f), new Vector3(1.2f, 2.6f, 3.0f), yel, yel);
-                foreach (var p in new[] { new Vector2(-1.4f, -1.8f), new Vector2(1.4f, -1.8f), new Vector2(-1.4f, 2.2f), new Vector2(1.4f, 2.2f) })
-                    k.Cylinder(new Vector3(p.x, 0, p.y), 0.65f, 0.65f, 0.6f, 8, C(H("#2b2b2b")), C(H("#2b2b2b")));
+                PropArt.DumpTruck(k, H("#f2b134"));
                 k.Pop();
             }
         }
@@ -509,10 +529,7 @@ namespace RealLife.Game.Art
                 for (int i = 0; i < 3; i++)
                 {
                     k.Push(new Vector3(-w / 2 + 4 + i * 5, 0.06f, -d / 2 + 2.5f), 90);
-                    var van = C(H("#f4c26b"), 0.4f);
-                    k.Box(new Vector3(-0.95f, 0.4f, -2.2f), new Vector3(0.95f, 2.4f, 2.2f), van, van);
-                    foreach (var p in new[] { new Vector2(-0.95f, -1.4f), new Vector2(0.95f, -1.4f), new Vector2(-0.95f, 1.4f), new Vector2(0.95f, 1.4f) })
-                        k.Cylinder(new Vector3(p.x, 0, p.y), 0.36f, 0.36f, 0.3f, 8, C(H("#2b2b2b")), C(H("#2b2b2b")));
+                    PropArt.Van(k, H("#f4c26b"));
                     k.Pop();
                 }
         }
@@ -625,7 +642,7 @@ namespace RealLife.Game.Art
             k.Cylinder(new Vector3(-4.5f, 0.06f, -d / 2 + 5.5f), 1.4f, 1.6f, 1.6f, 12, copper, null);
             k.Cylinder(new Vector3(-4.5f, 1.66f, -d / 2 + 5.5f), 1.6f, 0.4f, 1.6f, 12, copper, null);
             k.Cylinder(new Vector3(-4.5f, 3.26f, -d / 2 + 5.5f), 0.4f, 0.25f, 2.4f, 10, copper, copper);
-            var black = T("wall_board", new Color(0.18f, 0.18f, 0.2f));
+            var black = T("wall_board", new Color(0.38f, 0.34f, 0.31f));
             var rf = GableBox(k, -w / 2 + 1, w / 2 - 1, 1, d / 2 - 1, 11f, 2f, black, T("roof_metal", new Color(0.25f, 0.25f, 0.27f)), season, 0.3f);
             for (float y = 1.5f; y < 10; y += 2.6f) WindowRow(k, rf[East], 1, rf[East].Width - 1, y, 0.5f, 0.8f, 2.2f, ref s, true);
             Barrels(k, 3, -d / 2 + 2, 6, T("wood", new Color(0.55f, 0.36f, 0.22f)));
@@ -660,7 +677,7 @@ namespace RealLife.Game.Art
             // a paw print on the roof gable
             var paw = C(H("#5b3a1a"), 0.3f);
             var g = f[West];
-            k.Blob(g.At(g.Width / 2, 3.2f) + g.Normal * 0.1f, new Vector3(0.1f, 0.7f, 0.8f), H("#5b3a1a"));
+            k.Ball(g.At(g.Width / 2, 3.2f) + g.Normal * 0.1f, new Vector3(0.1f, 0.7f, 0.8f), H("#5b3a1a"));
             var bag = C(H("#e67e22"), 0.2f);
             for (int i = 0; i < 8; i++) k.Box(new Vector3(-w / 2 + 2 + (i % 4) * 1.1f, 0.06f + (i / 4) * 0.5f, -d / 2 + 2), new Vector3(-w / 2 + 2.9f + (i % 4) * 1.1f, 0.5f + (i / 4) * 0.5f, -d / 2 + 2.8f), bag, bag);
         }
@@ -760,7 +777,7 @@ namespace RealLife.Game.Art
             for (int i = 0; i < 6; i++)
             {
                 float r = Range(ref s, 0.5f, 1.3f);
-                k.Blob(new Vector3(Range(ref s, -6, 6), 6.6f + r + i * 0.4f, Range(ref s, 0, 6)), new Vector3(r, r, r), H("#d4f0ff"));
+                k.Ball(new Vector3(Range(ref s, -6, 6), 6.6f + r + i * 0.4f, Range(ref s, 0, 6)), new Vector3(r, r, r), H("#d4f0ff"));
             }
             var steel = C(H("#d7dde2"), 0.7f, 0.8f);
             Tank(k, -w / 2 + 3, -d / 2 + 2.5f, 1.2f, 3f, steel, steel);
@@ -829,8 +846,9 @@ namespace RealLife.Game.Art
             Ledge(k, f[South], -0.1f, f[South].Width + 0.1f, 4.6f, 5.6f, 0.15f, C(H("#c0392b"), 0.3f));
             for (int i = 0; i < 3; i++) Ledge(k, f[South], -0.1f, f[South].Width + 0.1f, 4.8f + i * 0.3f, 4.86f + i * 0.3f, 0.17f, C(H("#f4f4f2")));
             Sign(k, f[South], f[South].Width / 2, 6f, 4.65f, 0.75f, Row(BuildingType.SportsGoodsFactory), closed);
-            k.Blob(new Vector3(-4, 8.6f, 2), new Vector3(1.8f, 1.8f, 1.8f), H("#f4f4f2"));
-            k.Blob(new Vector3(-4, 8.6f, 2), new Vector3(1.85f, 0.25f, 1.85f), H("#1a237e"));
+            k.Ball(new Vector3(-4, 8.6f, 2), new Vector3(1.8f, 1.8f, 1.8f), H("#f4f4f2"));
+            k.Cylinder(new Vector3(-4, 8.48f, 2), 1.83f, 1.83f, 0.24f, 14, C(H("#1a237e"), 0.4f), null);
+            k.Box(new Vector3(-4.12f, 6.8f, 0.17f), new Vector3(-3.88f, 10.4f, 0.22f), C(H("#1a237e"), 0.4f), C(H("#1a237e"), 0.4f));
             Truck(k, 4, -d / 2 + 2.3f, 90, H("#1a237e"), closed);
         }
 
