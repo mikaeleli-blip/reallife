@@ -541,8 +541,12 @@ namespace RealLife.Game.Art
                 foreach (float x in new[] { -w / 2 + 3, w / 2 - 3 })
                 {
                     var steel = C(H("#5d6670"), 0.5f, 0.6f);
-                    k.Box(new Vector3(x - 0.5f, 7f, 2), new Vector3(x + 0.5f, 7.6f, 3), steel, steel);
-                    k.Cylinder(new Vector3(x, 7.6f, 2.5f), 0.35f, 0.9f, 12f, 8, MaterialLibrary.Glow(new Color(0.9f, 0.9f, 1f), new Color(0.6f, 0.8f, 1f), 1.2f), null);
+                    // a searchlight on its yoke, its lens to the sky
+                    k.Box(new Vector3(x - 0.5f, 7f, 2), new Vector3(x + 0.5f, 7.4f, 3), steel, steel);
+                    foreach (float o in new[] { -0.62f, 0.5f }) k.Box(new Vector3(x + o, 7.4f, 2.4f), new Vector3(x + o + 0.12f, 8.4f, 2.6f), steel, steel);
+                    k.Cylinder(new Vector3(x, 7.7f, 2.5f), 0.5f, 0.55f, 0.9f, 12, steel, null);
+                    var lens = MaterialLibrary.Glow(new Color(0.9f, 0.92f, 1f), new Color(0.75f, 0.85f, 1f), 3f);
+                    k.Cylinder(new Vector3(x, 8.6f, 2.5f), 0.5f, 0.5f, 0.04f, 12, lens, lens);
                 }
         }
 

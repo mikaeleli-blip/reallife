@@ -161,6 +161,8 @@ namespace RealLife.Game.Art
             Sign(k, faces[South], faces[South].Width / 2, 5.5f, 4.9f, 0.5f, SignRow.Workshop, closed);
             foreach (int side in new[] { East, West })
                 for (float a = 2; a < faces[side].Width - 1; a += 3.5f) HouseWindow(k, faces[side], a, 2.0f, 1.4f, 1.6f, ref s, null);
+            uint bs = s;
+            Backside(k, faces, h, ref bs, closed, false, 1);
             var timber = T("wood", new Color(0.92f, 0.82f, 0.66f));
             for (int i = 0; i < 3; i++)
                 k.Box(new Vector3(w / 2 - 5, 0.06f, -d / 2 + 2 + i * 5), new Vector3(w / 2 - 1, 1.2f + (i % 2) * 0.6f, -d / 2 + 5 + i * 5), timber, timber, 2f);
@@ -586,6 +588,7 @@ namespace RealLife.Game.Art
             }
             uint rs = s;
             RoofClutter(k, x0 + 1f, x1 - 1f, z0 + 1f, z1 - 1f, h, ref rs, club ? 3f : 2.5f, wall);
+            Backside(k, faces, h, ref rs, closed, !club, 2);
             // the car park: bays in two rows, the way in through the front row's middle
             var paint = C(H("#f2f2ee"), 0.3f);
             float rb = z0 - 4.1f, rf = z0 - 14.7f;
@@ -688,8 +691,7 @@ namespace RealLife.Game.Art
             for (int i = 0; i < 4; i++)
                 for (int j = 0; j < 1 + i % 2; j++)
                 {
-                    var m = T("metal_panel", c[(i + j) % 5]);
-                    k.Box(new Vector3(-w / 2 + 1.5f + i * 3.2f, 0.06f + j * 2.6f, -d / 2 + 1.5f), new Vector3(-w / 2 + 4.0f + i * 3.2f, 2.66f + j * 2.6f, -d / 2 + 8.0f), m, m, 1f);
+                    Container(k, new Vector3(-w / 2 + 1.5f + i * 3.2f, 0.06f + j * 2.6f, -d / 2 + 1.5f), new Vector3(-w / 2 + 4.0f + i * 3.2f, 2.66f + j * 2.6f, -d / 2 + 8.0f), c[(i + j) % 5]);
                 }
             // the highway sign
             var pole = C(H("#9aa3ab"), 0.5f, 0.6f);
@@ -702,6 +704,29 @@ namespace RealLife.Game.Art
             k.Box(new Vector3(w / 2 - 6.0f, 6.18f, -d / 2 + 0.83f), new Vector3(w / 2 - 0.7f, 6.25f, -d / 2 + 0.85f), white, white);
             k.Box(new Vector3(w / 2 - 5.0f, 5.0f, -d / 2 + 0.83f), new Vector3(w / 2 - 1.7f, 5.5f, -d / 2 + 0.85f), white, white);
             if ((s & 2u) == 0) { k.Push(new Vector3(w / 2 - 3.5f, 0.06f, -4.5f), 180); PropArt.Truck(k, H("#c0392b"), H("#dfe4e8")); k.Pop(); }
+        }
+
+        /// <summary>A shipping container: ribbed steel, darker corner posts and rails, the doors with their locking bars at
+        /// the street end.</summary>
+        static void Container(MeshKit k, Vector3 min, Vector3 max, Color tint)
+        {
+            var m = T("metal_panel", tint);
+            var frame = C(MeshKit.Shade((Color32)tint, 0.7f), 0.35f, 0.3f);
+            k.Box(min, max, m, m, 1f);
+            const float t = 0.12f;
+            foreach (float x in new[] { min.x - 0.01f, max.x - t + 0.01f })
+                foreach (float z in new[] { min.z - 0.01f, max.z - t + 0.01f })
+                    k.Box(new Vector3(x, min.y, z), new Vector3(x + t, max.y, z + t), frame, frame);
+            foreach (float y in new[] { min.y, max.y - t })
+            {
+                k.Box(new Vector3(min.x - 0.01f, y, min.z), new Vector3(min.x + t, y + t, max.z), frame, frame);
+                k.Box(new Vector3(max.x - t, y, min.z), new Vector3(max.x + 0.01f, y + t, max.z), frame, frame);
+            }
+            float mx = (min.x + max.x) / 2;
+            k.Box(new Vector3(mx - 0.03f, min.y + 0.1f, min.z - 0.03f), new Vector3(mx + 0.03f, max.y - 0.1f, min.z), frame, frame);
+            var bar = C(H("#c9ced3"), 0.5f, 0.7f);
+            foreach (float x in new[] { mx - 0.5f, mx - 0.25f, mx + 0.25f, mx + 0.5f })
+                k.Box(new Vector3(x - 0.03f, min.y + 0.2f, min.z - 0.06f), new Vector3(x + 0.03f, max.y - 0.2f, min.z - 0.02f), bar, bar);
         }
 
         // ================================================================== building sites

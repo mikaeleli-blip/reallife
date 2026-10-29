@@ -496,7 +496,7 @@ namespace RealLife.Game.Art
             Lot(k, w, d, S("pavers"), 0.02f, 3f);
             var blue = T("wall_board", new Color(0.4f, 0.62f, 0.8f));
             var f = GableFront(k, -w / 2 + 0.6f, w / 2 - 0.6f, -d / 2 + 3, d / 2 - 0.6f, 4f, 2.6f, blue, T("roof_metal", new Color(0.82f, 0.82f, 0.8f)), season)[South];
-            Sign(k, f, f.Width / 2, f.Width - 1.6f, 4.3f, 0.75f, Row(BuildingType.FishMarket), closed);
+            Sign(k, f, f.Width / 2, Mathf.Min(5.6f, f.Width - 2.4f), 4.15f, 0.62f, Row(BuildingType.FishMarket), closed);
             Rect(k, f, 1, f.Width - 1, 0.9f, 3.4f, Glass(closed), Vector2.zero, new Vector2(0.75f, 1), 0.03f);
             // ice tables out front and a fish over the door
             var ice = C(H("#e1f5fe"), 0.8f); var steel = C(H("#b0b8c0"), 0.6f, 0.8f);

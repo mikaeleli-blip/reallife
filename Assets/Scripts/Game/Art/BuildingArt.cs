@@ -629,6 +629,9 @@ namespace RealLife.Game.Art
             Plain(k, sf[South], 3.6f, 4.4f, white, 2f);
             for (int i = 0; i < 4; i++) if (i != South) Plain(k, sf[i], 0, 4.4f, T("wall_stucco", new Color(0.95f, 0.94f, 0.92f)), 2f);
             FlatRoof(k, sx0, sx1, sz0, sz1, 4.4f, season == 0 ? S("snow") : S("roof_membrane"), white, red, 0.4f);
+            uint gs = s;
+            Backside(k, sf, 4.4f, ref gs, closed, true, 1);
+            BackRoof(k, sx0, sx1, sz1, 4.4f, ref gs);
             Ledge(k, sf[South], -0.05f, sf[South].Width + 0.05f, 3.6f, 4.4f, 0.15f, red);
             // price pylon
             k.Box(new Vector3(-w / 2 + 0.6f, 0.06f, -d / 2 + 0.6f), new Vector3(-w / 2 + 1.0f, 5.2f, -d / 2 + 1.0f), C(Metal, 0.5f, 0.6f), C(Metal));
@@ -646,6 +649,8 @@ namespace RealLife.Game.Art
             Band(k, faces[East], 0, h, glass, 3.0f, h, 4, 1, 1);
             Band(k, faces[West], 0, h, glass, 3.0f, h, 4, 2, 2);
             Plain(k, faces[North], 0, h, T("metal_panel", new Color(0.92f, 0.93f, 0.95f)), 2f);
+            uint cs = s;
+            Backside(k, faces, h, ref cs, closed, false, 2);
             var trim = C(H("#0a3d62"), 0.4f, 0.3f);
             FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), C(H("#e9ecef")), trim, 0.8f);
             Ledge(k, faces[South], -0.1f, faces[South].Width + 0.1f, h - 0.2f, h + 0.9f, 0.25f, trim);
@@ -679,6 +684,9 @@ namespace RealLife.Game.Art
             Plain(k, faces[South], 4.7f, h, cladding, 2f);
             for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0, h, cladding, 2f);
             FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), C(H("#9aa3ab")), C(H("#f39c12"), 0.3f), 0.5f);
+            uint ars = s;
+            Backside(k, faces, h, ref ars, closed, true, 1);
+            BackRoof(k, x0, x1, z1, h, ref ars);
             Sign(k, faces[South], faces[South].Width / 2, Mathf.Min(7f, faces[South].Width - 1f), 4.82f, 0.58f, SignRow.AutoRepair, closed);
             var tire = C(H("#1b1b1b"), 0.25f);
             for (int i = 0; i < 4; i++) k.Cylinder(new Vector3(x1 - 0.5f, 0.06f + i * 0.28f, -d / 2 + 1.0f), 0.38f, 0.38f, 0.26f, 10, tire, tire);
@@ -731,6 +739,9 @@ namespace RealLife.Game.Art
             Rect(k, f, 0.3f, f.Width - 0.3f, 0.6f, h - 1.2f, glass, new Vector2(0, 0), new Vector2(Mathf.Round((f.Width - 0.6f) / 2.7f) * 0.25f, 1));
             Plain(k, f, h - 1.2f, h, stone, 2f);
             for (int i = 0; i < 4; i++) if (i != South) Plain(k, faces[i], 0.6f, h, stone, 2f);
+            for (int i = 0; i < 4; i++)
+                if (i != South) WindowRow(k, faces[i], i == North ? 2.4f : 1.0f, faces[i].Width - 1.0f, 2.2f, 1.2f, 3.2f, 2.8f, ref s, closed);
+            Door(k, faces[North], 1.3f, H("#6b7178"), 1.0f, 2.2f);
             FlatRoof(k, x0, x1, z0, z1, h, season == 0 ? S("snow") : S("roof_membrane"), stone, stoneTop, 0.5f);
             // portico: columns, entablature, pediment
             var white = C(H("#efeae0"), 0.3f);
