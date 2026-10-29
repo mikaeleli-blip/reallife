@@ -89,8 +89,9 @@ namespace RealLife.Game
         static Color Hex(string h) { Color c; ColorUtility.TryParseHtmlString(h, out c); return c; }
         static readonly Color SunLow = Hex("#ff9a5a"), SunMid = Hex("#ffe0b8"), SunHigh = Hex("#fff6ea"), MoonColor = Hex("#8ea6d6");
 
-        /// <summary>Sets everything for the town's hour (0..24) and season (0 winter .. 3 autumn); viewDistance scales the haze.</summary>
-        public void Apply(float hour, int season, float viewDistance)
+        /// <summary>Sets everything for the town's hour (0..24) and season (0 winter .. 3 autumn), and whether there's snow on
+        /// the ground; viewDistance scales the haze.</summary>
+        public void Apply(float hour, int season, bool snowy, float viewDistance)
         {
             if (Sun == null) return;
             // short days in winter, long in summer
@@ -114,7 +115,7 @@ namespace RealLife.Game
             Sun.intensity = Mathf.Lerp(0.28f, 1.3f + 0.4f * Mathf.Clamp01(elev / 40f), Daylight);
             Sun.shadowStrength = Mathf.Lerp(0.55f, 0.82f, Daylight);
 
-            bool snow = season == 0;
+            bool snow = snowy;
             Color skyDay = snow ? Hex("#a9b8c8") : Hex("#9fb8d6"), skyDusk = Hex("#b98d7c"), skyNight = Hex("#323e60");
             Color eqDay = snow ? Hex("#a3a7ab") : Hex("#949386"), eqDusk = Hex("#8a6a58"), eqNight = Hex("#262c42");
             Color grDay = snow ? Hex("#8e9298") : Hex("#4f4a40"), grNight = Hex("#0b0c10");
@@ -150,9 +151,10 @@ namespace RealLife.Game
             MaterialLibrary.SetNight(Night);
 
             // refresh reflections now and then
-            if (season != envSeason || (Mathf.Abs(Mathf.DeltaAngle(hour * 15f, envHour * 15f)) > 7.5f && Time.unscaledTime - lastEnv > 1f))
+            int look = season + (snowy ? 4 : 0);
+            if (look != envSeason || (Mathf.Abs(Mathf.DeltaAngle(hour * 15f, envHour * 15f)) > 7.5f && Time.unscaledTime - lastEnv > 1f))
             {
-                envHour = hour; envSeason = season; lastEnv = Time.unscaledTime;
+                envHour = hour; envSeason = look; lastEnv = Time.unscaledTime;
                 DynamicGI.UpdateEnvironment();
             }
         }

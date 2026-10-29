@@ -89,10 +89,10 @@ namespace RealLife.Game
         void LateUpdate()
         {
             if (town == null) return;
-            bool all = town.Season != season;
+            bool all = town.LookSeason != season;
             if (all || town.MapVersion != mapVersion || zoneStrong != zoneStrongShown)
             {
-                season = town.Season;
+                season = town.LookSeason;
                 if (all) treeHash.Clear();
                 mapVersion = town.MapVersion; zoneStrongShown = zoneStrong;
                 RebuildGround();
@@ -101,7 +101,7 @@ namespace RealLife.Game
                 if (countrySeason != season) RebuildCountry();
             }
             else if (Time.frameCount % 15 == 0) SyncBuildings(false);
-            if (atmo != null) atmo.Apply(town.Hour, season, rig != null ? rig.Distance : 300f);
+            if (atmo != null) atmo.Apply(town.Hour, town.Season, season == 0, rig != null ? rig.Distance : 300f);
             float zl = Mathf.Lerp(1f, 0.32f, Night);
             zoneMat.SetColor("_Color", new Color(zl, zl, zl, Mathf.Lerp(1f, 0.6f, Night)));
         }

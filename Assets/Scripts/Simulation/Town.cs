@@ -180,6 +180,11 @@ namespace RealLife.Simulation
         /// <summary>What the town looks like: winter is December and January, spring February to April, summer May to August,
         /// autumn September to November.</summary>
         public int Season { get { int m = MonthOfYear; return m == 11 || m == 0 ? 0 : m < 4 ? 1 : m < 8 ? 2 : 3; } }
+        /// <summary>Snow on the ground: through December and the first week of January. The rest of January is still winter,
+        /// just without the snow.</summary>
+        public bool Snowy { get { int m = MonthOfYear; return m == 11 || (m == 0 && Week == 1); } }
+        /// <summary>The season the land is drawn in: winter only while there's snow, early spring after.</summary>
+        public int LookSeason { get { return Season == 0 && !Snowy ? 1 : Season; } }
 
         /// <summary>The growing year, for the farms: nothing much grows from December to February.</summary>
         public int CropSeason { get { int m = MonthOfYear; return m == 11 || m < 2 ? 0 : m < 5 ? 1 : m < 8 ? 2 : 3; } }

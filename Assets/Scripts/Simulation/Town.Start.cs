@@ -13,9 +13,12 @@ namespace RealLife.Simulation
         public const int MapSize = 96;
         public int StartX = -1, StartY = -1;   // where the highway ends: where an empty town starts
 
+        const int StartMonth = 3;   // April
+
         public static Town CreateNew(int seed)
         {
             var t = new Town { Seed = seed, Cols = MapSize, Rows = MapSize };
+            t.Day = StartMonth * Balance.DaysPerMonth;   // a new town starts in spring
             t.RngState = unchecked((int)((uint)seed * 2654435761u | 1u));
             for (int i = 0; i < 10; i++) t.Rand();
             t.Tiles = new int[t.Cols * t.Rows];
@@ -51,6 +54,7 @@ namespace RealLife.Simulation
         public static Town CreateDeveloped(int seed)
         {
             var t = new Town { Seed = seed, Cols = MapSize, Rows = MapSize };
+            t.Day = StartMonth * Balance.DaysPerMonth;   // so you arrive in spring, after its year of history
             t.RngState = unchecked((int)((uint)seed * 2654435761u | 1u));
             for (int i = 0; i < 10; i++) t.Rand();
             t.Tiles = new int[t.Cols * t.Rows];
