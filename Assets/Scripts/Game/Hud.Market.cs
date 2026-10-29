@@ -139,7 +139,8 @@ namespace RealLife.Game
                 case Outlook.NoLot:
                     c = Ui.Warn;
                     if (d.HeadOf.HasValue)
-                        tip = away + Defs.Get(d.HeadOf.Value).Chain + " needs a head office to run its stores before it opens another, and there's no free 1×1 lot zoned Shops by a road for one (that isn't part of a lot big enough for a store).";
+                        tip = away + Defs.Get(d.HeadOf.Value).Chain + (p.Here > 0 ? "'s stores need a head office to run them" : " would come, but it needs a head office downtown")
+                              + ", and there's no free 1×1 lot zoned Shops by a road for one (that isn't part of a lot big enough for a store).";
                     else if (d.Chain != null && p.Here > 0)
                         tip = away + One + " would open, but there's no free " + d.W + "×" + d.H + " lot zoned Shops by a road in a part of town its stores are far from.";
                     else tip = next + away + One + " would open, but there's no free " + d.W + "×" + d.H + " lot zoned " + GameController.ZoneName(d.Zone) + " by a road on the highway's network.";
@@ -148,6 +149,7 @@ namespace RealLife.Game
                     c = Ui.Warn;
                     if (d.HeadOf.HasValue) tip = away + "The family behind " + Defs.Get(d.HeadOf.Value).Chain + " hasn't the " + Town.Money(Town.FoundersStake(p.Kind)) + " or so it takes to set up a head office yet.";
                     else if (d.Chain != null && p.Here > 0) tip = away + "The town could do with " + one + ", but its head office hasn't the money for it yet.";
+                    else if (d.Chain != null) tip = away + "No family here has the " + Town.Money(Town.FoundersStake(p.Kind) + Town.FoundersStake(d.Office.Value)) + " or so it takes to found " + d.Chain + ": its head office and its first store.";
                     else tip = next + away + One + " would pay its way, but no family here has the " + Town.Money(Town.FoundersStake(p.Kind)) + " or so it takes to start one.";
                     return "nobody can fund it";
                 case Outlook.BuildersBusy:
@@ -164,7 +166,8 @@ namespace RealLife.Game
                     tip = away + "Comes with a town of about " + p.MinPop.ToString("#,0") + " people.";
                     return "from " + p.MinPop.ToString("#,0") + " people";
                 case Outlook.Thin:
-                    tip = next + away + (p.Need > 0 ? One + " would need about " + Approx(p.Need) + " a month to pay its way." : "Not enough for " + one + " to pay its way.");
+                    string with = d.Chain != null && p.Here == 0 ? " (a store and its head office)" : "";
+                    tip = next + away + (p.Need > 0 ? One + with + " would need about " + Approx(p.Need) + " a month to pay its way." : "Not enough for " + one + with + " to pay its way.");
                     return p.Need > 0 ? "needs ~" + Approx(p.Need) : "not enough yet";
                 case Outlook.HaveRoom:
                     tip = next + away + (p.Group == 2 ? (p.Here == 1 ? "The one here" : "The ones here") + " can still take on more staff and work."

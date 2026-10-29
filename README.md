@@ -123,17 +123,17 @@ the rest: in a grocery store's own lot, in a public parking lot (Build menu: 2 x
 where they're going, or, if there's none or it's full, at the kerb outside, where the car isn't shown while they're inside.
 Parked cars stay in their spots until their drivers come back for them. Given the choice, drivers shop where they can park.
 
-**Grocery chains.** Besides the corner grocery stores there are three chains, each a local company: a family here opens the
-first store and runs it. Buymore is the discounter (from about 500 people), Megamart the nicer supermarket that
+**Grocery chains.** Besides the corner grocery stores there are three chains, each a local company: a family here founds it
+and owns its **head office**, and the head office owns every store. Buymore is the discounter (from about 500 people), Megamart the nicer supermarket that
 better-off families prefer even at a bit more (from about 950), and Bulkworks Club the warehouse club, cheapest of all but
 only for those with a car, and worth a longer drive (from about 1,800). A chain comes when the town's grocery shopping would
-keep a store going (sooner if the grocers here are dear) and there's a free commercial lot big enough: 3 x 3 for the first
-two, 4 x 4 for the club; the advice tells you when one is waiting for a lot. They buy by the truckload for less, keep to
+keep a store and its head office going (sooner if the grocers here are dear) and there are free commercial lots for both:
+3 x 3 for a Buymore or Megamart store, 4 x 4 for the club, and a 1 x 1 downtown for the head office (one that isn't part of
+a lot big enough for a store); the advice tells you when one is waiting for a lot. They buy by the truckload for less, keep to
 their place on price (all of a chain's stores charge the same), and fight the corner shops and each other for customers;
-the small grocers keep the people who walk to the shops, and some close. To grow past one store a chain sets up a **head
-office** downtown (a 1 x 1 commercial lot that isn't part of one big enough for a store), with an executive, accountants,
-clerks and a designer: it owns the stores, takes their profits, does their books and ads, and decides when the town needs
-another. It opens one only when its stores are full and turning people away, the town's other grocers can't take them
+the small grocers keep the people who walk to the shops, and some close. The head office has an executive, accountants, clerks
+and a designer: it owns the stores, takes their profits, does their books and ads, and decides when the town needs
+another. If it goes under, its stores close with it. It opens one only when its stores are full and turning people away, the town's other grocers can't take them
 either, the town has grown into it (Buymore about every 1,100 people, Megamart every 1,600, Bulkworks every 3,000), and
 there's a lot well away from its other stores, in a part of town they're far from. Each store has its own car park, and a
 store that keeps losing money closes like any other. The inspector shows a store's chain and who runs it, and a head

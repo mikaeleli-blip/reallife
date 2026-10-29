@@ -249,7 +249,8 @@ namespace RealLife.Simulation
                 if (put < working && h != null) NewLoan(LoanKind.Business, h, b, working - put, Balance.BusinessRate, Balance.BusinessMonths);
                 if (put < working) b.Cash += working - put;
                 // the founder works there
-                var founder = Members(h).Where(m => m.InLaborForce || (m.WorkId >= 0 && !m.Owner)).OrderByDescending(m => m.Ambition).FirstOrDefault(m => QualifiesFor(m, b) != Role.None);
+                var founder = d.HeadOf.HasValue && StoresOf(b).Count == 0 ? null
+                            : Members(h).Where(m => m.InLaborForce || (m.WorkId >= 0 && !m.Owner)).OrderByDescending(m => m.Ambition).FirstOrDefault(m => QualifiesFor(m, b) != Role.None);
                 if (founder != null) { founder.Owner = true; Hire(b, founder, QualifiesFor(founder, b), false); Note(founder, "Opened " + PlaceName(b) + "."); }
                 AddLog((founder != null ? founder.Name : "The " + (h != null ? h.Name : "") + " family") + " opened " + PlaceName(b) + ".", LogKind.Good, b.Id);
             }

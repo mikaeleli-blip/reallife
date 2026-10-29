@@ -6,9 +6,9 @@ namespace RealLife.Simulation
 {
     /// <summary>
     /// The grocery chains: Buymore (the discounter), Megamart (the nicer supermarket) and Bulkworks Club (the
-    /// warehouse club, for drivers). Each is a company here: a local family opens the first store when the town's grocery
-    /// shopping would keep one going (sooner if the grocers here are dear), and the chain opens another as the town grows and
-    /// its stores fill up. They buy in bulk and sell cheaper than a corner grocery; the small grocers keep the people who walk
+    /// warehouse club, for drivers). Each is a company here: when the town's grocery shopping would keep a store and its head
+    /// office going (sooner if the grocers here are dear) a local family founds it, owning the head office, and the head
+    /// office owns the stores. It opens another as the town grows and its stores fill up. They buy in bulk and sell cheaper than a corner grocery; the small grocers keep the people who walk
     /// to the shops. Families who can afford to care prefer the nicer store.
     /// </summary>
     public partial class Town
@@ -63,7 +63,21 @@ namespace RealLife.Simulation
             double share = Math.Min(0.6, ChainShare * r * r * r) / (1 + 0.5 * chains);
             if (d.NeedsCar) share *= Households.Count > 0 ? Households.Count(h => CarCount(h) > 0) / (double)Households.Count : 0;
             rev = GroceryMarket() * share;
-            return rev * ChainMargin(t) >= RunningCost(t, rev) * 1.2;
+            double office = HeadOffice(t) == null ? HeadOfficeCost(t, rev) : 0;
+            return rev * ChainMargin(t) >= (RunningCost(t, rev) + office) * 1.2;
+        }
+
+        /// <summary>What a chain's head office adds to the company's costs a month while it runs one store: its executive, its
+        /// utilities, upkeep, tax, insurance and loan, less the books, ads and design the store no longer pays outside firms
+        /// for.</summary>
+        double HeadOfficeCost(BuildingType chain, double storeRevenue)
+        {
+            var ot = Defs.Get(chain).Office.Value;
+            var od = Defs.Get(ot);
+            double inHouse = OfficeBill(chain, Practice.Accounting, storeRevenue, Defs.Get(chain).TotalJobs) + OfficeBill(chain, Practice.Marketing, storeRevenue, Defs.Get(chain).TotalJobs)
+                           + OfficeBill(chain, Practice.Design, storeRevenue, Defs.Get(chain).TotalJobs);
+            return Defs.Get(Role.Executive).Wage * 1.05 + od.TotalJobs * Balance.UtilitiesJob + od.Value * (Balance.Maintenance + Policy.PropertyTax) / 12
+                   + od.Value * BusinessInsurance + Annuity(od.StartupCost * (1 - FoundersShare(ot)), Balance.PropertyRate, Balance.PropertyMonths) - inHouse;
         }
         public const double ChainShare = 0.22;
 
@@ -101,8 +115,8 @@ namespace RealLife.Simulation
                 var open = mine.Where(b => b.Open).ToList();
                 var office = HeadOffice(t);
                 var p = Pro(d.Chain, t, 0, open.Count, 0, Outlook.Promising);
-                // a chain with stores and no head office sets one up to run them
-                if (open.Count >= 2 && office == null && building < buildCap)
+                // a chain's stores belong to its head office: stores from before there were head offices get one
+                if (open.Count > 0 && office == null && building < buildCap)
                 {
                     office = SetUpOffice(t, open);
                     if (office != null) building++;
@@ -116,20 +130,16 @@ namespace RealLife.Simulation
                     double rev;
                     bool pays = ChainPays(t, out rev);
                     p.Away = rev; p.Estimate = true;
-                    if (!pays) { p.State = Outlook.Thin; p.Need = LeastThatPays(r => r * ChainMargin(t) >= RunningCost(t, r) * 1.2); }
+                    if (!pays) { p.State = Outlook.Thin; p.Need = LeastThatPays(r => r * ChainMargin(t) >= (RunningCost(t, r) + (office == null ? HeadOfficeCost(t, r) : 0)) * 1.2); }
                     if (pays) DevNote(d.Chain + " at pop " + pop + " est rev " + Money(rev) + " margin " + ChainMargin(t).ToString("0.00") + " cost " + Money(RunningCost(t, rev)));
                     if (!Ready(p, t, pays, 2, false)) continue;
-                    // a head office still going with no stores opens one itself; otherwise a family here starts the chain
+                    // a head office still going with no stores opens one itself; otherwise a family here founds the company:
+                    // its head office downtown and its first store, which the head office owns
                     Building b;
                     if (office != null && office.Open) b = ChainStore(t, office, p);
-                    else
-                    {
-                        var founder = Entrepreneur(t);
-                        if (founder == null) { p.State = Outlook.NoBacker; NoInvestor = t; DevNote("no founder for " + d.Chain); continue; }
-                        b = Expand(t, founder);
-                        if (b != null) AddLog("The " + founder.Name + " family is opening " + d.Chain + ", the town's first " + d.Name.ToLower() + ".", LogKind.Good, b.Id);
-                    }
-                    if (b == null) { if (p.State == Outlook.Promising) p.State = Outlook.NoLot; continue; }
+                    else if (office != null) { b = Develop(t, null, office); if (b == null) p.State = Outlook.NoLot; }
+                    else { b = FoundChain(t, p); if (b != null) building++; }
+                    if (b == null) continue;
                     building++; EntryMonths[(int)t] = 0;
                     p.State = Outlook.Opening; p.Site = b.Id;
                 }
@@ -192,6 +202,39 @@ namespace RealLife.Simulation
             return b;
         }
 
+        /// <summary>A family here founds a chain: they set up its head office downtown (on a lot that doesn't break up a big one)
+        /// and build its first store, which belongs to the head office. Both lots must be free, and the family must have its
+        /// share of both.</summary>
+        Building FoundChain(BuildingType t, Prospect p)
+        {
+            var d = Defs.Get(t);
+            var ot = d.Office.Value;
+            int x, y;
+            if (!FindLot(ot, out x, out y)) { p.Kind = ot; p.State = Outlook.NoLot; Wants[(int)ot] += 0.5f; LotShort[(int)Zone.Commercial] = true; return null; }
+            var shut = Buildings.FirstOrDefault(o => o.Type == t && o.Closed && o.Built && Connected(o));
+            if (shut == null && !FindLot(t, out x, out y)) { p.State = Outlook.NoLot; Wants[(int)t] += 0.5f; LotShort[(int)Zone.Commercial] = true; return null; }
+            var founder = Entrepreneur(t);
+            if (founder == null || founder.Cash < FoundersStake(t) + FoundersStake(ot) + 10000) { p.State = Outlook.NoBacker; NoInvestor = t; DevNote("no founder for " + d.Chain); return null; }
+            var office = Develop(ot, founder, null);
+            if (office == null) { p.Kind = ot; p.State = Outlook.NoLot; return null; }
+            office.Brand = d.Chain + " head office";
+            Building store;
+            if (shut != null)
+            {
+                // the bank sells them the empty store; the store pays off the loan
+                double price = shut.Value * 0.6, down = Math.Min(price * 0.3, Math.Max(0, founder.Cash - 20000));
+                HouseholdPays(founder, down, HouseholdBook.Goods);
+                SellerGets(shut, price, false);
+                FirmOwns(shut, office); shut.Brand = d.Chain;
+                if (price > down) PropertyLoan(shut, founder, shut, price - down, false);
+                OpenBusiness(shut);
+                store = shut;
+            }
+            else store = Develop(t, null, office);
+            AddLog("The " + founder.Name + " family is founding " + d.Chain + ": a head office downtown and the town's first " + d.Name.ToLower() + ".", LogKind.Good, office.Id);
+            return store ?? office;
+        }
+
         /// <summary>The family that runs a chain sets up its head office downtown, on a lot that doesn't break up a big one.
         /// When it opens it takes over their stores.</summary>
         Building SetUpOffice(BuildingType t, List<Building> stores)
@@ -210,7 +253,8 @@ namespace RealLife.Simulation
             return o;
         }
 
-        /// <summary>A head office opens: it takes over its family's stores.</summary>
+        /// <summary>A head office opens: every store of its chain belongs to it. The founding family's own stores go in; one
+        /// another family owns it buys from them.</summary>
         void OfficeTakesOver(Building office)
         {
             var chain = office.Def.HeadOf.Value;
@@ -219,23 +263,32 @@ namespace RealLife.Simulation
             foreach (var s in Buildings.Where(b => b.Type == chain && b.Built && !b.Closed && b.Owner == Owner.Household).ToList())
             {
                 var sf = GetHousehold(s.OwnerId);
-                if (fam == null || !(s.OwnerId == fam.Id || SameFamily(sf, fam))) continue;
+                bool theirs = fam != null && (s.OwnerId == fam.Id || SameFamily(sf, fam));
+                if (!theirs)
+                {
+                    double price = Math.Max(s.Value * 0.15, s.Value * 0.75 - Debt(s));
+                    double down = Math.Min(price, Math.Max(0, office.Cash - Cushion(office) * 0.5));
+                    office.Cash -= down;
+                    SellerGets(s, price, true);
+                    if (price > down) PropertyLoan(s, fam, office, price - down, false);
+                    foreach (var l in Loans) if (l.Kind == LoanKind.Business && l.BuildingId == s.Id && fam != null) l.HouseholdId = fam.Id;
+                }
                 FirmOwns(s, office); n++;
-                // the family stop being the owners at the store; the head office is theirs
                 foreach (var id in s.Employees) { var c = GetCitizen(id); if (c != null && c.Owner) c.Owner = false; }
             }
             if (n > 0) AddLog(Title(office) + " opened and took over " + (n == 1 ? "the chain's store." : "the chain's " + n + " stores."), LogKind.Good, office.Id);
         }
 
-        /// <summary>A head office closes: its stores go back to the family that owned it, or are sold.</summary>
+        /// <summary>A head office closes: the company is gone, and its stores close with it (the bank takes them; work stops on
+        /// one still going up, and the lot is cleared).</summary>
         void OfficeCloses(Building office)
         {
-            var fam = GetHousehold(office.OwnerId);
-            foreach (var l in Loans) if (l.FirmId == office.Id && l.BuildingId != office.Id) l.FirmId = -1;   // each store pays its own loan
+            foreach (var l in Loans) if (l.FirmId == office.Id && l.BuildingId != office.Id) l.FirmId = -1;   // each store's loan is its own now
             foreach (var s in Portfolio(office).ToList())
             {
-                if (fam != null) { FamilyOwns(s, fam); continue; }
-                if (s.Open) TransferBusiness(s);
+                if (!s.Built) { AddLog("Work stopped on the new " + s.Def.Chain + " store: its company closed.", LogKind.Bad, s.Id); RemoveBuilding(s); }
+                else if (!s.Closed) CloseBusiness(s, "its company closed");
+                else BankTakes(s);
             }
         }
     }

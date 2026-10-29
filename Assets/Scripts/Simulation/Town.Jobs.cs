@@ -43,6 +43,8 @@ namespace RealLife.Simulation
             }
             if (d.Cat == Category.Residential || d.Cat == Category.Special) return 0;
             if (b.Type == BuildingType.Realty) return j.Role == Role.PropertyManager ? Math.Max(1, b.WantManagers) : b.WantHands;
+            // a head office takes people on once it has a store open to run
+            if (d.HeadOf.HasValue && StoresOf(b).Count == 0) return 0;
             bool first = d.Jobs.Length > 0 && d.Jobs[0].Role == j.Role;
             return Math.Max(first ? 1 : 0, (int)Math.Round(j.Count * b.Staffing));
         }

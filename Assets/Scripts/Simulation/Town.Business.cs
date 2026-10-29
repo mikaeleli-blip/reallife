@@ -336,6 +336,8 @@ namespace RealLife.Simulation
                 b.LastProfit = profit;
                 // a month counts as a loss when it really lost money, not when it came out about even
                 if (profit >= -Math.Max(300, b.LastRevenue * 0.015)) b.LossMonths = 0; else b.LossMonths++;
+                // a head office isn't failing while its stores are going up or just opened
+                if (b.Def.HeadOf.HasValue && Portfolio(b).Any(s => !s.Built || Day - s.BuiltDay < Balance.DaysPerMonth * 3)) b.LossMonths = 0;
                 Succession(b);
                 if (b.Closed) continue;
                 // a chain's store sends most of its month's profit up to its head office
@@ -413,7 +415,7 @@ namespace RealLife.Simulation
                 Note(c, "Lost their job when " + Ref(b) + " closed.");
                 c.Owner = false; LeaveJob(c, null);
             }
-            // a chain's head office: its stores go back to the family, or are sold
+            // a chain's head office: its stores close with it
             if (b.Def.HeadOf.HasValue) OfficeCloses(b);
             // the bank writes off what it lent the business and takes the building; a property firm's homes go with it (and
             // the loan on a chain's store its head office was paying)
@@ -455,7 +457,7 @@ namespace RealLife.Simulation
             // an office takes people on while it has more work than it can do, and lets them go when work is short (or when
             // it's losing money without being busy)
             if (d.Bills || b.Type == BuildingType.Office) s += b.LastUse > 0.92f ? 0.15f : b.LastUse < 0.7f || (b.LossMonths >= 2 && b.LastUse < 0.85f) ? -0.15f : 0;
-            else if (d.HeadOf.HasValue) s = Math.Min(1f, 0.2f + 0.15f * (StoresOf(b).Count - 1));   // a head office grows with the chain
+            else if (d.HeadOf.HasValue) s = Math.Min(1f, 0.2f + 0.15f * Math.Max(0, StoresOf(b).Count - 1));   // a head office grows with the chain
             else if (b.Type == BuildingType.Construction)
             {
                 // a crew sized to the work on the books: what's left on its sites, over the next few months

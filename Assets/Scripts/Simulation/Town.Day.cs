@@ -183,7 +183,8 @@ namespace RealLife.Simulation
             {
                 var o = Defs.Get(t).Office;
                 if (o.HasValue && LastWants != null && LastWants[(int)o.Value] > 0)
-                    l.Add(Defs.Get(t).Chain + " wants to set up a head office to run its stores: it needs a free 1 x 1 commercial lot by a road that isn't part of one big enough for a store.");
+                    l.Add(Defs.Get(t).Chain + (Buildings.Any(b => b.Type == t && b.Open) ? " wants to set up a head office to run its stores" : " wants to open here, with its head office downtown")
+                          + ": it needs a free 1 x 1 commercial lot by a road that isn't part of one big enough for a store.");
             }
             if (LotShort != null && LotShort[(int)Zone.Industrial]) l.Add("A firm wanted to build but found no industrial land by a road.");
             if (LotShort != null && LotShort.Length > (int)Zone.Farmland && LotShort[(int)Zone.Farmland]) l.Add("Someone wanted to start a farm but there's no farmland by a road. Zone some with the Farms tool.");

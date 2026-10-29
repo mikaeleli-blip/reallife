@@ -136,6 +136,11 @@ static class Program
         Console.WriteLine("Advice: " + string.Join(" | ", t.Advice()));
         Console.WriteLine(Homes(t));
         Console.WriteLine("Wants: " + string.Join(", ", Defs.All.Where(x => t.LastWants[(int)x] > 0).Select(x => x + " " + t.LastWants[(int)x].ToString("0"))));
+        // CHAINS=1: every chain store and head office, and who owns it
+        if (Environment.GetEnvironmentVariable("CHAINS") == "1")
+            foreach (var b in t.Buildings.Where(x => Town.ChainOf(x) != null))
+                Console.WriteLine("  chain " + b.Type.ToString().PadRight(16) + " #" + b.Id + " " + (b.Open ? "open" : !b.Built ? "building" : "shut") + "  owner " + b.Owner + " " + b.OwnerName
+                    + "  cash " + Town.Money(b.Cash) + "  profit " + Town.Money(b.LastProfit) + "  staff " + b.Employees.Count);
         if (Environment.GetEnvironmentVariable("PRO") == "1" && t.Prospects != null)
             foreach (var g in t.Prospects.GroupBy(x => x.Group))
             {
