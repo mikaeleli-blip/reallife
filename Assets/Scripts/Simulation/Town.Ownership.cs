@@ -22,7 +22,6 @@ namespace RealLife.Simulation
         void FamilyOwns(Building b, Household h) { b.Owner = Owner.Household; b.OwnerId = h.Id; b.OwnerName = h.Name; }
         void FirmOwns(Building b, Building firm) { b.Owner = Owner.Firm; b.OwnerId = firm.Id; b.OwnerName = Title(firm); }
 
-        /// <summary>The bank takes a building back: a shut business, a repossessed home, a failed firm's flats.</summary>
         /// <summary>Saves from before a chain could draw on its own stores' money: a head office that went under for want of
         /// cash on hand doesn't count as the chain having failed here, so someone may found it again soon.</summary>
         void ForgiveChainFailures()
@@ -38,6 +37,7 @@ namespace RealLife.Simulation
         /// <summary>The bank's own building (a branch it built, or one it took back), not a family's or a firm's.</summary>
         public bool BanksOwn(Building b) { return b.Owner == Owner.Firm && b.OwnerId < 0 && b.OwnerName == BankName; }
 
+        /// <summary>The bank takes a building back: a shut business, a repossessed home, a failed firm's flats.</summary>
         void BankTakes(Building b)
         {
             b.Owner = Owner.Firm; b.OwnerId = -1; b.OwnerName = BankName;
