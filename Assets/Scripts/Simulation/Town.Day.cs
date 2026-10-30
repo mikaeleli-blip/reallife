@@ -171,6 +171,8 @@ namespace RealLife.Simulation
             if (VacantUnits() == 0 && !HasLot(BuildingType.House) && !HasLot(BuildingType.Apartments) && SettlersShort == 0) l.Add("Homes are full and there's no residential land by a road left to build on.");
             if (LotShort != null && LotShort.Length > (int)Zone.Apartments && LotShort[(int)Zone.Apartments]) l.Add("People want flats to rent but there's no land zoned for apartments by a road. Zone some: Homes, then Apartments.");
             if (LotShort != null && LotShort[(int)Zone.Commercial]) l.Add("A business wanted to open but found no commercial lot by a road.");
+            if (Population >= Defs.Get(BuildingType.Bank).MinPop && !Buildings.Any(b => b.Type == BuildingType.Bank && !(b.Built && b.Closed)))
+                l.Add("There's no bank in town. Place one from the Build menu: " + BankName + " pays for it and runs it.");
             foreach (var t in ChainTypes)
                 if (LastWants != null && LastWants[(int)t] > 0)
                 {

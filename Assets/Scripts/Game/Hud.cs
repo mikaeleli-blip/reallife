@@ -195,7 +195,7 @@ namespace RealLife.Game
             ToolButton(ref x, y, bw, bh, "Industry", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Industrial, () => gc.SetTool(Tool.Zone, Zone.Industrial), GameController.ZoneHint(Zone.Industrial));
             ToolButton(ref x, y, bw, bh, "Farms", gc.Tool == Tool.Zone && gc.ZoneKind == Zone.Farmland, () => gc.SetTool(Tool.Zone, Zone.Farmland), GameController.ZoneHint(Zone.Farmland));
             ToolButton(ref x, y, bw, bh, "Unzone", gc.Tool == Tool.Dezone, () => gc.SetTool(Tool.Dezone), "Clear zoning from empty land.");
-            ToolButton(ref x, y, bw, bh, "Build", buildMenu || gc.Tool == Tool.Place, () => { buildMenu = !buildMenu; if (buildMenu) Open = Panel.None; }, "Public buildings the town pays for: schools, a clinic, police, parks, buses.");
+            ToolButton(ref x, y, bw, bh, "Build", buildMenu || gc.Tool == Tool.Place, () => { buildMenu = !buildMenu; if (buildMenu) Open = Panel.None; }, "Public buildings the town pays for (schools, a clinic, police, parks, buses), and the bank, which pays for its own.");
             ToolButton(ref x, y, bw, bh, "Bulldoze", gc.Tool == Tool.Bulldoze, () => gc.SetTool(Tool.Bulldoze), "Remove roads, zoning, public buildings and empty private ones. (X)");
             x += 14;
             ToolButton(ref x, y, bw, bh, "Laws", Open == Panel.Town, () => Toggle(Panel.Town), "Taxes, wages, benefits, staffing, and the town budget.");
@@ -236,7 +236,7 @@ namespace RealLife.Game
         static readonly BuildingType[] Public =
         {
             BuildingType.TownHall, BuildingType.Elementary, BuildingType.HighSchool, BuildingType.College, BuildingType.Clinic, BuildingType.Hospital,
-            BuildingType.Police, BuildingType.FireStation, BuildingType.Park, BuildingType.ParkingLot, BuildingType.BusDepot
+            BuildingType.Police, BuildingType.FireStation, BuildingType.Park, BuildingType.ParkingLot, BuildingType.BusDepot, BuildingType.Bank
         };
 
         void BuildMenu()
@@ -246,7 +246,7 @@ namespace RealLife.Game
             float x = W / 2 - w / 2, y = H - 92 - h;
             var r = Claim(Ui.R(x, y, w, h));
             Ui.PanelBox(r);
-            Ui.Title(Ui.R(x + 14, y + 8, w - 28, 28), "Public buildings");
+            Ui.Title(Ui.R(x + 14, y + 8, w - 28, 28), "Build");
             float ry = y + 44;
             foreach (var t in Public)
             {
@@ -255,6 +255,16 @@ namespace RealLife.Game
                 bool on = gc.Tool == Tool.Place && gc.PlaceType == t;
                 if (Ui.Button(rr, "", on)) { gc.SetTool(Tool.Place, Zone.None, t); buildMenu = false; }
                 Ui.Bold(Ui.R(x + 20, ry + 4, 300, 20), d.Name);
+                if (t == BuildingType.Bank)
+                {
+                    // the bank builds and runs its own branch: it costs the town nothing
+                    Ui.Small(Ui.R(x + 20, ry + 24, w - 160, 18), "The town's bank: lends for homes, cars, college and businesses.");
+                    Ui.Right(Ui.R(x + w - 160, ry + 4, 140, 20), "paid by the bank", Ui.Dim);
+                    Ui.Right(Ui.R(x + w - 220, ry + 24, 200, 18), "<size=" + Mathf.RoundToInt(12 * Ui.S) + ">one per town · " + d.W + "×" + d.H + "</size>", Ui.Dim);
+                    Tip(rr, "You choose where it goes. " + T.BankName + " pays the " + Town.Money(d.StartupCost) + " to build it, hires its staff and keeps its profits: it costs the town nothing. One per town.");
+                    ry += rowH + 4;
+                    continue;
+                }
                 Ui.Small(Ui.R(x + 20, ry + 24, w - 160, 18), d.Blurb);
                 Ui.Right(Ui.R(x + w - 160, ry + 4, 140, 20), Town.Money(d.StartupCost), T.Treasury >= d.StartupCost ? Ui.Text : Ui.Warn);
                 double staff = 0; foreach (var j in d.Jobs) staff += Defs.Get(j.Role).Wage * j.Count;

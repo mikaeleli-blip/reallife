@@ -23,6 +23,9 @@ namespace RealLife.Simulation
         void FirmOwns(Building b, Building firm) { b.Owner = Owner.Firm; b.OwnerId = firm.Id; b.OwnerName = Title(firm); }
 
         /// <summary>The bank takes a building back: a shut business, a repossessed home, a failed firm's flats.</summary>
+        /// <summary>The bank's own building (a branch it built, or one it took back), not a family's or a firm's.</summary>
+        public bool BanksOwn(Building b) { return b.Owner == Owner.Firm && b.OwnerId < 0 && b.OwnerName == BankName; }
+
         void BankTakes(Building b)
         {
             b.Owner = Owner.Firm; b.OwnerId = -1; b.OwnerName = BankName;

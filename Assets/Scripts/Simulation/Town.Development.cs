@@ -60,9 +60,10 @@ namespace RealLife.Simulation
             var d = Defs.Get(t);
             if (!d.PlayerBuilds) return "Developers build that on zoned land.";
             if (t == BuildingType.TownHall && Buildings.Any(b => b.Type == BuildingType.TownHall)) return "The town already has a town hall.";
+            if (t == BuildingType.Bank && Buildings.Any(b => b.Type == BuildingType.Bank && !(b.Built && b.Closed))) return "The town already has a bank.";
             if (!FootprintFree(x, y, d.W, d.H)) return "Not enough clear land.";
             if (FindFacing(x, y, d.W, d.H) < 0) return "Needs a road alongside.";
-            if (Treasury - d.StartupCost < -5000000) return "The town can't borrow any more.";
+            if (t != BuildingType.Bank && Treasury - d.StartupCost < -5000000) return "The town can't borrow any more.";
             return null;
         }
 
@@ -72,9 +73,13 @@ namespace RealLife.Simulation
             var d = Defs.Get(t);
             var b = AddBuilding(t, x, y, FindFacing(x, y, d.W, d.H), false);
             b.Owner = Owner.Town;
+            // the bank's branch: you choose the spot, the bank builds it from its own money and runs it
+            bool bank = t == BuildingType.Bank;
+            if (bank) { BankTakes(b); b.Brand = BankName; }
             for (int ty = y; ty < y + d.H; ty++) for (int tx = x; tx < x + d.W; tx++) SetZoneBits(tx, ty, Zone.None);
             StartConstruction(b, null);
-            AddLog("Work started on a new " + d.Name.ToLower() + " (" + Money(d.StartupCost) + ").", LogKind.Info, b.Id);
+            AddLog(bank ? "Work started on " + BankName + "'s branch in town; the bank is paying for it (" + Money(d.StartupCost) + ")."
+                        : "Work started on a new " + d.Name.ToLower() + " (" + Money(d.StartupCost) + ").", LogKind.Info, b.Id);
             return b;
         }
 
@@ -85,6 +90,7 @@ namespace RealLife.Simulation
             if (b == null) return ZoneAt(x, y) != Zone.None ? null : "Nothing here.";
             if (b.Type == BuildingType.FreightTerminal) return "That's the state highway.";
             if (b.Owner == Owner.Town || b.Def.Cat == Category.Public) return null;
+            if (!b.Built && b.Type == BuildingType.Bank && BanksOwn(b)) return null;   // the branch you placed, still going up
             if (!b.Built) return "Private construction site.";
             if (b.Closed && b.Employees.Count == 0) return null;
             if (b.Def.Homes > 0 && b.Households.Count == 0 && b.Owner != Owner.Household) return null;
@@ -102,6 +108,7 @@ namespace RealLife.Simulation
             var b = BuildingAt(x, y);
             if (b == null) { SetZoneBits(x, y, Zone.None); MapVersion++; return true; }
             if (b.Owner == Owner.Town) { double c = b.Value * DemolishCost; Treasury -= c; Book.Construction += c; }
+            else if (!b.Built && b.Type == BuildingType.Bank && BanksOwn(b)) { }   // the bank stops work on its branch, at its own cost
             else { double c = b.Value * 0.6; Treasury -= c; Book.Construction += c; SellerGets(b, c, false); }   // the town buys it out first
             AddLog("The " + b.Def.Name.ToLower() + " was demolished.", LogKind.Info);
             if (b.Def.Cat == Category.Public)
@@ -262,6 +269,13 @@ namespace RealLife.Simulation
                 office.Cash -= put; b.Cash += put;
                 if (put < working) { NewLoan(LoanKind.Business, null, b, working - put, Balance.BusinessRate, Balance.BusinessMonths); b.Cash += working - put; }
                 AddLog("A new " + b.Def.Chain + " store opened and is hiring.", LogKind.Good, b.Id);
+            }
+            else if (BanksOwn(b))
+            {
+                // the bank's own branch: it puts in the working capital itself
+                BankCapital -= working; b.Cash += working;
+                if (BankCapital < 0) { BankFunding += -BankCapital; BankCapital = 0; }
+                AddLog(Title(b) + " opened its branch and is hiring.", LogKind.Good, b.Id);
             }
             else
             {
@@ -637,8 +651,8 @@ namespace RealLife.Simulation
             }
             // ---------------------------------------------------------------- shops and services
             float comDemand = 0;
-            // the car trade and the bank, each one kind of place
-            foreach (var t in new[] { BuildingType.CarDealer, BuildingType.AutoRepair, BuildingType.Bank })
+            // the car trade, each one kind of place (the bank is yours to place: the Build menu)
+            foreach (var t in new[] { BuildingType.CarDealer, BuildingType.AutoRepair })
             {
                 var d = Defs.Get(t);
                 var same = Buildings.Where(b => b.Type == t).ToList();

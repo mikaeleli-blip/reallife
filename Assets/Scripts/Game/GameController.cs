@@ -333,7 +333,7 @@ namespace RealLife.Game
             var tiles = new List<Vector2Int>();
             for (int ty = y; ty < y + d.H; ty++) for (int tx = x; tx < x + d.W; tx++) if (Town.InBounds(tx, ty)) tiles.Add(new Vector2Int(tx, ty));
             View.ShowGhost(tiles, why == null ? new Color32(80, 220, 120, 150) : new Color32(255, 80, 80, 150));
-            ToolTip = d.Name + ": " + Town.Money(d.StartupCost) + "\n" + d.Blurb + (why != null ? "\n" + Ui_Red(why) : "\nClick to build.");
+            ToolTip = d.Name + ": " + (PlaceType == BuildingType.Bank ? "paid for by " + Town.BankName : Town.Money(d.StartupCost)) + "\n" + d.Blurb + (why != null ? "\n" + Ui_Red(why) : "\nClick to build.");
             if (click && why == null)
             {
                 var b = Town.PlacePublic(PlaceType, x, y);

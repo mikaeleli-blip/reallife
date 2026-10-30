@@ -91,7 +91,8 @@ gyms, salons and garages sell services. Farms grow crops for the food plant on F
 factories, if you like); factories export what the town can't buy at world prices. Offices work mostly for the town itself (see below) and are the best-paid jobs, if the town has the graduates to staff them.
 Construction companies build everything and do repair work (when the ones here are booked up for months, contractors from
 out of town take the overflow at a higher price, which is what brings another builder to town); trucking depots haul goods (without one, outside hauliers charge
-more). The bank lends for homes, cars, college and businesses. Every month each business pays wages, utilities, upkeep and
+more). The bank lends for homes, cars, college and businesses; its branch in town is yours to place (Build menu, one per
+town): the bank pays to build it, staffs it and keeps its profits, so it costs the town nothing. Every month each business pays wages, utilities, upkeep and
 taxes, its owner takes what's above a cushion, and it decides how many staff it needs and what to charge: prices rise when it
 turns customers away and fall when stock piles up; wages rise when it can't hire. Every business belongs to a family in town:
 the founders put in some savings and the bank lends the rest. When the owners leave or die without an heir, the staff or

@@ -355,6 +355,7 @@ namespace RealLife.Simulation
                     var oh = b.Owner == Owner.Household ? GetHousehold(b.OwnerId) : null;
                     var office = OwnerFirm(b);
                     if (oh != null) { b.Cash -= draw; HouseholdEarns(oh, draw, HouseholdBook.Business); }
+                    else if (BanksOwn(b)) { b.Cash -= draw; BankCapital += draw; }   // the bank's branch: its profit is the bank's
                     else if (office != null && office.Def.HeadOf.HasValue && office.Open) { b.Cash -= draw; office.Cash += draw; office.Revenue += draw; office.StoreDraws += draw; }
                 }
                 if (b.Cash < 0 && !OwnersPutIn(b, -b.Cash + MonthlyCosts(b)) && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }

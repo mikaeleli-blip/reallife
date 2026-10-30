@@ -389,8 +389,8 @@ namespace RealLife.Simulation
             d.Jobs = J(Role.Trainer, 3, Role.Receptionist, 1); d.Serves = Service.Fitness; d.ServicePrice = 15; d.Output = 110; d.MinPop = 260; d.Value = 260000;
             d = D(BuildingType.Office, "Office building", 2, 2, Category.Commercial, Zone.Commercial, 900000, 360, "A big firm: accountants and clerks doing the town's books, developers doing its IT. Needs educated people.");
             d.Jobs = J(Role.OfficeClerk, 6, Role.Accountant, 4, Role.Developer, 6); d.MinPop = 0; d.Value = 2000000; d.Floors = 6;
-            d = D(BuildingType.Bank, "Bank", 2, 1, Category.Commercial, Zone.Commercial, 300000, 110, "Lends for homes, cars, college and businesses.");
-            d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 150; d.Value = 600000; d.Floors = 2;
+            d = D(BuildingType.Bank, "Bank", 2, 1, Category.Commercial, Zone.Commercial, 300000, 110, "Lends for homes, cars, college and businesses. You choose where it goes; the bank pays to build it and runs it.");
+            d.Jobs = J(Role.BranchManager, 1, Role.LoanOfficer, 2, Role.Teller, 2); d.MinPop = 150; d.Value = 600000; d.Floors = 2; d.PlayerBuilds = true;
 
             // ---------------------------------------------------------------- Industrial
             d = D(BuildingType.Farm, "Farm", 3, 3, Category.Industrial, Zone.Farmland, 180000, 80, "Grows crops for the food plant. Surplus is sold out of town. Farms go on farmland.");

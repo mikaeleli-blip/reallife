@@ -237,6 +237,7 @@ static class Program
                 Zone(15, 59, 25, 63, RealLife.Simulation.Zone.Farmland); Zone(27, 59, 37, 63, RealLife.Simulation.Zone.Farmland);
             }
             if (pop >= 200 && !Has(BuildingType.Police)) Place(BuildingType.Police, 45, 41);
+            if (pop >= 160 && !Has(BuildingType.Bank)) Place(BuildingType.Bank, 51, 47);
             if (pop >= 260 && !Has(BuildingType.FireStation)) Place(BuildingType.FireStation, 51, 53);
             if (m == 24) Zone(65, 53, 71, 63, RealLife.Simulation.Zone.Industrial);
             if (pop >= 150 && !Has(BuildingType.Park)) Place(BuildingType.Park, 39, 47);
