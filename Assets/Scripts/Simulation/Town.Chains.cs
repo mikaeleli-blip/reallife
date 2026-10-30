@@ -58,7 +58,8 @@ namespace RealLife.Simulation
             var sellers = Buildings.Where(b => b.Open && b.Def.Sells == Good.Groceries).ToList();
             double ours = ChainPrice(t) * (1 - d.Appeal * 0.8);
             double cheapest = sellers.Count > 0 ? sellers.Min(b => b.Price * (1 - b.Def.Appeal * 0.8)) : ours * 1.15;
-            int chains = sellers.Count(b => b.Def.Chain != null);
+            // the other chains' stores, open or still going up: a store a rival is building will take its share too
+            int chains = Buildings.Count(b => b.Def.Chain != null && b.Type != t && (b.Open || !b.Built));
             double r = cheapest / ours;
             double share = Math.Min(0.6, ChainShare * r * r * r) / (1 + 0.5 * chains);
             if (d.NeedsCar) share *= Households.Count > 0 ? Households.Count(h => CarCount(h) > 0) / (double)Households.Count : 0;
@@ -210,12 +211,14 @@ namespace RealLife.Simulation
             var d = Defs.Get(t);
             var ot = d.Office.Value;
             int x, y;
-            if (!FindLot(ot, out x, out y)) { p.Kind = ot; p.State = Outlook.NoLot; Wants[(int)ot] += 0.5f; LotShort[(int)Zone.Commercial] = true; return null; }
+            // an empty head office of the chain's (the old company went under) is bought back from the bank first
+            var shutHq = Buildings.FirstOrDefault(o => o.Type == ot && o.Closed && o.Built && Connected(o));
+            if (shutHq == null && !FindLot(ot, out x, out y)) { p.Kind = ot; p.State = Outlook.NoLot; Wants[(int)ot] += 0.5f; LotShort[(int)Zone.Commercial] = true; return null; }
             var shut = Buildings.FirstOrDefault(o => o.Type == t && o.Closed && o.Built && Connected(o));
             if (shut == null && !FindLot(t, out x, out y)) { p.State = Outlook.NoLot; Wants[(int)t] += 0.5f; LotShort[(int)Zone.Commercial] = true; return null; }
             var founder = Entrepreneur(t);
             if (founder == null || founder.Cash < FoundersStake(t) + FoundersStake(ot) + 10000) { p.State = Outlook.NoBacker; NoInvestor = t; DevNote("no founder for " + d.Chain); return null; }
-            var office = Develop(ot, founder, null);
+            var office = shutHq != null ? Reopen(shutHq, founder) : Develop(ot, founder, null);
             if (office == null) { p.Kind = ot; p.State = Outlook.NoLot; return null; }
             office.Brand = d.Chain + " head office";
             Building store;
@@ -246,7 +249,8 @@ namespace RealLife.Simulation
             if (owner == null) return null;
             if (owner.Cash < FoundersStake(ot) + 10000) { DevNote(d.Chain + ": owners can't fund a head office yet"); return null; }
             officeWhy = Outlook.NoLot;
-            var o = Develop(ot, owner, null);
+            var shutHq = Buildings.FirstOrDefault(b => b.Type == ot && b.Closed && b.Built && Connected(b));
+            var o = shutHq != null ? Reopen(shutHq, owner) : Develop(ot, owner, null);
             if (o == null) return null;
             o.Brand = d.Chain + " head office";
             AddLog("The " + owner.Name + " family is setting up a head office to run " + d.Chain + ".", LogKind.Good, o.Id);

@@ -247,6 +247,8 @@ namespace RealLife.Simulation
             // and its first stock: a shop's shelves, or a month of a plant's materials
             double stock = d.Sells.HasValue ? d.StockCap * Defs.Wholesale[(int)d.Sells.Value] * 0.4 : SuppliesPerMonth(b);
             double working = PayAndBills(b) * (b.Type == BuildingType.Realty ? 6 : b.Type == BuildingType.Construction ? 3.5 : 2.5) + stock + OpeningLegal + OpeningDesign;
+            // a head office opens before its first store: enough to carry it and its executive's first months
+            if (d.HeadOf.HasValue) working += (Defs.Get(Role.Executive).Wage + d.TotalJobs * Balance.UtilitiesJob + d.Value * (Balance.Maintenance + Policy.PropertyTax) / 12) * 4;
             if (b.Owner == Owner.Household)
             {
                 var h = GetHousehold(b.OwnerId);

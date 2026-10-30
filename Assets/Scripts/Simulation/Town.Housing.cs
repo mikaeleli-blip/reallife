@@ -326,7 +326,9 @@ namespace RealLife.Simulation
             // (and a property firm with homes going up, on the market, or just finished and filling with tenants)
             bool pipeline = Day - b.BuiltDay < Balance.DaysPerYear / 2 || (b.Type == BuildingType.Realty && Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2)) || RentCarries(b) ||
                             (b.Type == BuildingType.Construction && Buildings.Any(o => !o.Built && o.ContractorId == b.Id));
-            if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && b.LastRevenue < MonthlyCosts(b) * 0.5) return false;
+            // (a chain's head office takes in what its stores send up: judge it by the stores' takings)
+            double takings = b.Def.HeadOf.HasValue ? b.LastRevenue + StoresOf(b).Sum(o => o.LastRevenue) : b.LastRevenue;
+            if (!pipeline && b.LossMonths >= (b.Type == BuildingType.Farm ? 7 : 3) && takings < MonthlyCosts(b) * 0.5) return false;
             // a new business gets the benefit of the doubt in its first year: lent up to what it's worth
             bool young = Day - b.BuiltDay < Balance.DaysPerYear;
             if (Debt(b) + amount > Collateral(b) * (young ? 1.0 : 0.8)) return false;
@@ -353,7 +355,7 @@ namespace RealLife.Simulation
                 if (biz != null)
                 {
                     // short this month (a new block still filling with tenants, say): the owners, or the bank, tide it over
-                    if (biz.Cash < due && !biz.Closed) { double gap = due - Math.Max(0, biz.Cash) + 1; if (!OwnersPutIn(biz, gap)) BusinessLoan(biz, gap); }
+                    if (biz.Cash < due && !biz.Closed) { double gap = CompanyCovers(biz, due - Math.Max(0, biz.Cash) + 1); if (gap > 0 && !OwnersPutIn(biz, gap)) BusinessLoan(biz, gap); }
                     if (biz.Cash >= due) { biz.Cash -= due; biz.OtherCosts += interest; paid = true; }
                 }
                 else if (h != null && l.Kind != LoanKind.Business) { if (h.Cash >= due) { HouseholdPays(h, due, HouseholdBook.Debt); paid = true; } }

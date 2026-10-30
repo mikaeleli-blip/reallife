@@ -57,6 +57,20 @@ static class Program
             for (int y = 64; y < 75; y++) for (int x = 38; x < 56; x++) t.SetZone(x, y, Zone.Residential);
             for (int x = 38; x <= 56; x++) t.PlaceRoad(x, 70);
         }
+        // CHAINCASE=1: what each chain's first store would make here, as the chains decide it
+        if (Environment.GetEnvironmentVariable("CHAINCASE") == "1")
+        {
+            var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var pays = typeof(Town).GetMethod("ChainPays", bf); var margin = typeof(Town).GetMethod("ChainMargin", bf);
+            var run = typeof(Town).GetMethod("RunningCost", bf); var hq = typeof(Town).GetMethod("HeadOfficeCost", bf); var market = typeof(Town).GetMethod("GroceryMarket", bf);
+            Console.WriteLine("grocery market " + Town.Money((double)market.Invoke(t, null)));
+            foreach (var ct in Town.ChainTypes)
+            {
+                var a2 = new object[] { ct, 0.0 };
+                bool ok = (bool)pays.Invoke(t, a2); double rev = (double)a2[1];
+                Console.WriteLine("  " + ct + " pays " + ok + " rev " + Town.Money(rev) + " margin " + ((double)margin.Invoke(t, new object[] { ct })).ToString("0.00") + " running " + Town.Money((double)run.Invoke(t, new object[] { ct, rev })) + " hq " + Town.Money((double)hq.Invoke(t, new object[] { ct, rev })));
+            }
+        }
         if (Environment.GetEnvironmentVariable("BRANDS") == "1")
             foreach (var b in t.Buildings.Where(x => !string.IsNullOrEmpty(x.Brand) && Town.ChainOf(x) != null)) Console.WriteLine("  brand " + b.Type + " " + b.Brand + " / " + b.OwnerName);
         Header();

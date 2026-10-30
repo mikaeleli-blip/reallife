@@ -23,6 +23,18 @@ namespace RealLife.Simulation
         void FirmOwns(Building b, Building firm) { b.Owner = Owner.Firm; b.OwnerId = firm.Id; b.OwnerName = Title(firm); }
 
         /// <summary>The bank takes a building back: a shut business, a repossessed home, a failed firm's flats.</summary>
+        /// <summary>Saves from before a chain could draw on its own stores' money: a head office that went under for want of
+        /// cash on hand doesn't count as the chain having failed here, so someone may found it again soon.</summary>
+        void ForgiveChainFailures()
+        {
+            foreach (var t in ChainTypes)
+            {
+                LastFailDay[(int)t] = PrevFailDay[(int)t] = -9999;
+                var o = Defs.Get(t).Office;
+                if (o.HasValue) LastFailDay[(int)o.Value] = PrevFailDay[(int)o.Value] = -9999;
+            }
+        }
+
         /// <summary>The bank's own building (a branch it built, or one it took back), not a family's or a firm's.</summary>
         public bool BanksOwn(Building b) { return b.Owner == Owner.Firm && b.OwnerId < 0 && b.OwnerName == BankName; }
 
@@ -101,6 +113,13 @@ namespace RealLife.Simulation
         {
             double v = b.Value;
             if (b.Type == BuildingType.Realty) foreach (var o in Portfolio(b)) v += o.Value;
+            // a chain's head office borrows against the company: its stores and what's on their shelves
+            if (b.Def.HeadOf.HasValue)
+                foreach (var o in Portfolio(b))
+                {
+                    v += o.Value;
+                    if (o.Stock != null) for (int g = 0; g < o.Stock.Length; g++) v += o.Stock[g] * Defs.Wholesale[g];
+                }
             // and what's on the shelves or in the yard
             if (b.Stock != null) for (int g = 0; g < b.Stock.Length; g++) v += b.Stock[g] * Defs.Wholesale[g];
             return v;
@@ -390,6 +409,7 @@ namespace RealLife.Simulation
                 if (SaveVersion < 4) MigrateFlats();
                 if (SaveVersion < 5) WindDownContracts();
                 if (SaveVersion < 6) RenameChains();
+                if (SaveVersion < 7) ForgiveChainFailures();
                 SaveVersion = CurrentVersion; return;
             }
             foreach (var b in Buildings)

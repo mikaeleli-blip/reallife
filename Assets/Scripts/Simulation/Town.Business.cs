@@ -252,6 +252,31 @@ namespace RealLife.Simulation
 
         /// <summary>A short month: the owning family tides the business over from its savings, if it can spare it and the business
         /// isn't plainly failing (it lost money five months running).</summary>
+        /// <summary>A chain is one company: a head office short of money draws on its stores' accounts, and a store on its head
+        /// office's, each keeping half a month's costs. Returns what's still missing.</summary>
+        double CompanyCovers(Building b, double need)
+        {
+            if (need <= 0) return 0;
+            List<Building> pool;
+            if (b.Def.HeadOf.HasValue) pool = StoresOf(b);
+            else
+            {
+                var hq = OwnerFirm(b);
+                if (hq == null || !hq.Def.HeadOf.HasValue || !hq.Open) return need;
+                pool = new List<Building> { hq };
+            }
+            foreach (var o in pool)
+            {
+                if (o == b) continue;
+                double spare = o.Cash - PayAndBills(o) * 0.5 - SuppliesPerMonth(o) * 0.25;
+                if (spare <= 0) continue;
+                double take = Math.Min(spare, need);
+                o.Cash -= take; b.Cash += take; need -= take;
+                if (need <= 0.01) return 0;
+            }
+            return need;
+        }
+
         bool OwnersPutIn(Building b, double need)
         {
             if (b.Owner != Owner.Household || (b.LossMonths >= 5 && !RentCarries(b))) return false;
@@ -280,8 +305,8 @@ namespace RealLife.Simulation
                 foreach (var c in staff) total += c.Wage * Math.Min(1.0, c.DaysWorked / (double)Balance.DaysPerMonth);
                 if (!pub && b.Cash < total)
                 {
-                    double need = total - b.Cash + MonthlyCosts(b) * 0.5;
-                    if (!OwnersPutIn(b, need) && !BusinessLoan(b, need))
+                    double need = CompanyCovers(b, total - b.Cash + MonthlyCosts(b) * 0.5);
+                    if (need > 0 && !OwnersPutIn(b, need) && !BusinessLoan(b, need))
                     {
                         CloseBusiness(b, "it couldn't make payroll");
                         // what's in the account goes to the staff, a share each
@@ -358,13 +383,19 @@ namespace RealLife.Simulation
                     else if (BanksOwn(b)) { b.Cash -= draw; BankCapital += draw; }   // the bank's branch: its profit is the bank's
                     else if (office != null && office.Def.HeadOf.HasValue && office.Open) { b.Cash -= draw; office.Cash += draw; office.Revenue += draw; office.StoreDraws += draw; }
                 }
-                if (b.Cash < 0 && !OwnersPutIn(b, -b.Cash + MonthlyCosts(b)) && !BusinessLoan(b, -b.Cash + MonthlyCosts(b))) { CloseBusiness(b, "it ran out of money"); continue; }
+                if (b.Cash < 0)
+                {
+                    double short_ = CompanyCovers(b, -b.Cash + MonthlyCosts(b));
+                    if (short_ > 0 && !OwnersPutIn(b, short_) && !BusinessLoan(b, short_)) { CloseBusiness(b, "it ran out of money"); continue; }
+                }
                 // a farm loses money every winter; give it the year
                 int patience = b.Type == BuildingType.Farm ? 9 : 5;
                 // a property firm between sales isn't failing while it has houses going up or on the market
                 // (or with a block just finished, still filling with tenants, or rent coming in that carries its loans)
                 bool selling = b.Type == BuildingType.Realty && (Portfolio(b).Any(o => !o.Built || o.ForSale || Day - o.BuiltDay < Balance.DaysPerYear / 2) || RentCarries(b));
-                if (b.LossMonths >= patience && b.Cash < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
+                // (a chain's head office is judged by the whole company's money: its own and its stores')
+                double onHand = b.Def.HeadOf.HasValue ? b.Cash + StoresOf(b).Sum(o => Math.Max(0, o.Cash - MonthlyCosts(o) * 0.5)) : b.Cash;
+                if (b.LossMonths >= patience && onHand < MonthlyCosts(b) && !selling) { CloseBusiness(b, "it lost money " + (patience == 5 ? "five" : "nine") + " months running"); continue; }
                 Staffing(b);
                 Pricing(b);
             }
